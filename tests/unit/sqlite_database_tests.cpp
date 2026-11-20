@@ -76,3 +76,62 @@ TEST_CASE("SQLite storage rejects invalid progress and records") {
     REQUIRE(id);
     CHECK_FALSE(database.update_download_progress(*id, 11, vortex::DownloadState::running, 1).has_value());
 }
+
+
+TEST_CASE("SQLite native request IDs make enqueue durable and idempotent") {
+    TemporaryDatabase temporary;
+    vortex::SqliteDatabase database;
+    REQUIRE(database.open(temporary.path()).has_value());
+    REQUIRE(database.migrate().has_value());
+
+    vortex::DownloadRecord record;
+    record.url = "https://example.test/native.bin";
+    record.destination = "native.bin";
+    record.total_bytes = 42;
+    record.created_at_unix = 20;
+    record.updated_at_unix = 20;
+
+    const auto first = database.enqueue_download_once("native-request-001", record);
+    REQUIRE(first);
+    const auto replay = database.enqueue_download_once("native-request-001", record);
+    REQUIRE(replay);
+    CHECK(*replay == *first);
+
+    const auto rows = database.list_downloads();
+    REQUIRE(rows);
+    CHECK(rows->size() == 1);
+
+    CHECK_FALSE(database.enqueue_download_once("", record).has_value());
+    CHECK_FALSE(database.enqueue_download_once(std::string(129, 'x'), record).has_value());
+}
+
+TEST_CASE("SQLite native request deduplication survives reopening the database") {
+    TemporaryDatabase temporary;
+    vortex::DownloadRecord record;
+    record.url = "https://example.test/persistent.bin";
+    record.destination = "persistent.bin";
+    record.created_at_unix = 30;
+    record.updated_at_unix = 30;
+
+    std::int64_t original_id{};
+    {
+        vortex::SqliteDatabase database;
+        REQUIRE(database.open(temporary.path()).has_value());
+        REQUIRE(database.migrate().has_value());
+        const auto inserted = database.enqueue_download_once("persistent-request", record);
+        REQUIRE(inserted);
+        original_id = *inserted;
+        REQUIRE(database.close().has_value());
+    }
+    {
+        vortex::SqliteDatabase database;
+        REQUIRE(database.open(temporary.path()).has_value());
+        REQUIRE(database.migrate().has_value());
+        const auto replay = database.enqueue_download_once("persistent-request", record);
+        REQUIRE(replay);
+        CHECK(*replay == original_id);
+        const auto rows = database.list_downloads();
+        REQUIRE(rows);
+        CHECK(rows->size() == 1);
+    }
+}
