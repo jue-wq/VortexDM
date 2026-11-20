@@ -19,6 +19,7 @@ add_library(vortex_core STATIC
     src/core/storage/sqlite_database.cpp
     src/core/storage/offset_file_writer.cpp
     src/core/download/segment_planner.cpp
+    src/core/ipc/native_messaging_frame.cpp
 )
 add_library(VortexDM::Core ALIAS vortex_core)
 
@@ -54,6 +55,7 @@ if(VORTEXDM_BUILD_TESTS)
         tests/unit/offset_file_writer_tests.cpp
         tests/unit/segment_planner_tests.cpp
         tests/unit/download_state_machine_tests.cpp
+        tests/unit/native_messaging_frame_tests.cpp
     )
     target_link_libraries(vortex_unit_tests
         PRIVATE
