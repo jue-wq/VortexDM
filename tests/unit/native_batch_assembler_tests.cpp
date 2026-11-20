@@ -96,3 +96,13 @@ TEST_CASE("Native batch assembler accepts the extension maximum of 128 chunks") 
         }
     }
 }
+
+
+TEST_CASE("Native batch assembler rejects unsafe and non-HTTP URLs") {
+    vortex::NativeBatchAssembler assembler;
+    CHECK_FALSE(assembler.add({"ftp", 0, 1, {record("ftp://example.test/file")}}));
+    CHECK_FALSE(assembler.add({"relative", 0, 1, {record("/relative/file")}}));
+    CHECK_FALSE(assembler.add({"credentials", 0, 1, {record("https://user:pass@example.test/file")}}));
+    CHECK_FALSE(assembler.add({"whitespace", 0, 1, {record("https://example.test/a b")}}));
+    CHECK(assembler.pending_batches() == 0);
+}
