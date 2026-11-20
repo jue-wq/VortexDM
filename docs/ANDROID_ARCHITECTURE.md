@@ -22,6 +22,18 @@ Android presentation layer.
 
 ## Vortex Shield content blocking
 
+### Implemented bootstrap
+
+The Android app now bundles a GeckoView WebExtension at
+android/app/src/main/assets/vortex-shield. It is installed through
+WebExtensionController.ensureBuiltIn. The initial background script uses
+webRequest blocking against a deliberately small hostname set. This is a
+development bootstrap only: it is not an ABP parser, does not load filter
+subscriptions, and does not implement cosmetic filtering or uBlock Origin
+feature parity. The README next to the extension records these limitations.
+
+### Planned production behavior
+
 The browser must provide a wide-spectrum blocker inspired by uBlock Origin:
 
 1. Network filtering: block/allow rules, request types, third-party context,
@@ -38,7 +50,7 @@ The browser must provide a wide-spectrum blocker inspired by uBlock Origin:
 
 ## GeckoView integration decision
 
-Use GeckoView rather than Android WebView because GeckoView is designed for
+GeckoView is pinned to the 163.0.20261120154857 release line. Use GeckoView rather than Android WebView because GeckoView is designed for
 embedded browser use and exposes WebExtensions. Its
 WebExtensionController.installBuiltIn API can install app-bundled extensions.
 The Android browser should expose an extension manager and validate extension
@@ -66,6 +78,14 @@ behavior and excluded URL schemes.
   uninterrupted background transfers when Android may stop the process.
 - Use SAF document/tree URIs for user-selected destinations; do not assume
   unrestricted filesystem paths.
+
+## Browser shell status
+
+The current MainActivity provides a basic address/search field, Go, Back,
+Forward, and Reload controls. It is a functional navigation scaffold, not a
+finished tabbed browser. Tab lifecycle, session persistence, page-title and URL
+delegates, permission prompts, downloads, bookmarks, history, and private
+sessions remain to be implemented.
 
 ## JNI boundary
 
