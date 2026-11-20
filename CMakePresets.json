@@ -39,16 +39,6 @@
         "CMAKE_CXX_COMPILER": "clang++",
         "CMAKE_BUILD_TYPE": "Debug"
       }
-    },
-    {
-      "name": "macos-clang-debug",
-      "inherits": "base",
-      "displayName": "macOS Clang Debug",
-      "cacheVariables": {
-        "CMAKE_C_COMPILER": "clang",
-        "CMAKE_CXX_COMPILER": "clang++",
-        "CMAKE_BUILD_TYPE": "Debug"
-      }
     }
   ],
   "buildPresets": [
@@ -59,10 +49,6 @@
     {
       "name": "linux-clang-debug",
       "configurePreset": "linux-clang-debug"
-    },
-    {
-      "name": "macos-clang-debug",
-      "configurePreset": "macos-clang-debug"
     }
   ],
   "testPresets": [
@@ -76,13 +62,6 @@
     {
       "name": "linux-clang-debug",
       "configurePreset": "linux-clang-debug",
-      "output": {
-        "outputOnFailure": true
-      }
-    },
-    {
-      "name": "macos-clang-debug",
-      "configurePreset": "macos-clang-debug",
       "output": {
         "outputOnFailure": true
       }
