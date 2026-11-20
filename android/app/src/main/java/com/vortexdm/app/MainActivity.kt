@@ -41,7 +41,7 @@ class MainActivity : Activity() {
         }
         addressBar = EditText(this).apply {
             hint = "Search or enter address"
-            singleLine = true
+            setSingleLine(true)
             imeOptions = EditorInfo.IME_ACTION_GO
             setOnEditorActionListener { _, actionId, _ ->
                 if (actionId == EditorInfo.IME_ACTION_GO) {
@@ -88,7 +88,7 @@ class MainActivity : Activity() {
 
         val browserView = GeckoView(this).apply {
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
-            setSession(session)
+            setSession(this@MainActivity.session)
         }
         root.addView(browserView)
         setContentView(root)
@@ -114,7 +114,7 @@ class MainActivity : Activity() {
                 WebExtensionController.INSTALLATION_METHOD_MANAGER
             )
             .accept(
-                { extension -> pageStatusOrLog("uBlock Origin installed: ${extension.metaData.name}") },
+                { extension -> pageStatusOrLog("uBlock Origin installed: ${extension?.metaData?.name ?: "uBlock Origin"}") },
                 { error ->
                     Log.e("VortexDM", "uBlock Origin installation failed", error)
                     pageStatusOrLog("uBlock Origin could not be installed; see app log")
