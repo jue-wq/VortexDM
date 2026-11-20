@@ -2,6 +2,8 @@
 #include "core/ipc/native_messaging_stream.hpp"
 
 #include <cstdlib>
+#include <filesystem>
+#include <optional>
 #include <nlohmann/json.hpp>
 
 #ifdef _WIN32
@@ -19,6 +21,31 @@ constexpr std::string_view allowed_firefox_extension = "browser-bridge@vortexdm.
     // Firefox passes the extension ID as argv[1]. Chrome's origin format is
     // intentionally not accepted until a stable Chrome extension ID is pinned.
     return argc >= 2 && std::string_view(argv[1]) == allowed_firefox_extension;
+}
+
+[[nodiscard]] std::optional<std::filesystem::path> resolve_database_path() {
+    if (const char* override_path = std::getenv("VORTEXDM_DB_PATH");
+        override_path != nullptr && *override_path != '\0') {
+        return std::filesystem::path(override_path);
+    }
+
+#ifdef _WIN32
+    const char* data_root = std::getenv("LOCALAPPDATA");
+    if (data_root == nullptr || *data_root == '\0') return std::nullopt;
+    return std::filesystem::path(data_root) / "VortexDM" / "native-inbox.sqlite";
+#elif defined(__APPLE__)
+    const char* home = std::getenv("HOME");
+    if (home == nullptr || *home == '\0') return std::nullopt;
+    return std::filesystem::path(home) / "Library" / "Application Support" /
+           "VortexDM" / "native-inbox.sqlite";
+#else
+    if (const char* xdg = std::getenv("XDG_DATA_HOME"); xdg != nullptr && *xdg != '\0') {
+        return std::filesystem::path(xdg) / "vortexdm" / "native-inbox.sqlite";
+    }
+    const char* home = std::getenv("HOME");
+    if (home == nullptr || *home == '\0') return std::nullopt;
+    return std::filesystem::path(home) / ".local" / "share" / "vortexdm" / "native-inbox.sqlite";
+#endif
 }
 
 [[nodiscard]] int fail(const char* message, const int code) {
@@ -40,13 +67,18 @@ int main(const int argc, char** argv) {
         return fail("unauthorized or unpinned browser origin", 2);
     }
 
-    const char* database_path = std::getenv("VORTEXDM_DB_PATH");
-    if (database_path == nullptr || *database_path == '\0') {
-        return fail("VORTEXDM_DB_PATH must point to the writable application database", 3);
+    const auto database_path = resolve_database_path();
+    if (!database_path) {
+        return fail("could not resolve a per-user data directory", 3);
+    }
+    std::error_code directory_error;
+    std::filesystem::create_directories(database_path->parent_path(), directory_error);
+    if (directory_error) {
+        return fail("could not create the native inbox data directory", 3);
     }
 
     vortex::SqliteDatabase database;
-    if (const auto opened = database.open(database_path); !opened) {
+    if (const auto opened = database.open(*database_path); !opened) {
         return fail("could not open application database", 4);
     }
     if (const auto migrated = database.migrate(); !migrated) {
