@@ -66,7 +66,7 @@ int main(const int argc, char** argv) {
             const auto message = nlohmann::json::parse(**incoming);
             is_handshake = message.is_object() && message.value("type", std::string{}) == "handshake";
             if (is_handshake) {
-                if (handshake_accepted || !response->has_value()) {
+                if (handshake_accepted) {
                     (void)database.close();
                     return fail("duplicate or invalid handshake", 8);
                 }
