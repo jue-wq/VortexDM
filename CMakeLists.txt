@@ -9,7 +9,7 @@ project(VortexDM
 option(VORTEXDM_BUILD_TESTS "Build VortexDM tests" ON)
 option(VORTEXDM_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
 
-find_package(OpenSSL REQUIRED)
+find_package(OpenSSL REQUIRED)\nfind_package(CURL REQUIRED)
 find_package(spdlog CONFIG REQUIRED)
 find_package(unofficial-sqlite3 CONFIG REQUIRED)
 
@@ -32,7 +32,7 @@ target_include_directories(vortex_core
 )
 target_link_libraries(vortex_core
     PUBLIC
-        OpenSSL::Crypto
+        OpenSSL::Crypto\n        CURL::libcurl
         spdlog::spdlog
         unofficial::sqlite3::sqlite3
 )
