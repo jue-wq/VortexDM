@@ -54,5 +54,5 @@ TEST_CASE("HTTP client rejects invalid header field names and control bytes") {
     rejects("Bad Header: value");
     rejects(std::string{"X-Test: value"} + '\0' + "hidden");
     rejects(std::string{"X-Test: value"} + static_cast<char>(1) + "hidden");
-    rejects("X-Test: value\\r\\nInjected: true");
+    rejects("X-Test: value\r\nInjected: true");
 }
