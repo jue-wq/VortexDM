@@ -1,0 +1,40 @@
+#pragma once
+
+#include "core/common/result.hpp"
+#include "download_record.hpp"
+
+#include <filesystem>
+#include <mutex>
+#include <sqlite3.h>
+#include <vector>
+
+namespace vortex {
+
+class SqliteDatabase final {
+public:
+    SqliteDatabase() = default;
+    ~SqliteDatabase();
+
+    SqliteDatabase(const SqliteDatabase&) = delete;
+    SqliteDatabase& operator=(const SqliteDatabase&) = delete;
+
+    [[nodiscard]] Status open(const std::filesystem::path& path);
+    [[nodiscard]] Status close();
+    [[nodiscard]] Status migrate();
+    [[nodiscard]] Result<std::int64_t> insert_download(const DownloadRecord& record);
+    [[nodiscard]] Status update_download_progress(
+        std::int64_t id, std::int64_t downloaded_bytes, DownloadState state,
+        std::int64_t updated_at_unix
+    );
+    [[nodiscard]] Result<std::vector<DownloadRecord>> list_downloads();
+    [[nodiscard]] Status delete_download(std::int64_t id);
+
+private:
+    [[nodiscard]] Status execute(const char* sql);
+    [[nodiscard]] VortexError database_error(const char* context) const;
+
+    sqlite3* db_{};
+    mutable std::mutex mutex_;
+};
+
+} // namespace vortex
