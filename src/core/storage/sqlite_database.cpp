@@ -113,6 +113,10 @@ Status SqliteDatabase::migrate() {
         "CHECK(total_bytes = -1 OR downloaded_bytes <= total_bytes));"
         "CREATE INDEX IF NOT EXISTS idx_downloads_state_updated "
         "ON downloads(state, updated_at DESC);"
+        "CREATE TABLE IF NOT EXISTS native_request_dedup ("
+        "request_id TEXT PRIMARY KEY NOT NULL CHECK(length(request_id) BETWEEN 1 AND 128),"
+        "download_id INTEGER NOT NULL UNIQUE REFERENCES downloads(id) ON DELETE CASCADE,"
+        "created_at INTEGER NOT NULL DEFAULT (unixepoch()));"
         "INSERT OR IGNORE INTO schema_migrations(version, applied_at) "
         "VALUES(1, unixepoch());"
     );
@@ -152,6 +156,93 @@ Result<std::int64_t> SqliteDatabase::insert_download(const DownloadRecord& recor
     sqlite3_bind_int64(query, 8, record.updated_at_unix);
     if (sqlite3_step(query) != SQLITE_DONE) return std::unexpected(database_error("Insert download"));
     return sqlite3_last_insert_rowid(db_);
+}
+
+
+Result<std::int64_t> SqliteDatabase::enqueue_download_once(
+    const std::string_view request_id, const DownloadRecord& record
+) {
+    std::scoped_lock lock(mutex_);
+    if (!db_) return std::unexpected(VortexError::make(
+        ErrorCode::database_error, "Database is not open"
+    ));
+    if (request_id.empty() || request_id.size() > 128 ||
+        record.url.empty() || record.destination.empty() ||
+        record.total_bytes < -1 || record.downloaded_bytes < 0 ||
+        (record.total_bytes >= 0 && record.downloaded_bytes > record.total_bytes) ||
+        !valid_state(static_cast<std::int32_t>(record.state))) {
+        return std::unexpected(VortexError::make(
+            ErrorCode::invalid_argument, "Invalid request ID or download record"
+        ));
+    }
+
+    auto status = execute("BEGIN IMMEDIATE;");
+    if (!status) return std::unexpected(status.error());
+
+    Statement existing(db_, "SELECT download_id FROM native_request_dedup WHERE request_id=?;");
+    if (existing.result() != SQLITE_OK) {
+        (void)execute("ROLLBACK;");
+        return std::unexpected(database_error("Prepare native request lookup"));
+    }
+    sqlite3_bind_text(existing.get(), 1, request_id.data(),
+                      static_cast<int>(request_id.size()), SQLITE_TRANSIENT);
+    const int lookup_rc = sqlite3_step(existing.get());
+    if (lookup_rc == SQLITE_ROW) {
+        const auto id = sqlite3_column_int64(existing.get(), 0);
+        (void)execute("COMMIT;");
+        return id;
+    }
+    if (lookup_rc != SQLITE_DONE) {
+        auto error = database_error("Lookup native request");
+        (void)execute("ROLLBACK;");
+        return std::unexpected(std::move(error));
+    }
+
+    Statement insert(db_,
+        "INSERT INTO downloads(url,destination,total_bytes,downloaded_bytes,state,"
+        "checksum_sha256,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?);");
+    if (insert.result() != SQLITE_OK) {
+        auto error = database_error("Prepare native download insert");
+        (void)execute("ROLLBACK;");
+        return std::unexpected(std::move(error));
+    }
+    auto* query = insert.get();
+    sqlite3_bind_text(query, 1, record.url.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(query, 2, record.destination.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int64(query, 3, record.total_bytes);
+    sqlite3_bind_int64(query, 4, record.downloaded_bytes);
+    sqlite3_bind_int(query, 5, static_cast<int>(record.state));
+    sqlite3_bind_text(query, 6, record.checksum_sha256.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int64(query, 7, record.created_at_unix);
+    sqlite3_bind_int64(query, 8, record.updated_at_unix);
+    if (sqlite3_step(query) != SQLITE_DONE) {
+        auto error = database_error("Insert native download");
+        (void)execute("ROLLBACK;");
+        return std::unexpected(std::move(error));
+    }
+    const auto download_id = sqlite3_last_insert_rowid(db_);
+
+    Statement bind_request(db_,
+        "INSERT INTO native_request_dedup(request_id,download_id) VALUES(?,?);");
+    if (bind_request.result() != SQLITE_OK) {
+        auto error = database_error("Prepare native request binding");
+        (void)execute("ROLLBACK;");
+        return std::unexpected(std::move(error));
+    }
+    sqlite3_bind_text(bind_request.get(), 1, request_id.data(),
+                      static_cast<int>(request_id.size()), SQLITE_TRANSIENT);
+    sqlite3_bind_int64(bind_request.get(), 2, download_id);
+    if (sqlite3_step(bind_request.get()) != SQLITE_DONE) {
+        auto error = database_error("Bind native request ID");
+        (void)execute("ROLLBACK;");
+        return std::unexpected(std::move(error));
+    }
+    status = execute("COMMIT;");
+    if (!status) {
+        (void)execute("ROLLBACK;");
+        return std::unexpected(status.error());
+    }
+    return download_id;
 }
 
 Status SqliteDatabase::update_download_progress(
