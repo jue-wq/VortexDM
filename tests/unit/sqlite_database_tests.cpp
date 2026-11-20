@@ -153,8 +153,8 @@ TEST_CASE("SQLite storage rejects invalid states and non-printable native reques
     vortex::DownloadRecord valid;
     valid.url = "https://example.test/valid.bin";
     valid.destination = "valid.bin";
-    CHECK_FALSE(database.enqueue_download_once(std::string("bad\\0id", 6), valid).has_value());
-    CHECK_FALSE(database.enqueue_download_once("bad\\nrequest", valid).has_value());
+    CHECK_FALSE(database.enqueue_download_once(std::string("bad\0id", 6), valid).has_value());
+    CHECK_FALSE(database.enqueue_download_once("bad\nrequest", valid).has_value());
 
     const auto rows = database.list_downloads();
     REQUIRE(rows);
