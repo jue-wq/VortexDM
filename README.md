@@ -1,30 +1,46 @@
 # VortexDM
 
-Modern C++23 desktop download manager. The repository is being initialized from the
-project's technical architecture and six-phase development plan.
+Modern C++23 download manager for **Windows, Linux, and Android**. Android is
+a first-class mobile product with a GeckoView browser and Vortex Shield content
+blocking. macOS is not a supported target.
 
 ## Current status
 
-- [x] Phase 1 repository and build-system foundation
-- [ ] Phase 1 storage, crash-safe writer, and CI
+- [x] Phase 1 repository and desktop build-system foundation
+- [x] Android Gradle / GeckoView application bootstrap
+- [x] Android browser address bar and navigation controls
+- [x] Bundled Vortex Shield WebExtension bootstrap
+- [x] Android CI job replacing macOS CI
+- [ ] Phase 1 SQLite storage, crash-safe writer, and CI validation
+- [ ] ABP/uBlock-compatible filter parser, subscriptions, and cosmetic filters
+- [ ] Official uBlock Origin extension compatibility validation
 - [ ] Phase 2 segmented HTTP engine and CLI
 - [ ] Phase 3 toolchain manager
 - [ ] Phase 4 media extraction and streaming
 - [ ] Phase 5 queues and IPC
-- [ ] Phase 6 Qt 6 / QML desktop UI
+- [ ] Phase 6 Qt 6 / QML desktop UI and Android mobile UI
 
-## Build (CMake + vcpkg)
+## Desktop build (CMake + vcpkg)
 
 Requirements: CMake 3.28+, a C++23 compiler, Git, and vcpkg.
 
-```sh
-cmake --preset linux-clang-debug
-cmake --build --preset linux-clang-debug
-ctest --preset linux-clang-debug
-```
+    cmake --preset linux-clang-debug
+    cmake --build --preset linux-clang-debug
+    ctest --preset linux-clang-debug
 
-On Windows, use `windows-msvc-debug`. On macOS, use `macos-clang-debug`.
+On Windows, use windows-msvc-debug.
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for non-negotiable module
-boundaries and engineering rules. Phase-specific acceptance criteria remain in
-the supplied technical plan.
+## Android build
+
+Requirements: JDK 17, Gradle 8.13, Android SDK 36, Android NDK 28.2,
+and CMake 3.31.6.
+
+    gradle -p android assembleDebug
+
+The current Android build is a browser and blocker bootstrap, not yet a
+production download manager. Vortex Shield currently blocks a small set of
+domains; it does not yet parse EasyList/ABP syntax or provide uBlock Origin
+feature parity.
+
+See docs/ARCHITECTURE.md and docs/ANDROID_ARCHITECTURE.md for module
+boundaries and Android-specific design decisions.
