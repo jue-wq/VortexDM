@@ -1,6 +1,7 @@
 package com.vortexdm.app
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.os.Bundle
 import android.view.Gravity
 import android.view.ViewGroup
@@ -11,8 +12,11 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.util.Log
 import org.mozilla.geckoview.GeckoRuntime
+import org.mozilla.geckoview.GeckoResult
 import org.mozilla.geckoview.GeckoSession
 import org.mozilla.geckoview.GeckoView
+import org.mozilla.geckoview.WebExtension
+import org.mozilla.geckoview.WebExtensionController
 
 class MainActivity : Activity() {
     private lateinit var runtime: GeckoRuntime
@@ -23,6 +27,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         runtime = GeckoRuntime.create(this)
+        configureExtensionPermissionPrompts()
         session = GeckoSession()
         session.open(runtime)
 
@@ -104,7 +109,10 @@ class MainActivity : Activity() {
     private fun installOfficialUblockOrigin() {
         pageStatusOrLog("Requesting official uBlock Origin add-on")
         runtime.webExtensionController
-            .install("https://addons.mozilla.org/firefox/downloads/latest/ublock-origin/latest.xpi")
+            .install(
+                "https://addons.mozilla.org/firefox/downloads/latest/ublock-origin/latest.xpi",
+                WebExtensionController.INSTALLATION_METHOD_MANAGER
+            )
             .accept(
                 { extension -> pageStatusOrLog("uBlock Origin installed: ${extension.metaData.name}") },
                 { error ->
@@ -112,6 +120,49 @@ class MainActivity : Activity() {
                     pageStatusOrLog("uBlock Origin could not be installed; see app log")
                 }
             )
+    }
+
+    private fun configureExtensionPermissionPrompts() {
+        runtime.webExtensionController.setPromptDelegate(
+            object : WebExtensionController.PromptDelegate {
+                override fun onInstallPromptRequest(
+                    extension: WebExtension,
+                    permissions: Array<String>,
+                    origins: Array<String>,
+                    dataCollectionPermissions: Array<String>
+                ): GeckoResult<WebExtension.PermissionPromptResponse> {
+                    val result = GeckoResult<WebExtension.PermissionPromptResponse>()
+                    val requested = buildList {
+                        addAll(permissions)
+                        addAll(origins)
+                        addAll(dataCollectionPermissions)
+                    }.distinct().joinToString("\\n")
+                    AlertDialog.Builder(this@MainActivity)
+                        .setTitle("Install ${extension.metaData.name}?")
+                        .setMessage(
+                            "This extension requests the following permissions:\\n\\n" +
+                                requested + "\\n\\nOnly continue if you trust this add-on."
+                        )
+                        .setPositiveButton("Install") { _, _ ->
+                            result.complete(
+                                WebExtension.PermissionPromptResponse(true, false, false)
+                            )
+                        }
+                        .setNegativeButton("Cancel") { _, _ ->
+                            result.complete(
+                                WebExtension.PermissionPromptResponse(false, false, false)
+                            )
+                        }
+                        .setOnCancelListener {
+                            result.complete(
+                                WebExtension.PermissionPromptResponse(false, false, false)
+                            )
+                        }
+                        .show()
+                    return result
+                }
+            }
+        )
     }
 
     private fun pageStatusOrLog(message: String) {
