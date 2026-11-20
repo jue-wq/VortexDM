@@ -80,7 +80,7 @@ int main(const int argc, char** argv) {
 
     vortex::SqliteDatabase database;
     if (const auto opened = database.open(*database_path); !opened) {
-        return fail("could not open application database", 4);
+        return fail("could not open native inbox database", 4);
     }
     if (const auto migrated = database.migrate(); !migrated) {
         (void)database.close();
@@ -105,8 +105,8 @@ int main(const int argc, char** argv) {
         }
 
         // A handshake is mandatory and must be the first frame. The dispatcher
-        // returns no response for a valid handshake and for malformed handshake
-        // messages alike, so inspect the JSON type/version before accepting it.
+        // validates its shape; this loop additionally enforces ordering and
+        // rejects duplicate handshakes before accepting subsequent requests.
         bool is_handshake = false;
         try {
             const auto message = nlohmann::json::parse(**incoming);
