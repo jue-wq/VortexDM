@@ -55,3 +55,23 @@ TEST_CASE("Native batch assembler expires incomplete batches and enforces bounds
         {record("https://example.test/a"), record("https://example.test/b")}}, start + 7s));
     CHECK_FALSE(assembler.add({"", 0, 1, {record("https://example.test/a")}}, start + 7s));
 }
+
+
+TEST_CASE("Native batch assembler rejects unusable limits and malformed records") {
+    vortex::NativeBatchAssembler::Limits limits;
+    limits.max_bytes_per_batch = 0;
+    vortex::NativeBatchAssembler unusable(limits);
+    CHECK_FALSE(unusable.add({"bad-limits", 0, 1,
+        {record("https://example.test/a")}}));
+
+    vortex::NativeBatchAssembler assembler;
+    auto invalid = record("https://example.test/invalid");
+    invalid.total_bytes = 1;
+    invalid.downloaded_bytes = 2;
+    CHECK_FALSE(assembler.add({"bad-record", 0, 1, {invalid}}));
+
+    invalid = record("https://example.test/invalid-state");
+    invalid.state = static_cast<vortex::DownloadState>(99);
+    CHECK_FALSE(assembler.add({"bad-state", 0, 1, {invalid}}));
+    CHECK(assembler.pending_batches() == 0);
+}
