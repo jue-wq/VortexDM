@@ -1,19 +1,35 @@
 # Vortex Shield extension
 
-This bundled GeckoView WebExtension is the initial first-party network-blocking
-bootstrap. It blocks a small conservative set of known advertising/tracking
-hostnames using the WebExtensions webRequest API.
+Vortex Shield is a first-party GeckoView WebExtension. It currently supports a
+conservative ABP-compatible subset:
 
-It is not uBlock Origin, does not parse EasyList/ABP syntax, does not implement
-cosmetic filtering, and does not yet provide a user-facing rules dashboard.
-Do not market this bootstrap as full uBlock compatibility.
+- Seeded advertising/tracking hostnames.
+- Host blocking rules in the `||hostname^` form.
+- Host exceptions in the `@@||hostname^` form.
+- A limited set of request-type options (script, image, stylesheet, subdocument,
+  XHR, media, font, document, and other).
+- EasyList and EasyPrivacy HTTPS subscriptions, cached in extension storage.
+- Daily scheduled updates with cached-list fallback on network errors.
+- A per-process blocked-request counter.
 
-Next implementation steps:
-1. Add a tested ABP/uBO-compatible parser and rule compiler.
-2. Add subscription downloads, ETag/Last-Modified handling, checksums, and
-   atomic cache replacement.
-3. Add first-party/third-party matching, request types, exceptions, and
-   per-site allow rules.
-4. Add cosmetic filters and an element picker through content scripts.
-5. Add request logger, blocked counter, and a per-site shield switch.
-6. Validate official uBlock Origin Firefox add-on compatibility independently.
+## Important compatibility limits
+
+This is not uBlock Origin and must not be advertised as equivalent. The current
+parser intentionally skips cosmetic selectors, regex and wildcard rules,
+third-party/first-party options, domain-scoped options, redirects, scriptlets,
+CSP rules, and other advanced ABP/uBO syntax. The parser is deliberately
+conservative to avoid broad accidental blocking. No full compatibility or
+coverage claim is made.
+
+## Security and reliability work still required
+
+- Add checksum/signature metadata validation and atomic subscription versioning.
+- Add maximum line count, parser budgets, and regression fixtures for upstream lists.
+- Add first/third-party matching using a Public Suffix List implementation.
+- Add per-site switch, logger, blocked counters in UI, and custom rule editor.
+- Add cosmetic filtering and element picker.
+- Add filter engine unit tests and Android instrumentation tests.
+- Independently validate official uBlock Origin add-on installation and API coverage.
+
+Filter subscriptions are fetched over HTTPS. Browsing URLs and filter decisions
+are not sent to filter-list publishers by this extension.
