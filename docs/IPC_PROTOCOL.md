@@ -53,7 +53,7 @@ Required: non-empty `links[]`, each containing an absolute HTTP or HTTPS `url`.
 
 Optional: `request_id`, `queue_id`, `auto_start`, `chunk_index`, `chunk_total`. Each link may include `filename`, `headers`, and `referrer`.
 
-When chunk metadata is present, `chunk_index` is zero-based and `chunk_total` is the total number of chunks. The host must bound memory and assembly time, reject duplicate/conflicting chunks, and enqueue the batch only after a complete batch has been assembled. ACK each chunk only after it has been safely accepted into the bounded assembly state. A missing chunk must expire without partially enqueueing the batch.
+When chunk metadata is present, `chunk_index` is zero-based and `chunk_total` is the total number of chunks. The host must bound memory and assembly time, reject duplicate/conflicting chunks, and enqueue the batch only after a complete batch has been assembled. The extension schema permits up to 128 chunks per batch; the desktop assembler default must accept that same maximum (subject to its independent byte, item-count, and pending-batch limits). ACK each chunk only after it has been safely accepted into the bounded assembly state. A missing chunk must expire without partially enqueueing the batch.
 
 ### `task_control`
 
