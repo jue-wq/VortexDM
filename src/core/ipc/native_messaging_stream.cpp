@@ -5,6 +5,7 @@
 #include <istream>
 #include <ostream>
 #include <vector>
+#include <utility>
 namespace vortex {
 Result<std::optional<std::string>> read_native_message(std::istream& input) {
  std::array<std::byte,4> header{};
