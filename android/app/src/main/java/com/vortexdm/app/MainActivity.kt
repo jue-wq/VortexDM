@@ -68,6 +68,11 @@ class MainActivity : Activity() {
             text = "Reload"
             setOnClickListener { if (session.isOpen) session.reload() }
         })
+        controls.addView(Button(this).apply {
+            text = "uBlock"
+            contentDescription = "Install official uBlock Origin add-on"
+            setOnClickListener { installOfficialUblockOrigin() }
+        })
         root.addView(controls)
 
         pageStatus = TextView(this).apply {
@@ -93,6 +98,19 @@ class MainActivity : Activity() {
             .accept(
                 { pageStatusOrLog("Vortex Shield active") },
                 { error -> Log.e("VortexDM", "Shield installation failed", error) }
+            )
+    }
+
+    private fun installOfficialUblockOrigin() {
+        pageStatusOrLog("Requesting official uBlock Origin add-on")
+        runtime.webExtensionController
+            .install("https://addons.mozilla.org/firefox/downloads/latest/ublock-origin/latest.xpi")
+            .accept(
+                { extension -> pageStatusOrLog("uBlock Origin installed: ${extension.metaData.name}") },
+                { error ->
+                    Log.e("VortexDM", "uBlock Origin installation failed", error)
+                    pageStatusOrLog("uBlock Origin could not be installed; see app log")
+                }
             )
     }
 
