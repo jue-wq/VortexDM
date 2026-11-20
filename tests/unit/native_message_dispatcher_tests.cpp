@@ -12,7 +12,7 @@ std::filesystem::path test_database_path() {
 }
 }
 
-TEST_CASE("Native dispatcher acknowledges only after durable enqueue and deduplicates replay") {
+TEST_CASE("Native dispatcher stages durably but never claims queue acceptance before integration") {
     const auto path = test_database_path();
     std::error_code ignored;
     std::filesystem::remove(path, ignored);
