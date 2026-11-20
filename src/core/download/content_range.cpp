@@ -2,6 +2,7 @@
 
 #include <charconv>
 #include <cctype>
+#include <limits>
 #include <string_view>
 #include <system_error>
 
@@ -63,6 +64,21 @@ std::optional<ContentRange> ContentRangeParser::parse(
         return std::nullopt;
     }
     return parsed;
+}
+
+bool ContentRangeParser::validate_partial_response(
+    const int http_status, const std::string_view content_range,
+    const std::uint64_t content_length, const ByteRange& requested,
+    const std::uint64_t expected_total
+) noexcept {
+    if (http_status != 206 || requested.first > requested.last ||
+        requested.last == std::numeric_limits<std::uint64_t>::max()) {
+        return false;
+    }
+    const auto parsed = parse(content_range);
+    if (!parsed || !parsed->matches(requested, expected_total)) return false;
+    const auto expected_length = requested.last - requested.first + 1;
+    return content_length == expected_length;
 }
 
 } // namespace vortex
