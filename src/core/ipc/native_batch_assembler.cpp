@@ -20,7 +20,8 @@ namespace {
         authority_end == std::string::npos ? std::string::npos : authority_end - authority_start);
     if (authority.empty() || authority.find('@') != std::string::npos) return false;
 
-    for (const unsigned char character : value) {
+    for (const char raw_character : value) {
+        const auto character = static_cast<unsigned char>(raw_character);
         if (character <= 0x20U || character == 0x7fU) return false;
     }
     return true;
