@@ -28,8 +28,8 @@ private:
 TEST_CASE("SQLite storage migrates and round-trips download records") {
     TemporaryDatabase temporary;
     vortex::SqliteDatabase database;
-    REQUIRE(database.open(temporary.path()));
-    REQUIRE(database.migrate());
+    REQUIRE(database.open(temporary.path()).has_value());
+    REQUIRE(database.migrate().has_value());
 
     vortex::DownloadRecord record;
     record.url = "https://example.test/file.bin";
@@ -42,7 +42,7 @@ TEST_CASE("SQLite storage migrates and round-trips download records") {
     const auto id = database.insert_download(record);
     REQUIRE(id);
     REQUIRE(*id > 0);
-    REQUIRE(database.update_download_progress(*id, 256, vortex::DownloadState::paused, 12));
+    REQUIRE(database.update_download_progress(*id, 256, vortex::DownloadState::paused, 12).has_value());
 
     const auto rows = database.list_downloads();
     REQUIRE(rows);
@@ -51,7 +51,7 @@ TEST_CASE("SQLite storage migrates and round-trips download records") {
     CHECK(rows->front().downloaded_bytes == 256);
     CHECK(rows->front().state == vortex::DownloadState::paused);
 
-    REQUIRE(database.delete_download(*id));
+    REQUIRE(database.delete_download(*id).has_value());
     const auto empty = database.list_downloads();
     REQUIRE(empty);
     CHECK(empty->empty());
@@ -60,13 +60,13 @@ TEST_CASE("SQLite storage migrates and round-trips download records") {
 TEST_CASE("SQLite storage rejects invalid progress and records") {
     TemporaryDatabase temporary;
     vortex::SqliteDatabase database;
-    REQUIRE(database.open(temporary.path()));
-    REQUIRE(database.migrate());
+    REQUIRE(database.open(temporary.path()).has_value());
+    REQUIRE(database.migrate().has_value());
 
     vortex::DownloadRecord invalid;
     invalid.url = "";
     invalid.destination = "out.bin";
-    CHECK_FALSE(database.insert_download(invalid));
+    CHECK_FALSE(database.insert_download(invalid).has_value());
 
     vortex::DownloadRecord record;
     record.url = "https://example.test/file.bin";
@@ -74,5 +74,5 @@ TEST_CASE("SQLite storage rejects invalid progress and records") {
     record.total_bytes = 10;
     const auto id = database.insert_download(record);
     REQUIRE(id);
-    CHECK_FALSE(database.update_download_progress(*id, 11, vortex::DownloadState::running, 1));
+    CHECK_FALSE(database.update_download_progress(*id, 11, vortex::DownloadState::running, 1).has_value());
 }
