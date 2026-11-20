@@ -12,7 +12,8 @@ blocking. macOS is not a supported target.
 - [x] Bundled Vortex Shield WebExtension bootstrap
 - [x] Android CI job replacing macOS CI
 - [x] Phase 1 SQLite WAL persistence, download metadata, offset writer, and unit tests\n- [ ] Phase 1 OS-level durable flush, crash recovery, and fault-injection validation
-- [ ] ABP/uBlock-compatible filter parser, subscriptions, and cosmetic filters
+- [x] Vortex Shield host-rule filter subset and EasyList/EasyPrivacy subscriptions
+- [ ] Full ABP/uBlock-compatible parser, cosmetic filters, and per-site controls
 - [ ] Official uBlock Origin extension compatibility validation
 - [x] Phase 2 inclusive HTTP byte-range planner and unit tests\n- [ ] Phase 2 HTTP transport, retries, segment scheduler, and CLI
 - [ ] Phase 3 toolchain manager
@@ -38,9 +39,9 @@ and CMake 3.31.6.
     gradle -p android assembleDebug
 
 The current Android build is a browser and blocker bootstrap, not yet a
-production download manager. Vortex Shield currently blocks a small set of
-domains; it does not yet parse EasyList/ABP syntax or provide uBlock Origin
-feature parity.
+production download manager. Vortex Shield now fetches and caches EasyList and
+EasyPrivacy, but only parses a conservative host-rule subset. It does not yet
+provide full ABP/uBlock syntax or uBlock Origin feature parity.
 
 See docs/ARCHITECTURE.md and docs/ANDROID_ARCHITECTURE.md for module
 boundaries and Android-specific design decisions.
