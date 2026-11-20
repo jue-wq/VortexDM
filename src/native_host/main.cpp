@@ -2,6 +2,7 @@
 #include "core/ipc/native_messaging_stream.hpp"
 
 #include <cstdlib>
+#include <cstdio>
 #include <filesystem>
 #include <optional>
 #include <nlohmann/json.hpp>
