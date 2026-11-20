@@ -189,7 +189,11 @@ Result<std::int64_t> SqliteDatabase::enqueue_download_once(
     const int lookup_rc = sqlite3_step(existing.get());
     if (lookup_rc == SQLITE_ROW) {
         const auto id = sqlite3_column_int64(existing.get(), 0);
-        (void)execute("COMMIT;");
+        status = execute("COMMIT;");
+        if (!status) {
+            (void)execute("ROLLBACK;");
+            return std::unexpected(status.error());
+        }
         return id;
     }
     if (lookup_rc != SQLITE_DONE) {
