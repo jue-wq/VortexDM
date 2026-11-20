@@ -1,6 +1,6 @@
 # VortexDM Browser Bridge IPC Protocol v1 (proposed)
 
-> Status: **shared implementation proposal; desktop host not implemented**. This document is the proposed contract for the Vortex Browser Bridge and VortexDM. It is not evidence that the desktop application currently accepts these messages. Update both repositories together when the native-host adapter is implemented.
+> Status: **partial dispatcher implementation; no production host executable yet**. The dispatcher currently handles handshake and durable `add_download` ACKs only. Batch, media extraction, and task-control requests are explicitly rejected until their adapters exist.
 
 ## 1. Transport
 
@@ -27,7 +27,7 @@ The extension sends once after each connection:
 }
 ```
 
-The host must reject unsupported protocol versions by closing the port or returning a documented incompatibility response. For v1, after accepting the handshake the host sends an initial `status_update` and `queues_sync`. The handshake itself does not require an ACK.
+The dispatcher validates protocol version 1. The standalone host loop, incompatibility close behavior, initial `status_update`, and `queues_sync` publication are not implemented. The handshake itself does not require an ACK.
 
 ## 3. Extension → desktop messages
 
@@ -37,7 +37,7 @@ Required: `url` (absolute HTTP or HTTPS URL).
 
 Optional: `request_id`, `filename`, `headers` (string map), `cookies` (transient cookie objects), `referrer`, `download_page`, `auto_start`, `queue_id`.
 
-A positive ACK means the download request has been validated and accepted into the desktop queue. It does not mean that the transfer has completed. The browser extension may cancel its original browser download only after receiving this positive ACK.
+The current dispatcher validates a basic HTTP(S) URL, strips directory components from the requested filename, atomically persists the download and request ID in SQLite, and only then returns a positive ACK. This is durable inbox acceptance, not proof that the application's transfer queue has started the item. The browser extension may cancel its original browser download only after receiving this positive ACK; production queue integration is still required before that behavior is safe to ship.
 
 ### `extract_media`
 
@@ -62,7 +62,7 @@ Required: `action` = `pause`, `resume`, or `focus_app`.
 Optional: `request_id`, `task_id`.
 
 
-The desktop batch assembler also rejects non-HTTP(S) URLs, empty authorities, URL user-info credentials, and ASCII whitespace/control characters before retaining a chunk. This is defense in depth; the eventual dispatcher must still apply full URL parsing and policy validation.
+The desktop batch assembler and current single-download dispatcher reject non-HTTP(S) URLs, empty authorities, URL user-info credentials, and ASCII whitespace/control characters. This is only defense in depth, not a complete standards-compliant URL parser or SSRF/network policy.
 
 ## 4. Desktop → extension messages
 
@@ -103,6 +103,6 @@ Cookies are optional transient fields only. The extension must read them only af
 
 ## 7. Implementation status
 
-The browser bridge currently implements the v1-shaped Zod schemas, Native Messaging framing via the browser API, reconnect logic, and a development mock host. The VortexDM repository now contains a durable SQLite request-ID deduplication primitive and a bounded in-memory batch assembler with expiry, duplicate/conflict rejection, and configured memory/item limits. These primitives are not yet wired into a production Native Messaging host or application queue adapter. End-to-end desktop integration is therefore **not complete**.
+The browser bridge implements the v1-shaped Zod schemas, Native Messaging framing via the browser API, reconnect logic, and a development mock host. VortexDM now contains a JSON dispatcher for protocol-v1 handshake and `add_download`, durable SQLite request-ID deduplication, and a bounded in-memory batch assembler. The dispatcher explicitly rejects `add_batch`, `extract_media`, and `task_control`; the batch assembler is not yet wired into dispatch. No standalone host executable, exact browser-origin allowlist, installer registration, real application queue adapter, status publisher, or process-level E2E suite exists. End-to-end desktop integration is therefore **not complete**.
 
-Before declaring v1 stable, wire the persistence and assembly primitives into the host dispatcher, add host-side schema/serialization tests and deterministic integration tests that launch the real host process, exchange frames, test ACK timeouts/reconnects, and verify that a download is never cancelled before queue acceptance.
+Before declaring v1 stable, implement the host process and platform registration, pin and enforce the shipped extension origin, wire complete batch assembly and application queue acceptance, add full URL parsing/network policy, and run deterministic process-level tests for frames, ACK/reconnect, and browser-download cancellation ordering.
