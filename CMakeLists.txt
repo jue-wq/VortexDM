@@ -23,6 +23,7 @@ add_library(vortex_core STATIC
     src/core/download/content_range.cpp
     src/core/ipc/native_messaging_frame.cpp
     src/core/ipc/native_messaging_stream.cpp
+    src/core/ipc/native_batch_assembler.cpp
 )
 add_library(VortexDM::Core ALIAS vortex_core)
 
@@ -61,6 +62,7 @@ if(VORTEXDM_BUILD_TESTS)
         tests/unit/content_range_tests.cpp
         tests/unit/download_state_machine_tests.cpp
         tests/unit/native_messaging_frame_tests.cpp
+        tests/unit/native_batch_assembler_tests.cpp
     )
     target_link_libraries(vortex_unit_tests
         PRIVATE
