@@ -51,9 +51,9 @@ A positive ACK means the extraction job has been accepted for processing, not th
 
 Required: non-empty `links[]`, each containing an absolute HTTP or HTTPS `url`.
 
-Optional: `request_id`, `queue_id`, `auto_start`, `chunk_index`, `chunk_total`. Each link may include `filename`, `headers`, and `referrer`.
+Optional: `request_id`, `batch_id`, `queue_id`, `auto_start`, `chunk_index`, `chunk_total`. Each link may include `filename`, `headers`, and `referrer`.
 
-When chunk metadata is present, `chunk_index` is zero-based and `chunk_total` is the total number of chunks. The host must bound memory and assembly time, reject duplicate/conflicting chunks, and enqueue the batch only after a complete batch has been assembled. ACK each chunk only after it has been safely accepted into the bounded assembly state. A missing chunk must expire without partially enqueueing the batch.
+When `chunk_total` is greater than one, `batch_id` is required and must be identical for every chunk in that batch. `chunk_index` is zero-based and `chunk_total` is the total number of chunks. The host must bound memory and assembly time, reject duplicate/conflicting chunks, and enqueue the batch only after a complete batch has been assembled. ACK each chunk only after it has been safely accepted into the bounded assembly state. A missing chunk must expire without partially enqueueing the batch. The extension assigns a fresh batch ID for every multi-frame batch; each frame still has its own request ID for ACK/de-duplication.
 
 ### `task_control`
 
