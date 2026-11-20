@@ -9,7 +9,9 @@ project(VortexDM
 option(VORTEXDM_BUILD_TESTS "Build VortexDM tests" ON)
 option(VORTEXDM_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
 
-find_package(OpenSSL REQUIRED)\nfind_package(CURL REQUIRED)
+find_package(OpenSSL REQUIRED)
+find_package(CURL REQUIRED)
+find_package(CURL REQUIRED)
 find_package(spdlog CONFIG REQUIRED)
 find_package(unofficial-sqlite3 CONFIG REQUIRED)
 
@@ -21,6 +23,8 @@ add_library(vortex_core STATIC
     src/core/download/segment_planner.cpp
     src/core/download/retry_policy.cpp
     src/core/download/content_range.cpp
+    src/core/network/http_request_policy.cpp
+    src/core/network/http_client.cpp
     src/core/ipc/native_messaging_frame.cpp
 )
 add_library(VortexDM::Core ALIAS vortex_core)
@@ -32,7 +36,9 @@ target_include_directories(vortex_core
 )
 target_link_libraries(vortex_core
     PUBLIC
-        OpenSSL::Crypto\n        CURL::libcurl
+        OpenSSL::Crypto
+        CURL::libcurl
+        CURL::libcurl
         spdlog::spdlog
         unofficial::sqlite3::sqlite3
 )
@@ -58,6 +64,7 @@ if(VORTEXDM_BUILD_TESTS)
         tests/unit/segment_planner_tests.cpp
         tests/unit/retry_policy_tests.cpp
         tests/unit/content_range_tests.cpp
+        tests/unit/http_request_policy_tests.cpp
         tests/unit/download_state_machine_tests.cpp
         tests/unit/native_messaging_frame_tests.cpp
     )
