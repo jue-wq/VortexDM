@@ -11,7 +11,6 @@ option(VORTEXDM_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehavior
 
 find_package(OpenSSL REQUIRED)
 find_package(CURL REQUIRED)
-find_package(CURL REQUIRED)
 find_package(spdlog CONFIG REQUIRED)
 find_package(unofficial-sqlite3 CONFIG REQUIRED)
 
@@ -37,7 +36,6 @@ target_include_directories(vortex_core
 target_link_libraries(vortex_core
     PUBLIC
         OpenSSL::Crypto
-        CURL::libcurl
         CURL::libcurl
         spdlog::spdlog
         unofficial::sqlite3::sqlite3
