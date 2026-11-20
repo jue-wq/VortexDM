@@ -21,7 +21,6 @@ struct HttpRequest final {
     std::optional<ByteRange> range;
     std::chrono::milliseconds connect_timeout{10'000};
     std::chrono::milliseconds total_timeout{0}; // Zero means no total deadline.
-    long maximum_redirects{5};
 };
 
 struct HttpResponse final {
@@ -35,8 +34,8 @@ using HttpBodySink = std::function<bool(std::span<const std::byte>)>;
 
 class HttpClient final {
 public:
-    // Streams response bytes to sink. Redirects are intentionally not followed:
-    // callers must validate Location with HttpRequestPolicy before retrying.
+    // Streams response bytes to sink. Redirects are never followed automatically;
+    // callers must validate the resolved Location with HttpRequestPolicy.
     [[nodiscard]] static Result<HttpResponse> perform(
         const HttpRequest& request, const HttpBodySink& sink,
         std::stop_token stop_token = {}

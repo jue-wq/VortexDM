@@ -49,6 +49,28 @@ struct TransferContext final {
     return value;
 }
 
+[[nodiscard]] bool is_header_name_character(unsigned char c) noexcept {
+    if ((c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') ||
+        (c >= 'a' && c <= 'z')) return true;
+    constexpr std::string_view punctuation{"!#$%&'*+-.^_`|~"};
+    return punctuation.find(static_cast<char>(c)) != std::string_view::npos;
+}
+
+[[nodiscard]] bool is_valid_header(std::string_view header) noexcept {
+    const auto colon = header.find(':');
+    if (colon == std::string_view::npos || colon == 0U) return false;
+    for (std::size_t i = 0; i < colon; ++i) {
+        if (!is_header_name_character(static_cast<unsigned char>(header[i]))) return false;
+    }
+    for (std::size_t i = colon + 1U; i < header.size(); ++i) {
+        const auto c = static_cast<unsigned char>(header[i]);
+        // Permit horizontal tab and visible/obs-text bytes; reject CR, LF,
+        // NUL, DEL and all other C0 controls before passing to libcurl.
+        if ((c < 0x20U && c != '\\t') || c == 0x7fU) return false;
+    }
+    return true;
+}
+
 std::size_t write_body(char* data, std::size_t size, std::size_t count,
                        void* opaque) noexcept {
     auto& context = *static_cast<TransferContext*>(opaque);
@@ -106,8 +128,7 @@ Result<HttpResponse> HttpClient::perform(
     const HttpRequest& request, const HttpBodySink& sink, std::stop_token stop_token
 ) {
     if (!HttpRequestPolicy::is_supported_url(request.url) || !sink ||
-        request.connect_timeout.count() <= 0 || request.total_timeout.count() < 0 ||
-        request.maximum_redirects < 0) {
+        request.connect_timeout.count() <= 0 || request.total_timeout.count() < 0) {
         return std::unexpected(VortexError::make(ErrorCode::invalid_argument,
             "Invalid HTTP request or body sink"));
     }
@@ -163,7 +184,6 @@ Result<HttpResponse> HttpClient::perform(
         set(CURLOPT_PROTOCOLS, static_cast<long>(CURLPROTO_HTTP | CURLPROTO_HTTPS)) &&
         set(CURLOPT_REDIR_PROTOCOLS, static_cast<long>(CURLPROTO_HTTP | CURLPROTO_HTTPS)) &&
         set(CURLOPT_FOLLOWLOCATION, 0L) &&
-        set(CURLOPT_MAXREDIRS, request.maximum_redirects) &&
         set(CURLOPT_CONNECTTIMEOUT_MS, static_cast<long>(connect_ms)) &&
         set(CURLOPT_TIMEOUT_MS, static_cast<long>(total_ms)) &&
         set(CURLOPT_SSL_VERIFYPEER, 1L) &&

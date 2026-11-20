@@ -36,3 +36,23 @@ TEST_CASE("HTTP client rejects malformed caller-supplied headers") {
     REQUIRE_FALSE(response.has_value());
     CHECK(response.error().code == vortex::ErrorCode::invalid_argument);
 }
+
+TEST_CASE("HTTP client rejects invalid header field names and control bytes") {
+    const auto rejects = [](std::string header) {
+        const auto response = vortex::HttpClient::perform(
+            vortex::HttpRequest{
+                .url = "https://example.com/",
+                .headers = {std::move(header)}
+            },
+            [](std::span<const std::byte>) { return true; }
+        );
+        REQUIRE_FALSE(response.has_value());
+        CHECK(response.error().code == vortex::ErrorCode::invalid_argument);
+    };
+
+    rejects(": missing-name");
+    rejects("Bad Header: value");
+    rejects("X-Test: value\\0hidden");
+    rejects("X-Test: value\\x01hidden");
+    rejects("X-Test: value\\r\\nInjected: true");
+}
