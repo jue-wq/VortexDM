@@ -29,6 +29,14 @@ private:
            value <= static_cast<std::int32_t>(DownloadState::cancelled);
 }
 
+[[nodiscard]] bool valid_request_id(const std::string_view value) {
+    if (value.empty() || value.size() > 128U) return false;
+    for (const unsigned char character : value) {
+        if (character < 0x21U || character > 0x7eU) return false;
+    }
+    return true;
+}
+
 } // namespace
 
 SqliteDatabase::~SqliteDatabase() { (void)close(); }
@@ -136,7 +144,8 @@ Result<std::int64_t> SqliteDatabase::insert_download(const DownloadRecord& recor
     ));
     if (record.url.empty() || record.destination.empty() ||
         record.total_bytes < -1 || record.downloaded_bytes < 0 ||
-        (record.total_bytes >= 0 && record.downloaded_bytes > record.total_bytes)) {
+        (record.total_bytes >= 0 && record.downloaded_bytes > record.total_bytes) ||
+        !valid_state(static_cast<std::int32_t>(record.state))) {
         return std::unexpected(VortexError::make(
             ErrorCode::invalid_argument, "Invalid download record"
         ));
@@ -166,7 +175,7 @@ Result<std::int64_t> SqliteDatabase::enqueue_download_once(
     if (!db_) return std::unexpected(VortexError::make(
         ErrorCode::database_error, "Database is not open"
     ));
-    if (request_id.empty() || request_id.size() > 128 ||
+    if (!valid_request_id(request_id) ||
         record.url.empty() || record.destination.empty() ||
         record.total_bytes < -1 || record.downloaded_bytes < 0 ||
         (record.total_bytes >= 0 && record.downloaded_bytes > record.total_bytes) ||
