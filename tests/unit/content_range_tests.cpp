@@ -43,3 +43,14 @@ TEST_CASE("Content-Range validation requires exact requested range and total") {
     CHECK_FALSE(parsed->matches({10, 18}, 100));
     CHECK_FALSE(parsed->matches({10, 19}, 101));
 }
+
+TEST_CASE("Partial response validation requires status range and exact body length") {
+    using vortex::ContentRangeParser;
+    CHECK(ContentRangeParser::validate_partial_response(206, "bytes 10-19/100", 10, {10, 19}, 100));
+    CHECK_FALSE(ContentRangeParser::validate_partial_response(200, "bytes 10-19/100", 10, {10, 19}, 100));
+    CHECK_FALSE(ContentRangeParser::validate_partial_response(206, "bytes 10-19/100", 9, {10, 19}, 100));
+    CHECK_FALSE(ContentRangeParser::validate_partial_response(206, "bytes 10-19/100", 11, {10, 19}, 100));
+    CHECK_FALSE(ContentRangeParser::validate_partial_response(206, "bytes 10-18/100", 10, {10, 19}, 100));
+    CHECK_FALSE(ContentRangeParser::validate_partial_response(206, "bytes 10-19/101", 10, {10, 19}, 100));
+    CHECK_FALSE(ContentRangeParser::validate_partial_response(206, "bytes 0-18446744073709551615/18446744073709551616", 0, {0, std::numeric_limits<std::uint64_t>::max()}, 0));
+}
