@@ -1,5 +1,7 @@
 #include "sqlite_database.hpp"
 
+#include <sqlite3.h>
+
 #include <limits>
 #include <string>
 #include <utility>
