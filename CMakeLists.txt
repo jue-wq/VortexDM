@@ -22,6 +22,7 @@ add_library(vortex_core STATIC
     src/core/download/retry_policy.cpp
     src/core/download/content_range.cpp
     src/core/ipc/native_messaging_frame.cpp
+    src/core/ipc/native_messaging_stream.cpp
 )
 add_library(VortexDM::Core ALIAS vortex_core)
 

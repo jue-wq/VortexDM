@@ -39,3 +39,19 @@ TEST_CASE("Native messaging frame rejects malformed and oversized lengths") {
     const std::string invalid_utf8(invalid_bytes, sizeof(invalid_bytes));
     CHECK_FALSE(vortex::NativeMessagingFrame::encode(invalid_utf8).has_value());
 }
+
+#include "core/ipc/native_messaging_stream.hpp"
+#include <sstream>
+TEST_CASE("Native Messaging stream reads consecutive frames and clean EOF") {
+ std::stringstream stream;
+ REQUIRE(vortex::write_native_message(stream,R"({"type":"one"})").has_value());
+ REQUIRE(vortex::write_native_message(stream,R"({"type":"two"})").has_value());
+ auto first=vortex::read_native_message(stream); REQUIRE(first.has_value()); REQUIRE(first->has_value()); CHECK(**first==R"({"type":"one"})");
+ auto second=vortex::read_native_message(stream); REQUIRE(second.has_value()); REQUIRE(second->has_value()); CHECK(**second==R"({"type":"two"})");
+ auto eof=vortex::read_native_message(stream); REQUIRE(eof.has_value()); CHECK_FALSE(eof->has_value());
+}
+TEST_CASE("Native Messaging stream rejects truncated and oversized frames") {
+ std::istringstream short_header(std::string(2,'\0')); CHECK_FALSE(vortex::read_native_message(short_header).has_value());
+ std::istringstream short_payload(std::string("\x03\0\0\0{}",6)); CHECK_FALSE(vortex::read_native_message(short_payload).has_value());
+ std::istringstream oversized(std::string("\x01\0\x10\0",4)); CHECK_FALSE(vortex::read_native_message(oversized).has_value());
+}
