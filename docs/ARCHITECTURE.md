@@ -66,9 +66,10 @@ These rules are mandatory for all modules and contributors.
   fault-injection coverage.
 - Balanced inclusive HTTP byte-range planner with a configurable segment cap.
 - Bounded exponential retry policy for transient HTTP failures, including capped Retry-After handling.
+- Strict HTTP `Content-Range` parser that rejects malformed, unsatisfied, unknown-total, overflowing, and out-of-bounds ranges; parsed ranges can be matched against the exact requested segment and resource size.
 - Native Messaging v1 frame codec with little-endian length prefix, 1 MiB payload cap, exact-frame validation, and UTF-8 validation.
-- Unit tests for hashing, database persistence, offset writes, and range
-  partitioning.
+- Unit tests for hashing, database persistence, offset writes, range
+  partitioning, retry decisions, and `Content-Range` validation.
 
 The HTTP transport, retry policy, segment scheduler, durable checkpoint
 protocol, Android JNI linkage to the shared storage/download modules, JSON
