@@ -20,6 +20,7 @@ add_library(vortex_core STATIC
     src/core/storage/offset_file_writer.cpp
     src/core/download/segment_planner.cpp
     src/core/download/retry_policy.cpp
+    src/core/download/content_range.cpp
     src/core/ipc/native_messaging_frame.cpp
 )
 add_library(VortexDM::Core ALIAS vortex_core)
@@ -56,6 +57,7 @@ if(VORTEXDM_BUILD_TESTS)
         tests/unit/offset_file_writer_tests.cpp
         tests/unit/segment_planner_tests.cpp
         tests/unit/retry_policy_tests.cpp
+        tests/unit/content_range_tests.cpp
         tests/unit/download_state_machine_tests.cpp
         tests/unit/native_messaging_frame_tests.cpp
     )
