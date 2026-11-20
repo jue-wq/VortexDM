@@ -7,5 +7,6 @@
     "openssl",
     "spdlog",
     "sqlite3"
-  ]
+  ],
+  "builtin-baseline": "6921c74f8fc5dd7afcdc64936d486b11fb141aef"
 }
