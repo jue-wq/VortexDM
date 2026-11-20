@@ -16,6 +16,7 @@ find_package(unofficial-sqlite3 CONFIG REQUIRED)
 add_library(vortex_core STATIC
     src/core/common/crypto_utils.cpp
     src/core/common/logger.cpp
+    src/core/storage/sqlite_database.cpp
 )
 add_library(VortexDM::Core ALIAS vortex_core)
 
@@ -47,6 +48,7 @@ if(VORTEXDM_BUILD_TESTS)
     find_package(Catch2 3 CONFIG REQUIRED)
     add_executable(vortex_unit_tests
         tests/unit/crypto_utils_tests.cpp
+        tests/unit/sqlite_database_tests.cpp
     )
     target_link_libraries(vortex_unit_tests
         PRIVATE
