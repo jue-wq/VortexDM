@@ -35,4 +35,7 @@ TEST_CASE("Native messaging frame rejects malformed and oversized lengths") {
     truncated.pop_back();
     CHECK_FALSE(vortex::NativeMessagingFrame::decode(truncated));
     CHECK_FALSE(vortex::NativeMessagingFrame::encode(""));
+    const char invalid_bytes[] = {static_cast<char>(0xc0), static_cast<char>(0xaf)};
+    const std::string invalid_utf8(invalid_bytes, sizeof(invalid_bytes));
+    CHECK_FALSE(vortex::NativeMessagingFrame::encode(invalid_utf8));
 }
