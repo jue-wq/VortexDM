@@ -53,6 +53,7 @@ if(VORTEXDM_BUILD_TESTS)
         tests/unit/sqlite_database_tests.cpp
         tests/unit/offset_file_writer_tests.cpp
         tests/unit/segment_planner_tests.cpp
+        tests/unit/download_state_machine_tests.cpp
     )
     target_link_libraries(vortex_unit_tests
         PRIVATE
