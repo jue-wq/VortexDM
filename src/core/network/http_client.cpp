@@ -66,7 +66,7 @@ struct TransferContext final {
         const auto c = static_cast<unsigned char>(header[i]);
         // Permit horizontal tab and visible/obs-text bytes; reject CR, LF,
         // NUL, DEL and all other C0 controls before passing to libcurl.
-        if ((c < 0x20U && c != '\\t') || c == 0x7fU) return false;
+        if ((c < 0x20U && c != '\t') || c == 0x7fU) return false;
     }
     return true;
 }
@@ -157,8 +157,7 @@ Result<HttpResponse> HttpClient::perform(
     };
 
     for (const auto& value : request.headers) {
-        if (value.find_first_of("\r\n") != std::string::npos ||
-            value.find(':') == std::string::npos || !append_header(value)) {
+        if (!is_valid_header(value) || !append_header(value)) {
             return std::unexpected(VortexError::make(ErrorCode::invalid_argument,
                 "Malformed HTTP request header"));
         }
