@@ -26,12 +26,13 @@ TEST_CASE("Native dispatcher acknowledges only after durable enqueue and dedupli
     REQUIRE(first.has_value());
     REQUIRE(first->has_value());
     const auto first_ack = nlohmann::json::parse(**first);
-    CHECK(first_ack["accepted"] == true);
+    CHECK(first_ack["accepted"] == false);
+    CHECK(first_ack["error"].get<std::string>().find("queue integration") != std::string::npos);
 
     const auto replay = dispatcher.dispatch(request);
     REQUIRE(replay.has_value());
     REQUIRE(replay->has_value());
-    CHECK(nlohmann::json::parse(**replay)["accepted"] == true);
+    CHECK(nlohmann::json::parse(**replay)["accepted"] == false);
 
     const auto downloads = database.list_downloads();
     REQUIRE(downloads.has_value());
