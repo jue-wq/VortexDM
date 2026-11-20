@@ -3,7 +3,8 @@
   "version-string": "0.1.0",
   "description": "Modern C++23 desktop download manager",
   "dependencies": [
-    "catch2",\n    "curl",
+    "catch2",
+    "curl",
     "openssl",
     "spdlog",
     "sqlite3"
