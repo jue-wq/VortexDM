@@ -95,6 +95,11 @@ if(VORTEXDM_BUILD_TESTS)
             Catch2::Catch2WithMain
     )
     include(CTest)
+    add_test(NAME native_host_rejects_untrusted_origin
+        COMMAND ${CMAKE_COMMAND}
+            -DHOST_EXECUTABLE=$<TARGET_FILE:vortexdm_native_host>
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/integration/native_host_origin_guard.cmake
+    )
     include(Catch)
     catch_discover_tests(vortex_unit_tests)
 endif()
