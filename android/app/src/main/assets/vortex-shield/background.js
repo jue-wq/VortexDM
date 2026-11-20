@@ -60,7 +60,8 @@ function parseHostRule(rawLine) {
       host.endsWith(".") || host.includes("..")) return null;
 
   const suffix = splitAt < 0 ? "" : body.slice(splitAt);
-  const optionText = suffix.startsWith("$") ? suffix.slice(1) : "";
+  const optionText = suffix.startsWith("^$") ? suffix.slice(2) :
+    suffix.startsWith("$") ? suffix.slice(1) : "";
   const types = [];
   if (optionText) {
     const options = optionText.split(",");
