@@ -5,8 +5,9 @@
 
 #include <filesystem>
 #include <mutex>
-#include <sqlite3.h>
 #include <vector>
+
+struct sqlite3;
 
 namespace vortex {
 
