@@ -1,9 +1,10 @@
 plugins {
     id("com.android.application")
+    id("org.jetbrains.kotlin.android")
 }
 android {
     namespace = "com.vortexdm.app"
-    compileSdk = 37
+    compileSdk = 36
     defaultConfig {
         applicationId = "com.vortexdm.app"
         minSdk = 26
@@ -25,15 +26,11 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+    kotlinOptions { jvmTarget = "17" }
     externalNativeBuild {
         cmake { path = file("src/main/cpp/CMakeLists.txt"); version = "3.31.6" }
     }
 }
-kotlin {
-    compilerOptions {
-        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
-    }
-}
 dependencies {
-    implementation("org.mozilla.geckoview:geckoview-nightly:162.0.20261118215316")
+    implementation("org.mozilla.geckoview:geckoview:143.0.20251003115653")
 }
