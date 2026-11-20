@@ -55,3 +55,37 @@ TEST_CASE("Native Messaging stream rejects truncated and oversized frames") {
  std::istringstream short_payload(std::string("\x03\0\0\0{}",6)); CHECK_FALSE(vortex::read_native_message(short_payload).has_value());
  std::istringstream oversized(std::string("\x01\0\x10\0",4)); CHECK_FALSE(vortex::read_native_message(oversized).has_value());
 }
+
+namespace {
+
+class FailingReadBuffer final : public std::streambuf {
+public:
+    explicit FailingReadBuffer(std::string prefix) : prefix_(std::move(prefix)) {
+        auto* begin = prefix_.data();
+        setg(begin, begin, begin + static_cast<std::ptrdiff_t>(prefix_.size()));
+    }
+
+protected:
+    int_type underflow() override {
+        throw std::ios_base::failure("simulated input failure");
+    }
+
+private:
+    std::string prefix_;
+};
+
+} // namespace
+
+TEST_CASE("Native Messaging stream reports underlying read failures as I/O errors") {
+    FailingReadBuffer header_buffer("");
+    std::istream header_input(&header_buffer);
+    const auto header_result = vortex::read_native_message(header_input);
+    REQUIRE_FALSE(header_result.has_value());
+    CHECK(header_result.error().code == vortex::ErrorCode::io_error);
+
+    FailingReadBuffer payload_buffer(std::string("\\x01\\0\\0\\0", 4));
+    std::istream payload_input(&payload_buffer);
+    const auto payload_result = vortex::read_native_message(payload_input);
+    REQUIRE_FALSE(payload_result.has_value());
+    CHECK(payload_result.error().code == vortex::ErrorCode::io_error);
+}
