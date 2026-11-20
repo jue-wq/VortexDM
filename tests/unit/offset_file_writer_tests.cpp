@@ -20,14 +20,14 @@ std::filesystem::path unique_path() {
 TEST_CASE("Offset writer writes disjoint ranges at requested offsets") {
     const auto path = unique_path();
     vortex::OffsetFileWriter writer;
-    REQUIRE(writer.open(path, 8));
+    REQUIRE(writer.open(path, 8).has_value());
 
     const std::array first{std::byte{'A'}, std::byte{'B'}};
     const std::array last{std::byte{'G'}, std::byte{'H'}};
-    REQUIRE(writer.write_at(0, first));
-    REQUIRE(writer.write_at(6, last));
-    REQUIRE(writer.flush());
-    REQUIRE(writer.close());
+    REQUIRE(writer.write_at(0, first).has_value());
+    REQUIRE(writer.write_at(6, last).has_value());
+    REQUIRE(writer.flush().has_value());
+    REQUIRE(writer.close().has_value());
 
     std::ifstream input(path, std::ios::binary);
     const std::string content((std::istreambuf_iterator<char>(input)), {});
@@ -40,10 +40,10 @@ TEST_CASE("Offset writer writes disjoint ranges at requested offsets") {
 TEST_CASE("Offset writer rejects writes outside preallocated bounds") {
     const auto path = unique_path();
     vortex::OffsetFileWriter writer;
-    REQUIRE(writer.open(path, 4));
+    REQUIRE(writer.open(path, 4).has_value());
     const std::array bytes{std::byte{'X'}, std::byte{'Y'}};
-    CHECK_FALSE(writer.write_at(3, bytes));
-    CHECK_FALSE(writer.write_at(5, std::span<const std::byte>{}));
-    REQUIRE(writer.close());
+    CHECK_FALSE(writer.write_at(3, bytes).has_value());
+    CHECK_FALSE(writer.write_at(5, std::span<const std::byte>{}).has_value());
+    REQUIRE(writer.close().has_value());
     std::filesystem::remove(path);
 }
