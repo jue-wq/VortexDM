@@ -1,0 +1,20 @@
+{
+  "manifest_version": 2,
+  "name": "Vortex Shield",
+  "version": "0.1.0",
+  "description": "First-party domain-based tracker and ad blocking for VortexDM.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "shield@vortexdm.app",
+      "strict_min_version": "120.0"
+    }
+  },
+  "permissions": ["webRequest", "webRequestBlocking", "<all_urls>"],
+  "background": {
+    "scripts": ["background.js"],
+    "persistent": true
+  },
+  "browser_action": {
+    "default_title": "Vortex Shield"
+  }
+}
