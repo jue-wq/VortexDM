@@ -56,6 +56,10 @@ WebExtensionController.installBuiltIn API can install app-bundled extensions.
 The Android browser should expose an extension manager and validate extension
 API compatibility before claiming full uBlock Origin support.
 
+The browser shell now exposes an explicit uBlock button that asks GeckoView to
+install the official Mozilla Add-ons signed XPI. Installation is user-initiated
+and its success is reported in the browser status line. This is an integration
+probe, not a guarantee that every uBO API or feature is supported by GeckoView.
 The preferred compatibility path is to support the official uBlock Origin
 Firefox add-on where GeckoView's supported WebExtension APIs permit it. Do not
 silently redistribute a modified uBlock Origin build. If bundling or modifying
