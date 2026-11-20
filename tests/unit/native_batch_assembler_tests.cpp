@@ -2,6 +2,9 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <cstddef>
+#include <string>
+
 namespace {
 vortex::DownloadRecord record(const char* url) {
     vortex::DownloadRecord value;
@@ -74,4 +77,22 @@ TEST_CASE("Native batch assembler rejects unusable limits and malformed records"
     invalid.state = static_cast<vortex::DownloadState>(99);
     CHECK_FALSE(assembler.add({"bad-state", 0, 1, {invalid}}));
     CHECK(assembler.pending_batches() == 0);
+}
+
+
+TEST_CASE("Native batch assembler accepts the extension maximum of 128 chunks") {
+    vortex::NativeBatchAssembler assembler;
+    for (std::size_t index = 0; index < 128; ++index) {
+        auto result = assembler.add({
+            "large-batch", index, 128,
+            {record("https://example.test/" + std::to_string(index))}
+        });
+        REQUIRE(result);
+        if (index < 127) {
+            CHECK_FALSE(result->has_value());
+        } else {
+            REQUIRE(result->has_value());
+            CHECK(result->value().size() == 128);
+        }
+    }
 }
