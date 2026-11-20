@@ -113,7 +113,7 @@ Result<std::optional<std::string>> NativeMessageDispatcher::dispatch(const std::
             if (!inserted) {
                 return std::optional<std::string>{make_ack(request_id, false, inserted.error().message)};
             }
-            return std::optional<std::string>{make_ack(request_id, true)};
+            return std::optional<std::string>{make_ack(request_id, false, "Persisted to native inbox; application queue integration is not enabled")};
         } catch (const Json::exception& error) {
             return std::optional<std::string>{make_ack(request_id, false, error.what())};
         }
