@@ -24,8 +24,6 @@
       "name": "windows-msvc-debug",
       "inherits": "base",
       "displayName": "Windows MSVC Debug",
-      "architecture": "x64",
-      "toolset": "host=x64",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug"
       }
