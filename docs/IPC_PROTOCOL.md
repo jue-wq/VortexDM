@@ -61,6 +61,9 @@ Required: `action` = `pause`, `resume`, or `focus_app`.
 
 Optional: `request_id`, `task_id`.
 
+
+The desktop batch assembler also rejects non-HTTP(S) URLs, empty authorities, URL user-info credentials, and ASCII whitespace/control characters before retaining a chunk. This is defense in depth; the eventual dispatcher must still apply full URL parsing and policy validation.
+
 ## 4. Desktop → extension messages
 
 ### `ack`
