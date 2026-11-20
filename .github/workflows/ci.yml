@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: ${{ matrix.os }} / ${{ matrix.compiler }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            compiler: clang
+            cc: clang
+            cxx: clang++
+          - os: windows-latest
+            compiler: msvc
+            cc: cl
+            cxx: cl
+          - os: macos-latest
+            compiler: clang
+            cc: clang
+            cxx: clang++
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up CMake
+        uses: lukka/get-cmake@latest
+
+      - name: Set up vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: ${{ github.workspace }}/vcpkg
+
+      - name: Configure
+        run: cmake --preset ${{ matrix.os == 'windows-latest' && 'windows-msvc-debug' || matrix.os == 'macos-latest' && 'macos-clang-debug' || 'linux-clang-debug' }}
+        env:
+          VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+
+      - name: Build
+        run: cmake --build --preset ${{ matrix.os == 'windows-latest' && 'windows-msvc-debug' || matrix.os == 'macos-latest' && 'macos-clang-debug' || 'linux-clang-debug' }}
+
+      - name: Test
+        run: ctest --preset ${{ matrix.os == 'windows-latest' && 'windows-msvc-debug' || matrix.os == 'macos-latest' && 'macos-clang-debug' || 'linux-clang-debug' }}
