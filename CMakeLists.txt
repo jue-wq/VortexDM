@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.28)
 
 project(VortexDM
     VERSION 0.1.0
-    DESCRIPTION "Modern C++23 desktop download manager"
+    DESCRIPTION "Modern C++23 cross-platform download manager"
     LANGUAGES CXX
 )
 
