@@ -15,6 +15,7 @@ find_package(unofficial-sqlite3 CONFIG REQUIRED)
 
 add_library(vortex_core STATIC
     src/core/common/crypto_utils.cpp
+    src/core/common/logger.cpp
 )
 add_library(VortexDM::Core ALIAS vortex_core)
 
