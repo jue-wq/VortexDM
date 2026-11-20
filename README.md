@@ -11,10 +11,10 @@ blocking. macOS is not a supported target.
 - [x] Android browser address bar and navigation controls
 - [x] Bundled Vortex Shield WebExtension bootstrap
 - [x] Android CI job replacing macOS CI
-- [ ] Phase 1 SQLite storage, crash-safe writer, and CI validation
+- [x] Phase 1 SQLite WAL persistence, download metadata, offset writer, and unit tests\n- [ ] Phase 1 OS-level durable flush, crash recovery, and fault-injection validation
 - [ ] ABP/uBlock-compatible filter parser, subscriptions, and cosmetic filters
 - [ ] Official uBlock Origin extension compatibility validation
-- [ ] Phase 2 segmented HTTP engine and CLI
+- [x] Phase 2 inclusive HTTP byte-range planner and unit tests\n- [ ] Phase 2 HTTP transport, retries, segment scheduler, and CLI
 - [ ] Phase 3 toolchain manager
 - [ ] Phase 4 media extraction and streaming
 - [ ] Phase 5 queues and IPC
