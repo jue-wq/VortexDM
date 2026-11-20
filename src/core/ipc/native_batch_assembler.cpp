@@ -8,6 +8,23 @@ namespace {
 [[nodiscard]] VortexError invalid_batch(const char* message) {
     return VortexError::make(ErrorCode::invalid_argument, message);
 }
+
+[[nodiscard]] bool is_http_url(const std::string& value) {
+    const auto has_scheme = value.starts_with("https://") || value.starts_with("http://");
+    if (!has_scheme) return false;
+
+    const auto authority_start = value.find("://") + 3U;
+    const auto authority_end = value.find_first_of("/?#", authority_start);
+    const auto authority = value.substr(
+        authority_start,
+        authority_end == std::string::npos ? std::string::npos : authority_end - authority_start);
+    if (authority.empty() || authority.find('@') != std::string::npos) return false;
+
+    for (const unsigned char character : value) {
+        if (character <= 0x20U || character == 0x7fU) return false;
+    }
+    return true;
+}
 }
 
 NativeBatchAssembler::NativeBatchAssembler() : NativeBatchAssembler(Limits{}) {}
@@ -46,7 +63,7 @@ Result<std::optional<std::vector<DownloadRecord>>> NativeBatchAssembler::add(
     std::size_t chunk_bytes = 0;
     for (const auto& record : chunk.downloads) {
         const auto state = static_cast<std::int32_t>(record.state);
-        if (record.url.empty() || record.destination.empty() ||
+        if (!is_http_url(record.url) || record.destination.empty() ||
             record.total_bytes < -1 || record.downloaded_bytes < 0 ||
             (record.total_bytes >= 0 && record.downloaded_bytes > record.total_bytes) ||
             state < 0 || state > 5) {
