@@ -29,11 +29,15 @@ TEST_CASE("Offset writer writes disjoint ranges at requested offsets") {
     REQUIRE(writer.flush().has_value());
     REQUIRE(writer.close().has_value());
 
-    std::ifstream input(path, std::ios::binary);
-    const std::string content((std::istreambuf_iterator<char>(input)), {});
-    CHECK(content.size() == 8);
-    CHECK(content.substr(0, 2) == "AB");
-    CHECK(content.substr(6, 2) == "GH");
+    {
+        // Close the reader before removing the file; Windows does not allow
+        // deleting a file while an input stream still holds it open.
+        std::ifstream input(path, std::ios::binary);
+        const std::string content((std::istreambuf_iterator<char>(input)), {});
+        CHECK(content.size() == 8);
+        CHECK(content.substr(0, 2) == "AB");
+        CHECK(content.substr(6, 2) == "GH");
+    }
     std::filesystem::remove(path);
 }
 
