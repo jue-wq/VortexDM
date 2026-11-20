@@ -32,5 +32,5 @@ android {
     }
 }
 dependencies {
-    implementation("org.mozilla.geckoview:geckoview:163.0.20261120154857")
+    implementation("org.mozilla.geckoview:geckoview:160.0.20261116130455")
 }
