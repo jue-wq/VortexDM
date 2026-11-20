@@ -1,6 +1,6 @@
 # VortexDM Browser Bridge IPC Protocol v1 (proposed)
 
-> Status: **partial dispatcher implementation; no production host executable yet**. The dispatcher currently handles handshake and durable `add_download` ACKs only. Batch, media extraction, and task-control requests are explicitly rejected until their adapters exist.
+> Status: **partial Native Messaging host implementation**. A standalone Firefox host executable now validates the pinned Gecko extension ID, requires a v1 handshake, and handles durable `add_download` ACKs. Batch, media extraction, and task-control requests are explicitly rejected until their adapters exist.
 
 ## 1. Transport
 
@@ -27,7 +27,7 @@ The extension sends once after each connection:
 }
 ```
 
-The dispatcher validates protocol version 1. The standalone host loop, incompatibility close behavior, initial `status_update`, and `queues_sync` publication are not implemented. The handshake itself does not require an ACK.
+The standalone host requires a v1 handshake as the first frame and closes the session on malformed/unsupported protocol messages. It currently does not publish the initial `status_update` or `queues_sync` messages. The handshake itself does not require an ACK.
 
 ## 3. Extension → desktop messages
 
@@ -103,6 +103,6 @@ Cookies are optional transient fields only. The extension must read them only af
 
 ## 7. Implementation status
 
-The browser bridge implements the v1-shaped Zod schemas, Native Messaging framing via the browser API, reconnect logic, and a development mock host. VortexDM now contains a JSON dispatcher for protocol-v1 handshake and `add_download`, durable SQLite request-ID deduplication, and a bounded in-memory batch assembler. The dispatcher explicitly rejects `add_batch`, `extract_media`, and `task_control`; the batch assembler is not yet wired into dispatch. No standalone host executable, exact browser-origin allowlist, installer registration, real application queue adapter, status publisher, or process-level E2E suite exists. End-to-end desktop integration is therefore **not complete**.
+The browser bridge implements the v1-shaped Zod schemas, Native Messaging framing via the browser API, reconnect logic, and a development mock host. VortexDM now contains a JSON dispatcher for protocol-v1 handshake and `add_download`, durable SQLite request-ID deduplication, and a bounded in-memory batch assembler. The dispatcher explicitly rejects `add_batch`, `extract_media`, and `task_control`; the batch assembler is not yet wired into dispatch. A standalone host executable and a Linux Firefox manifest template are now present. The host accepts only the pinned Firefox extension ID `browser-bridge@vortexdm.app`; Chrome is deliberately denied until its stable extension ID is pinned. The host writes to a per-user `native-inbox.sqlite` database (override with `VORTEXDM_DB_PATH`), not the app's transfer queue. Windows/macOS manifest registration, a real application queue adapter, status publisher, and process-level E2E suite are still missing. End-to-end desktop integration is therefore **not complete**.
 
-Before declaring v1 stable, implement the host process and platform registration, pin and enforce the shipped extension origin, wire complete batch assembly and application queue acceptance, add full URL parsing/network policy, and run deterministic process-level tests for frames, ACK/reconnect, and browser-download cancellation ordering.
+Before declaring v1 stable, complete platform registration, wire the inbox to the application transfer queue, implement complete batch assembly, add full URL parsing/network policy, publish status/queue state, and run deterministic process-level tests for frames, ACK/reconnect, and browser-download cancellation ordering.
