@@ -9,7 +9,7 @@ namespace {
 
 [[nodiscard]] bool has_forbidden_url_character(std::string_view value) noexcept {
     return std::any_of(value.begin(), value.end(), [](unsigned char ch) {
-        return ch <= 0x20U || ch == 0x7fU || ch == '\\\\';
+        return ch <= 0x20U || ch == 0x7fU || ch == '\\';
     });
 }
 
