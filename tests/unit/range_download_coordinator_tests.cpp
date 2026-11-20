@@ -1,0 +1,95 @@
+#include "core/download/range_download_coordinator.hpp"
+
+#include <catch2/catch_test_macros.hpp>
+
+#include <array>
+#include <chrono>
+#include <cstddef>
+#include <cstdint>
+#include <filesystem>
+#include <fstream>
+#include <string>
+#include <vector>
+
+namespace {
+
+std::filesystem::path temporary_path() {
+    const auto stamp = std::chrono::steady_clock::now().time_since_epoch().count();
+    return std::filesystem::temp_directory_path() /
+        ("vortex-range-transfer-" + std::to_string(stamp) + ".part");
+}
+
+} // namespace
+
+TEST_CASE("Range coordinator validates each response before committing bytes") {
+    const auto path = temporary_path();
+    constexpr std::uint64_t total = 10;
+    vortex::OffsetFileWriter writer;
+    REQUIRE(writer.open(path, total));
+
+    const std::array<std::byte, 10> payload{
+        std::byte{'0'}, std::byte{'1'}, std::byte{'2'}, std::byte{'3'}, std::byte{'4'},
+        std::byte{'5'}, std::byte{'6'}, std::byte{'7'}, std::byte{'8'}, std::byte{'9'}
+    };
+    std::size_t calls = 0;
+    const vortex::RangeRequestExecutor executor =
+        [&payload, &calls](const vortex::HttpRequest& request,
+                           const vortex::HttpBodySink& sink, std::stop_token) {
+            REQUIRE(request.range.has_value());
+            const auto range = *request.range;
+            CHECK(range.first == calls * 4U);
+            const auto count = static_cast<std::size_t>(range.size());
+            REQUIRE(sink(std::span<const std::byte>{
+                payload.data() + static_cast<std::ptrdiff_t>(range.first), count}));
+            vortex::HttpResponse response;
+            response.status_code = 206;
+            response.headers["content-range"] = "bytes " +
+                std::to_string(range.first) + "-" + std::to_string(range.last) + "/10";
+            response.headers["content-length"] = std::to_string(count);
+            response.bytes_received = count;
+            ++calls;
+            return vortex::Result<vortex::HttpResponse>{std::move(response)};
+        };
+
+    REQUIRE(vortex::RangeDownloadCoordinator::transfer(
+        "https://example.test/file", total, 4, writer, executor));
+    CHECK(calls == 3);
+    REQUIRE(writer.close());
+
+    std::ifstream input(path, std::ios::binary);
+    REQUIRE(input.good());
+    std::array<char, 10> actual{};
+    input.read(actual.data(), static_cast<std::streamsize>(actual.size()));
+    CHECK(std::string(actual.data(), actual.size()) == "0123456789");
+    std::filesystem::remove(path);
+}
+
+TEST_CASE("Range coordinator never writes a response with an invalid Content-Range") {
+    const auto path = temporary_path();
+    vortex::OffsetFileWriter writer;
+    REQUIRE(writer.open(path, 4));
+    const vortex::RangeRequestExecutor executor =
+        [](const vortex::HttpRequest&, const vortex::HttpBodySink& sink, std::stop_token) {
+            const std::array<std::byte, 4> body{
+                std::byte{'b'}, std::byte{'a'}, std::byte{'d'}, std::byte{'!'}};
+            REQUIRE(sink(body));
+            vortex::HttpResponse response;
+            response.status_code = 206;
+            response.headers["content-range"] = "bytes 1-4/4";
+            response.headers["content-length"] = "4";
+            response.bytes_received = 4;
+            return vortex::Result<vortex::HttpResponse>{std::move(response)};
+        };
+
+    const auto result = vortex::RangeDownloadCoordinator::transfer(
+        "https://example.test/file", 4, 4, writer, executor);
+    CHECK_FALSE(result.has_value());
+    REQUIRE(writer.close());
+
+    std::ifstream input(path, std::ios::binary);
+    REQUIRE(input.good());
+    std::array<char, 4> actual{};
+    input.read(actual.data(), static_cast<std::streamsize>(actual.size()));
+    CHECK(std::string(actual.data(), actual.size()) == std::string(4, '\0'));
+    std::filesystem::remove(path);
+}
