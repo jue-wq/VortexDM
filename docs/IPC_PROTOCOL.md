@@ -75,7 +75,7 @@ A negative response may include `error`:
 { "type": "ack", "request_id": "unique-request-id", "accepted": false, "error": "queue is full" }
 ```
 
-Every request carrying `request_id` must receive exactly one ACK. The host must de-duplicate repeated request IDs within a bounded retention window so reconnect/retry does not enqueue duplicate work. ACKs confirm acceptance only, not completion.
+Every request carrying `request_id` must receive exactly one ACK. The host must de-duplicate repeated request IDs within a bounded retention window so reconnect/retry does not enqueue duplicate work. ACKs confirm acceptance only, not completion. The desktop persistence layer currently accepts request IDs of 1–128 printable ASCII characters (no spaces or control bytes); the dispatcher must reject values outside this subset before enqueue.
 
 ### `status_update`
 
