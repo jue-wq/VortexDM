@@ -6,7 +6,7 @@
 
 TEST_CASE("Segment planner partitions file into balanced inclusive ranges") {
     const auto result = vortex::SegmentPlanner::split(10, 3);
-    REQUIRE(result);
+    REQUIRE(result.has_value());
     REQUIRE(result->size() == 3);
     CHECK((*result)[0].first == 0);
     CHECK((*result)[0].last == 3);
@@ -25,9 +25,9 @@ TEST_CASE("Segment planner partitions file into balanced inclusive ranges") {
 
 TEST_CASE("Segment planner caps segments to byte count and rejects invalid input") {
     const auto tiny = vortex::SegmentPlanner::split(2, 8);
-    REQUIRE(tiny);
+    REQUIRE(tiny.has_value());
     CHECK(tiny->size() == 2);
-    CHECK_FALSE(vortex::SegmentPlanner::split(0, 2));
-    CHECK_FALSE(vortex::SegmentPlanner::split(100, 17));
-    CHECK_FALSE(vortex::SegmentPlanner::split(100, 0));
+    CHECK_FALSE(vortex::SegmentPlanner::split(0, 2).has_value());
+    CHECK_FALSE(vortex::SegmentPlanner::split(100, 17).has_value());
+    CHECK_FALSE(vortex::SegmentPlanner::split(100, 0).has_value());
 }
