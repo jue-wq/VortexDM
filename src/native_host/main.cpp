@@ -2,6 +2,12 @@
 #include "core/ipc/native_messaging_stream.hpp"
 
 #include <cstdlib>
+#include <nlohmann/json.hpp>
+
+#ifdef _WIN32
+#include <fcntl.h>
+#include <io.h>
+#endif
 #include <iostream>
 #include <string_view>
 
@@ -23,6 +29,13 @@ constexpr std::string_view allowed_firefox_extension = "browser-bridge@vortexdm.
 } // namespace
 
 int main(const int argc, char** argv) {
+#ifdef _WIN32
+    // Native Messaging frames are binary even on Windows; disable CRT newline translation.
+    if (_setmode(_fileno(stdin), _O_BINARY) == -1 ||
+        _setmode(_fileno(stdout), _O_BINARY) == -1) {
+        return fail("could not switch standard streams to binary mode", 1);
+    }
+#endif
     if (!authorized_origin(argc, argv)) {
         return fail("unauthorized or unpinned browser origin", 2);
     }
