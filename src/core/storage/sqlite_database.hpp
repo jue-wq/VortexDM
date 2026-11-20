@@ -5,6 +5,7 @@
 
 #include <filesystem>
 #include <mutex>
+#include <string_view>
 #include <vector>
 
 struct sqlite3;
@@ -23,6 +24,8 @@ public:
     [[nodiscard]] Status close();
     [[nodiscard]] Status migrate();
     [[nodiscard]] Result<std::int64_t> insert_download(const DownloadRecord& record);
+    // Atomically inserts a download and binds a stable IPC request ID. Replays return the original download ID.
+    [[nodiscard]] Result<std::int64_t> enqueue_download_once(std::string_view request_id, const DownloadRecord& record);
     [[nodiscard]] Status update_download_progress(
         std::int64_t id, std::int64_t downloaded_bytes, DownloadState state,
         std::int64_t updated_at_unix
