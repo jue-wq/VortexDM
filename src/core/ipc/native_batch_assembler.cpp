@@ -31,6 +31,12 @@ Result<std::optional<std::vector<DownloadRecord>>> NativeBatchAssembler::add(
     std::scoped_lock lock(mutex_);
     expire(now);
 
+    if (limits_.max_pending_batches == 0U || limits_.max_chunks_per_batch == 0U ||
+        limits_.max_downloads_per_batch == 0U || limits_.max_bytes_per_batch == 0U ||
+        limits_.assembly_timeout <= std::chrono::seconds::zero()) {
+        return std::unexpected(invalid_batch("Native batch limits are not usable"));
+    }
+
     if (chunk.batch_id.empty() || chunk.batch_id.size() > 128U ||
         chunk.chunk_total == 0U || chunk.chunk_total > limits_.max_chunks_per_batch ||
         chunk.chunk_index >= chunk.chunk_total || chunk.downloads.empty()) {
@@ -39,7 +45,11 @@ Result<std::optional<std::vector<DownloadRecord>>> NativeBatchAssembler::add(
 
     std::size_t chunk_bytes = 0;
     for (const auto& record : chunk.downloads) {
-        if (record.url.empty() || record.destination.empty()) {
+        const auto state = static_cast<std::int32_t>(record.state);
+        if (record.url.empty() || record.destination.empty() ||
+            record.total_bytes < -1 || record.downloaded_bytes < 0 ||
+            (record.total_bytes >= 0 && record.downloaded_bytes > record.total_bytes) ||
+            state < 0 || state > 5) {
             return std::unexpected(invalid_batch("Batch contains an invalid download record"));
         }
         const auto size = estimate_bytes(record);
