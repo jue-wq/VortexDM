@@ -135,3 +135,28 @@ TEST_CASE("SQLite native request deduplication survives reopening the database")
         CHECK(rows->size() == 1);
     }
 }
+
+
+TEST_CASE("SQLite storage rejects invalid states and non-printable native request IDs") {
+    TemporaryDatabase temporary;
+    vortex::SqliteDatabase database;
+    REQUIRE(database.open(temporary.path()).has_value());
+    REQUIRE(database.migrate().has_value());
+
+    vortex::DownloadRecord invalid_state;
+    invalid_state.url = "https://example.test/invalid-state.bin";
+    invalid_state.destination = "invalid-state.bin";
+    invalid_state.state = static_cast<vortex::DownloadState>(99);
+    CHECK_FALSE(database.insert_download(invalid_state).has_value());
+    CHECK_FALSE(database.enqueue_download_once("valid-request", invalid_state).has_value());
+
+    vortex::DownloadRecord valid;
+    valid.url = "https://example.test/valid.bin";
+    valid.destination = "valid.bin";
+    CHECK_FALSE(database.enqueue_download_once(std::string("bad\\0id", 6), valid).has_value());
+    CHECK_FALSE(database.enqueue_download_once("bad\\nrequest", valid).has_value());
+
+    const auto rows = database.list_downloads();
+    REQUIRE(rows);
+    CHECK(rows->empty());
+}
