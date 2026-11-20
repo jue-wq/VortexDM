@@ -1,0 +1,64 @@
+# VortexDM Architecture Guardrails
+
+These rules are mandatory for all modules and contributors.
+
+## 1. Module boundaries
+
+- `vortex-core` is a UI-independent C++23 library. It must not include Qt headers
+  or depend on QML, windowing, or platform UI APIs.
+- UI, CLI, IPC, and native-host code are adapters around the core; business rules
+  belong in the core.
+- Network, persistence, process execution, and filesystem operations are exposed
+  behind narrow interfaces so tests can replace them.
+- Public headers must include only what they need and must not expose third-party
+  implementation types unless unavoidable.
+
+## 2. Error and memory policy
+
+- Use `vortex::Result<T>` (`std::expected<T, VortexError>`) at core boundaries.
+- Do not use raw owning `new` / `delete`; use RAII and standard smart pointers.
+- Exceptions must not cross core/API boundaries. Catch exceptions at adapter
+  boundaries and convert them to `VortexError`.
+- Cancellation must be explicit and propagated with `std::stop_token`.
+
+## 3. Concurrency and data integrity
+
+- Every mutable task has one authoritative state owner.
+- Segment ranges must be disjoint, validated, and persisted before workers write.
+- A completed segment is not durable merely because bytes reached a userspace
+  buffer. Define and test the file flush / metadata commit ordering.
+- SQLite transactions protect database state; they do not make filesystem writes
+  part of the same atomic transaction.
+- Recovery must reconcile database checkpoints with the actual partial file.
+  Never claim cross-resource, absolute crash safety without a defined recovery
+  protocol and fault-injection tests.
+
+## 4. Networking and security
+
+- TLS certificate verification is enabled by default and cannot be silently
+  disabled.
+- Redirects, proxy settings, cookies, and extracted HTTP headers are treated as
+  untrusted input and validated at boundaries.
+- Secrets (cookies, proxy credentials, API tokens) must never appear in logs.
+- Local IPC must authenticate the peer where the platform supports it and must
+  validate message size, schema, and protocol version.
+- Extractor output is data, not executable instructions. The extractor is never
+  the download transport.
+
+## 5. Testing and quality gates
+
+- Unit tests cover parsers, state transitions, range allocation, serialization,
+  and error mapping.
+- Integration tests use deterministic local mock servers and temporary
+  directories; they must not depend on public websites.
+- Run ASan/UBSan in CI where supported. Run TSan in a separate concurrency job.
+- A phase is complete only when its documented acceptance criteria are met by
+  repeatable tests on the supported toolchains.
+
+## 6. Phase 1 implementation order
+
+1. Build configuration and dependency resolution.
+2. Typed error/result primitives and logging.
+3. SQLite connection, WAL configuration, migrations, and repositories.
+4. Preallocated offset-based file writer with explicit durability semantics.
+5. Fault-injection and parallel-write tests.
