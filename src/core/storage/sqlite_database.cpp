@@ -195,11 +195,6 @@ Result<std::vector<DownloadRecord>> SqliteDatabase::list_downloads() {
         if (!valid_state(state)) return std::unexpected(VortexError::make(
             ErrorCode::database_error, "Stored download state is invalid"
         ));
-        const auto text_column = [this](const int column) {
-            const auto* value = sqlite3_column_text(sqlite3_next_stmt(db_, nullptr), column);
-            return value ? std::string(reinterpret_cast<const char*>(value)) : std::string{};
-        };
-        (void)text_column;
         const auto* url = sqlite3_column_text(statement.get(), 1);
         const auto* destination = sqlite3_column_text(statement.get(), 2);
         const auto* checksum = sqlite3_column_text(statement.get(), 6);
