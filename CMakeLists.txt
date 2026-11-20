@@ -1,12 +1,12 @@
 cmake_minimum_required(VERSION 3.28)
 
-include(GNUInstallDirs)
-
 project(VortexDM
     VERSION 0.1.0
     DESCRIPTION "Modern C++23 cross-platform download manager"
     LANGUAGES CXX
 )
+
+include(GNUInstallDirs)
 
 option(VORTEXDM_BUILD_TESTS "Build VortexDM tests" ON)
 option(VORTEXDM_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
