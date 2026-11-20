@@ -65,6 +65,7 @@ These rules are mandatory for all modules and contributors.
   crash-recovery protocol still requires platform flush primitives and
   fault-injection coverage.
 - Balanced inclusive HTTP byte-range planner with a configurable segment cap.
+- Bounded exponential retry policy for transient HTTP failures, including capped Retry-After handling.
 - Native Messaging v1 frame codec with little-endian length prefix, 1 MiB payload cap, exact-frame validation, and UTF-8 validation.
 - Unit tests for hashing, database persistence, offset writes, and range
   partitioning.
