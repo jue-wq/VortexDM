@@ -37,7 +37,7 @@ Required: `url` (absolute HTTP or HTTPS URL).
 
 Optional: `request_id`, `filename`, `headers` (string map), `cookies` (transient cookie objects), `referrer`, `download_page`, `auto_start`, `queue_id`.
 
-The current dispatcher validates a basic HTTP(S) URL, strips directory components from the requested filename, atomically persists the download and request ID in SQLite, and only then returns a positive ACK. This is durable inbox acceptance, not proof that the application's transfer queue has started the item. The browser extension may cancel its original browser download only after receiving this positive ACK; production queue integration is still required before that behavior is safe to ship.
+The current dispatcher validates a basic HTTP(S) URL, strips directory components from the requested filename, atomically persists the download and request ID in SQLite, and only then returns a positive ACK. This is durable inbox acceptance, not proof that the application's transfer queue has started the item. The browser extension may cancel its original browser download only after receiving this positive ACK; production queue integration is still required before that behavior is safe to ship. Headers, cookies, referrer, download-page, queue selection, and `auto_start` are currently not applied by this dispatcher; in particular, cookies are ignored and never persisted. The ACK therefore confirms only that the URL and safe filename were durably recorded.
 
 ### `extract_media`
 
