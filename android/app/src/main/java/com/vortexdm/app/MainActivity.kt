@@ -136,12 +136,12 @@ class MainActivity : Activity() {
                         addAll(permissions)
                         addAll(origins)
                         addAll(dataCollectionPermissions)
-                    }.distinct().joinToString("\\n")
+                    }.distinct().joinToString("\n")
                     AlertDialog.Builder(this@MainActivity)
                         .setTitle("Install ${extension.metaData.name}?")
                         .setMessage(
-                            "This extension requests the following permissions:\\n\\n" +
-                                requested + "\\n\\nOnly continue if you trust this add-on."
+                            "This extension requests the following permissions:\n\n" +
+                                requested + "\n\nOnly continue if you trust this add-on."
                         )
                         .setPositiveButton("Install") { _, _ ->
                             result.complete(
