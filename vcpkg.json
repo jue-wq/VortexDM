@@ -1,0 +1,11 @@
+{
+  "name": "vortexdm",
+  "version-string": "0.1.0",
+  "description": "Modern C++23 desktop download manager",
+  "dependencies": [
+    "catch2",
+    "openssl",
+    "spdlog",
+    "sqlite3"
+  ]
+}
