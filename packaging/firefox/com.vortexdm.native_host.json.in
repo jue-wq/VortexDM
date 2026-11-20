@@ -1,0 +1,9 @@
+{
+  "name": "com.vortexdm.native_host",
+  "description": "VortexDM Native Messaging host",
+  "path": "@VORTEXDM_NATIVE_HOST_INSTALL_PATH@",
+  "type": "stdio",
+  "allowed_extensions": [
+    "browser-bridge@vortexdm.app"
+  ]
+}
