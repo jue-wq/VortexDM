@@ -65,12 +65,14 @@ These rules are mandatory for all modules and contributors.
   crash-recovery protocol still requires platform flush primitives and
   fault-injection coverage.
 - Balanced inclusive HTTP byte-range planner with a configurable segment cap.
+- Native Messaging v1 frame codec with little-endian length prefix, 1 MiB payload cap, exact-frame validation, and UTF-8 validation.
 - Unit tests for hashing, database persistence, offset writes, and range
   partitioning.
 
 The HTTP transport, retry policy, segment scheduler, durable checkpoint
-protocol, and Android JNI linkage to the shared storage/download modules are
-not implemented yet.
+protocol, Android JNI linkage to the shared storage/download modules, JSON
+schema validation, native host process, and end-to-end browser-to-desktop queue
+adapter are not implemented yet.
 
 ## 7. Phase 1 implementation order
 
