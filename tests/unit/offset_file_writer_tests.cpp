@@ -58,17 +58,17 @@ TEST_CASE("Offset writer safely serializes concurrent disjoint segment writes") 
     REQUIRE(writer.open(path, segment_count * segment_size).has_value());
 
     std::vector<std::thread> workers;
-    std::vector<bool> succeeded(segment_count, false);
+    std::vector<int> succeeded(segment_count, 0);
     for (std::size_t segment = 0; segment < segment_count; ++segment) {
         workers.emplace_back([&, segment] {
             std::vector<std::byte> bytes(segment_size,
                 static_cast<std::byte>('A' + static_cast<char>(segment)));
-            succeeded[segment] = writer.write_at(segment * segment_size, bytes).has_value();
+            succeeded[segment] = writer.write_at(segment * segment_size, bytes).has_value() ? 1 : 0;
         });
     }
     for (auto& worker : workers) worker.join();
 
-    for (const bool success : succeeded) CHECK(success);
+    for (const int success : succeeded) CHECK(success == 1);
     REQUIRE(writer.flush().has_value());
     REQUIRE(writer.close().has_value());
 
