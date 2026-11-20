@@ -100,6 +100,6 @@ Cookies are optional transient fields only. The extension must read them only af
 
 ## 7. Implementation status
 
-The browser bridge currently implements the v1-shaped Zod schemas, Native Messaging framing via the browser API, reconnect logic, and a development mock host. The VortexDM repository currently has no production Native Messaging host, request de-duplication store, batch assembler, or queue adapter. End-to-end desktop integration is therefore **not complete**.
+The browser bridge currently implements the v1-shaped Zod schemas, Native Messaging framing via the browser API, reconnect logic, and a development mock host. The VortexDM repository now contains a durable SQLite request-ID deduplication primitive and a bounded in-memory batch assembler with expiry, duplicate/conflict rejection, and configured memory/item limits. These primitives are not yet wired into a production Native Messaging host or application queue adapter. End-to-end desktop integration is therefore **not complete**.
 
-Before declaring v1 stable, add host-side schema/serialization tests and deterministic integration tests that launch the real host process, exchange frames, test ACK timeouts/reconnects, and verify that a download is never cancelled before queue acceptance.
+Before declaring v1 stable, wire the persistence and assembly primitives into the host dispatcher, add host-side schema/serialization tests and deterministic integration tests that launch the real host process, exchange frames, test ACK timeouts/reconnects, and verify that a download is never cancelled before queue acceptance.
