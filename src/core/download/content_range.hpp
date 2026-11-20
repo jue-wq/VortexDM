@@ -26,6 +26,14 @@ public:
     [[nodiscard]] static std::optional<ContentRange> parse(
         std::string_view header
     ) noexcept;
+
+    // A segment is writable only for an exact 206 response with a matching
+    // Content-Range and Content-Length. This rejects truncated/overlong bodies.
+    [[nodiscard]] static bool validate_partial_response(
+        int http_status, std::string_view content_range,
+        std::uint64_t content_length, const ByteRange& requested,
+        std::uint64_t expected_total
+    ) noexcept;
 };
 
 } // namespace vortex
