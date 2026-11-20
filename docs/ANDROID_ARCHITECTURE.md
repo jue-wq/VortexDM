@@ -26,11 +26,12 @@ Android presentation layer.
 
 The Android app now bundles a GeckoView WebExtension at
 android/app/src/main/assets/vortex-shield. It is installed through
-WebExtensionController.ensureBuiltIn. The initial background script uses
-webRequest blocking against a deliberately small hostname set. This is a
-development bootstrap only: it is not an ABP parser, does not load filter
-subscriptions, and does not implement cosmetic filtering or uBlock Origin
-feature parity. The README next to the extension records these limitations.
+WebExtensionController.ensureBuiltIn. The background script fetches and caches EasyList and EasyPrivacy over HTTPS,
+updates them daily, and falls back to cached content when an update fails. Its
+parser handles only hostname block/exception rules and a small set of request
+types. It skips cosmetic selectors, regex/wildcard rules, third-party options,
+domain-scoped rules, redirects, and scriptlets. This is an early filter-list
+integration, not full ABP or uBlock Origin compatibility.
 
 ### Planned production behavior
 
@@ -86,7 +87,7 @@ behavior and excluded URL schemes.
 ## Browser shell status
 
 The current MainActivity provides a basic address/search field, Go, Back,
-Forward, and Reload controls. It is a functional navigation scaffold, not a
+Forward, Reload, and an opt-in official uBlock Origin installation action. It is a functional navigation scaffold, not a
 finished tabbed browser. Tab lifecycle, session persistence, page-title and URL
 delegates, permission prompts, downloads, bookmarks, history, and private
 sessions remain to be implemented.
