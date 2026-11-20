@@ -2,7 +2,14 @@ package com.vortexdm.app
 
 import android.app.Activity
 import android.os.Bundle
+import android.view.Gravity
 import android.view.ViewGroup
+import android.view.inputmethod.EditorInfo
+import android.widget.Button
+import android.widget.EditText
+import android.widget.LinearLayout
+import android.widget.TextView
+import android.util.Log
 import org.mozilla.geckoview.GeckoRuntime
 import org.mozilla.geckoview.GeckoSession
 import org.mozilla.geckoview.GeckoView
@@ -10,34 +17,116 @@ import org.mozilla.geckoview.GeckoView
 class MainActivity : Activity() {
     private lateinit var runtime: GeckoRuntime
     private lateinit var session: GeckoSession
+    private lateinit var addressBar: EditText
+    private lateinit var pageStatus: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         runtime = GeckoRuntime.create(this)
         session = GeckoSession()
         session.open(runtime)
-        val browserView = GeckoView(this)
-        browserView.layoutParams = ViewGroup.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.MATCH_PARENT
-        )
-        browserView.setSession(session)
-        setContentView(browserView)
-        if (savedInstanceState == null) session.loadUri("https://example.com")
+
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(12, 12, 12, 0)
+        }
+        val addressRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        addressBar = EditText(this).apply {
+            hint = "Search or enter address"
+            singleLine = true
+            imeOptions = EditorInfo.IME_ACTION_GO
+            setOnEditorActionListener { _, actionId, _ ->
+                if (actionId == EditorInfo.IME_ACTION_GO) {
+                    navigate(addressBar.text.toString())
+                    true
+                } else false
+            }
+        }
+        addressRow.addView(addressBar, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        addressRow.addView(Button(this).apply {
+            text = "Go"
+            setOnClickListener { navigate(addressBar.text.toString()) }
+        })
+        root.addView(addressRow)
+
+        val controls = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+        controls.addView(Button(this).apply {
+            text = "Back"
+            setOnClickListener { if (session.isOpen) session.goBack() }
+        })
+        controls.addView(Button(this).apply {
+            text = "Forward"
+            setOnClickListener { if (session.isOpen) session.goForward() }
+        })
+        controls.addView(Button(this).apply {
+            text = "Reload"
+            setOnClickListener { if (session.isOpen) session.reload() }
+        })
+        root.addView(controls)
+
+        pageStatus = TextView(this).apply {
+            text = "Vortex Shield is initializing"
+            textSize = 12f
+        }
+        root.addView(pageStatus)
+
+        val browserView = GeckoView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
+            setSession(session)
+        }
+        root.addView(browserView)
+        setContentView(root)
+
+        installVortexShield()
+        if (savedInstanceState == null) navigate("https://example.com")
+    }
+
+    private fun installVortexShield() {
+        runtime.webExtensionController
+            .ensureBuiltIn("resource://android/assets/vortex-shield/", "shield@vortexdm.app")
+            .accept(
+                { pageStatusOrLog("Vortex Shield active") },
+                { error -> Log.e("VortexDM", "Shield installation failed", error) }
+            )
+    }
+
+    private fun pageStatusOrLog(message: String) {
+        runOnUiThread {
+            if (::pageStatus.isInitialized) pageStatus.text = message
+        }
+    }
+
+    private fun navigate(rawInput: String) {
+        val input = rawInput.trim()
+        if (input.isEmpty()) return
+        val uri = when {
+            input.startsWith("https://", true) || input.startsWith("http://", true) -> input
+            input.contains(' ') -> "https://www.google.com/search?q=" + java.net.URLEncoder.encode(input, Charsets.UTF_8.name())
+            input.contains('.') -> "https://$input"
+            else -> "https://www.google.com/search?q=" + java.net.URLEncoder.encode(input, Charsets.UTF_8.name())
+        }
+        addressBar.setText(uri)
+        session.loadUri(uri)
     }
 
     override fun onPause() {
-        session.setActive(false)
+        if (::session.isInitialized && session.isOpen) session.setActive(false)
         super.onPause()
     }
 
     override fun onResume() {
         super.onResume()
-        session.setActive(true)
+        if (::session.isInitialized && session.isOpen) session.setActive(true)
     }
 
     override fun onDestroy() {
-        session.close()
+        if (::session.isInitialized) session.close()
         super.onDestroy()
     }
 }
