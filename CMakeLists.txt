@@ -12,6 +12,7 @@ option(VORTEXDM_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehavior
 find_package(OpenSSL REQUIRED)
 find_package(spdlog CONFIG REQUIRED)
 find_package(unofficial-sqlite3 CONFIG REQUIRED)
+find_package(nlohmann_json CONFIG REQUIRED)
 
 add_library(vortex_core STATIC
     src/core/common/crypto_utils.cpp
@@ -24,6 +25,7 @@ add_library(vortex_core STATIC
     src/core/ipc/native_messaging_frame.cpp
     src/core/ipc/native_messaging_stream.cpp
     src/core/ipc/native_batch_assembler.cpp
+    src/core/ipc/native_message_dispatcher.cpp
 )
 add_library(VortexDM::Core ALIAS vortex_core)
 
@@ -37,6 +39,7 @@ target_link_libraries(vortex_core
         OpenSSL::Crypto
         spdlog::spdlog
         unofficial::sqlite3::sqlite3
+        nlohmann_json::nlohmann_json
 )
 
 if(MSVC)
@@ -63,6 +66,7 @@ if(VORTEXDM_BUILD_TESTS)
         tests/unit/download_state_machine_tests.cpp
         tests/unit/native_messaging_frame_tests.cpp
         tests/unit/native_batch_assembler_tests.cpp
+        tests/unit/native_message_dispatcher_tests.cpp
     )
     target_link_libraries(vortex_unit_tests
         PRIVATE
