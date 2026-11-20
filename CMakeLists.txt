@@ -29,6 +29,10 @@ add_library(vortex_core STATIC
 )
 add_library(VortexDM::Core ALIAS vortex_core)
 
+add_executable(vortexdm_native_host src/native_host/main.cpp)
+target_compile_features(vortexdm_native_host PRIVATE cxx_std_23)
+target_link_libraries(vortexdm_native_host PRIVATE VortexDM::Core)
+
 target_compile_features(vortex_core PUBLIC cxx_std_23)
 target_include_directories(vortex_core
     PUBLIC
