@@ -63,6 +63,7 @@ if(VORTEXDM_BUILD_TESTS)
         tests/unit/retry_policy_tests.cpp
         tests/unit/content_range_tests.cpp
         tests/unit/http_request_policy_tests.cpp
+        tests/unit/http_client_tests.cpp
         tests/unit/download_state_machine_tests.cpp
         tests/unit/native_messaging_frame_tests.cpp
     )
