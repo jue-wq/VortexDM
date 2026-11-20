@@ -25,7 +25,7 @@ public:
     using Clock = std::chrono::steady_clock;
     struct Limits {
         std::size_t max_pending_batches{32};
-        std::size_t max_chunks_per_batch{32};
+        std::size_t max_chunks_per_batch{128};
         std::size_t max_downloads_per_batch{1000};
         std::size_t max_bytes_per_batch{4U * 1024U * 1024U};
         std::chrono::seconds assembly_timeout{30};
