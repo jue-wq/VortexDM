@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  desktop:
     name: ${{ matrix.os }} / ${{ matrix.compiler }}
     strategy:
       fail-fast: false
@@ -15,16 +15,10 @@ jobs:
         include:
           - os: ubuntu-latest
             compiler: clang
-            cc: clang
-            cxx: clang++
+            preset: linux-clang-debug
           - os: windows-latest
             compiler: msvc
-            cc: cl
-            cxx: cl
-          - os: macos-latest
-            compiler: clang
-            cc: clang
-            cxx: clang++
+            preset: windows-msvc-debug
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -42,12 +36,38 @@ jobs:
         uses: ilammy/msvc-dev-cmd@v1
 
       - name: Configure
-        run: cmake --preset ${{ matrix.os == 'windows-latest' && 'windows-msvc-debug' || matrix.os == 'macos-latest' && 'macos-clang-debug' || 'linux-clang-debug' }}
+        run: cmake --preset ${{ matrix.preset }}
         env:
           VCPKG_ROOT: ${{ github.workspace }}/vcpkg
 
       - name: Build
-        run: cmake --build --preset ${{ matrix.os == 'windows-latest' && 'windows-msvc-debug' || matrix.os == 'macos-latest' && 'macos-clang-debug' || 'linux-clang-debug' }}
+        run: cmake --build --preset ${{ matrix.preset }}
 
       - name: Test
-        run: ctest --preset ${{ matrix.os == 'windows-latest' && 'windows-msvc-debug' || matrix.os == 'macos-latest' && 'macos-clang-debug' || 'linux-clang-debug' }}
+        run: ctest --preset ${{ matrix.preset }}
+
+  android:
+    name: Android / Gradle / GeckoView
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Install Android SDK packages
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;28.2.13676358" "cmake;3.31.6"
+
+      - name: Assemble debug APK
+        run: gradle -p android assembleDebug
