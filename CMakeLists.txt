@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.28)
 
+include(GNUInstallDirs)
+
 project(VortexDM
     VERSION 0.1.0
     DESCRIPTION "Modern C++23 cross-platform download manager"
@@ -32,6 +34,16 @@ add_library(VortexDM::Core ALIAS vortex_core)
 add_executable(vortexdm_native_host src/native_host/main.cpp)
 target_compile_features(vortexdm_native_host PRIVATE cxx_std_23)
 target_link_libraries(vortexdm_native_host PRIVATE VortexDM::Core)
+
+install(TARGETS vortexdm_native_host RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+set(VORTEXDM_NATIVE_HOST_INSTALL_PATH "${CMAKE_INSTALL_FULL_BINDIR}/vortexdm_native_host")
+configure_file(
+    packaging/firefox/com.vortexdm.native_host.json.in
+    ${CMAKE_CURRENT_BINARY_DIR}/com.vortexdm.native_host.json
+    @ONLY
+)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/com.vortexdm.native_host.json
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/mozilla/native-messaging-hosts)
 
 target_compile_features(vortex_core PUBLIC cxx_std_23)
 target_include_directories(vortex_core
