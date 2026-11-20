@@ -23,8 +23,10 @@ RetryDecision RetryPolicy::decide(
     }
 
     if (retry_after && retry_after->count() >= 0) {
-        const auto requested = std::chrono::duration_cast<std::chrono::milliseconds>(*retry_after);
-        return {true, std::min(requested, maximum_delay)};
+        if (*retry_after >= std::chrono::duration_cast<std::chrono::seconds>(maximum_delay)) {
+            return {true, maximum_delay};
+        }
+        return {true, std::chrono::duration_cast<std::chrono::milliseconds>(*retry_after)};
     }
 
     const auto exponent = std::min<std::uint32_t>(attempt, 20U);
