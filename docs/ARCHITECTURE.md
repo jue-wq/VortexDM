@@ -55,7 +55,24 @@ These rules are mandatory for all modules and contributors.
 - A phase is complete only when its documented acceptance criteria are met by
   repeatable tests on the supported toolchains.
 
-## 6. Phase 1 implementation order
+## 6. Implemented foundation (current)
+
+- SHA-256 file hashing through OpenSSL EVP.
+- SQLite database with WAL, foreign-key enforcement, versioned migration
+  metadata, and download task CRUD/progress persistence.
+- Synchronized offset writer with pre-sized partial files and strict bounds
+  checks. Its stream flush is not an OS-level durability guarantee; the final
+  crash-recovery protocol still requires platform flush primitives and
+  fault-injection coverage.
+- Balanced inclusive HTTP byte-range planner with a configurable segment cap.
+- Unit tests for hashing, database persistence, offset writes, and range
+  partitioning.
+
+The HTTP transport, retry policy, segment scheduler, durable checkpoint
+protocol, and Android JNI linkage to the shared storage/download modules are
+not implemented yet.
+
+## 7. Phase 1 implementation order
 
 1. Build configuration and dependency resolution.
 2. Typed error/result primitives and logging.
