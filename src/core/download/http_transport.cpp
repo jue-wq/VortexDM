@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <array>
 #include <climits>
-#include <mutex>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -125,8 +125,7 @@ Result<HttpTransferResponse> HttpTransport::get(
         set(CURLOPT_WRITEFUNCTION, &receive_body) &&
         set(CURLOPT_WRITEDATA, &context) &&
         set(CURLOPT_HEADERFUNCTION, &receive_header) &&
-        set(CURLOPT_HEADERDATA, &context) &&
-        set(CURLOPT_ACCEPT_ENCODING, "");
+        set(CURLOPT_HEADERDATA, &context);
     if (!configured) {
         return std::unexpected(VortexError::make(
             ErrorCode::network_error, "Unable to configure libcurl options"));
