@@ -190,6 +190,28 @@ QByteArray AndroidLoopbackServer::dispatchIpc(const QByteArray& body) {
                 } catch (...) { answer = {{"accepted",false},{"code","invalid_batch_json"}}; }
             }
         }
+    } else if (request.value("type", std::string{}) == "task_control") {
+        if (!payload.contains("task_id") || !payload["task_id"].is_string() ||
+            !payload.contains("action") || !payload["action"].is_string()) {
+            answer = {{"accepted",false},{"code","invalid_task_control"},{"message","task_id and action are required"}};
+        } else {
+            const auto task_id = payload["task_id"].get<std::string>();
+            const auto action = payload["action"].get<std::string>();
+            const auto current = repository_->get_download_status(task_id);
+            if (!current) answer = {{"accepted",false},{"code",current.error().code},{"message",current.error().message}};
+            else {
+                std::string next;
+                if (action == "pause" && (*current == "Queued" || *current == "Downloading")) next = "Paused";
+                else if (action == "resume" && *current == "Paused") next = "Queued";
+                else if (action == "cancel" && *current != "Completed" && *current != "Cancelled") next = "Cancelled";
+                else answer = {{"accepted",false},{"code","invalid_task_transition"},{"message","Task cannot perform the requested action in its current state"}};
+                if (!next.empty()) {
+                    auto updated = repository_->update_download_status(task_id, next);
+                    if (!updated) answer = {{"accepted",false},{"code",updated.error().code},{"message",updated.error().message}};
+                    else answer = {{"accepted",true},{"task_id",task_id},{"status",next}};
+                }
+            }
+        }
     } else {
         answer = {{"accepted",false},{"code","not_implemented"},{"message","Service is not implemented"}};
     }
