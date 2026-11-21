@@ -209,6 +209,11 @@ Result<HttpTransferResponse> HttpTransport::get(
             ErrorCode::parse_error, "HTTP range response metadata is invalid"));
     }
 
+    if (options.range && context.body_bytes != options.range->size()) {
+        return std::unexpected(VortexError::make(
+            ErrorCode::parse_error, "HTTP range body length did not match the requested interval"));
+    }
+
     long status = 0;
     if (curl_easy_getinfo(handle.get(), CURLINFO_RESPONSE_CODE, &status) != CURLE_OK) {
         return std::unexpected(VortexError::make(
