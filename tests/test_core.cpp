@@ -365,8 +365,12 @@ bool test_native_host_batch_chunk_integration() {
     std::filesystem::remove(database_path, database_ignored);
     std::filesystem::remove(database_path.string()+"-wal", database_ignored);
     std::filesystem::remove(database_path.string()+"-shm", database_ignored);
-    vortex::NativeMessagingHost host(database_path);
-    if (host.run(input, output) != 0) return false;
+    int host_status = 0;
+    {
+        vortex::NativeMessagingHost host(database_path);
+        host_status = host.run(input, output);
+    }
+    if (host_status != 0) return false;
     const auto responses = read_frames(output.str());
     if (responses.size() != total) return false;
     for (std::size_t index = 0; index < responses.size(); ++index) {
