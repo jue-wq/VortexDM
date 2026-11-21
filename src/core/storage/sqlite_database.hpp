@@ -34,6 +34,11 @@ public:
     [[nodiscard]] Result<std::int64_t> enqueue_download_once(std::string_view request_id, const DownloadRecord& record);
     [[nodiscard]] Result<std::vector<NativeInboxEntry>> list_pending_native_requests(std::size_t limit = 100);
     [[nodiscard]] Status mark_native_request_imported(std::string_view request_id);
+    // Compare-and-swap state transition; rejects illegal edges and stale worker updates.
+    [[nodiscard]] Status transition_download_state(
+        std::int64_t id, DownloadState expected_from, DownloadState to,
+        std::int64_t updated_at_unix
+    );
     [[nodiscard]] Status update_download_progress(
         std::int64_t id, std::int64_t downloaded_bytes, DownloadState state,
         std::int64_t updated_at_unix
