@@ -88,6 +88,8 @@ public:
     [[nodiscard]] Result<void> save_queue(const QueueRecord& record);
     [[nodiscard]] Result<std::vector<QueueRecord>> list_queues();
     [[nodiscard]] Result<void> save_stream(const StreamRecord& record);
+    [[nodiscard]] Result<std::optional<StreamRecord>> get_stream_for_download(const std::string& download_id);
+    [[nodiscard]] Result<void> clear_segments(const std::string& stream_id);
     [[nodiscard]] Result<void> save_segment_checkpoint(const SegmentRecord& record);
     [[nodiscard]] Result<void> save_ytdlp_profile(const YtDlpProfileRecord& record);
     [[nodiscard]] Result<std::vector<YtDlpProfileRecord>> list_ytdlp_profiles();

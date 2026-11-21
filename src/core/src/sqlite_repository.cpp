@@ -385,6 +385,39 @@ Result<void> SqliteRepository::save_stream(const StreamRecord& record) {
     return {};
 }
 
+Result<std::optional<StreamRecord>> SqliteRepository::get_stream_for_download(const std::string& download_id) {
+    if(db_==nullptr)return std::unexpected(make_error("sqlite_open",open_error_));
+    Statement statement(db_,R"SQL(
+      SELECT id,download_id,stream_role,url,temp_path,total_bytes,downloaded_bytes,protocol,format_id,headers_json,status
+      FROM streams WHERE download_id=? ORDER BY stream_role LIMIT 1;
+    )SQL");
+    if(!statement.valid())return std::unexpected(database_error(db_,"sqlite_prepare","Could not prepare stream lookup"));
+    auto bound=bind_text(statement.get(),1,download_id);if(!bound)return std::unexpected(bound.error());
+    const int rc=sqlite3_step(statement.get());
+    if(rc==SQLITE_DONE)return std::optional<StreamRecord>{};
+    if(rc!=SQLITE_ROW)return std::unexpected(database_error(db_,"sqlite_read","Could not read download stream"));
+    const auto text_column=[statement_ptr=statement.get()](int index){
+        const auto* value=reinterpret_cast<const char*>(sqlite3_column_text(statement_ptr,index));
+        return value?std::string(value):std::string{};
+    };
+    StreamRecord record;
+    record.id=text_column(0);record.download_id=text_column(1);record.stream_role=text_column(2);
+    record.url=text_column(3);record.temp_path=text_column(4);
+    record.total_bytes=static_cast<std::uint64_t>(sqlite3_column_int64(statement.get(),5));
+    record.downloaded_bytes=static_cast<std::uint64_t>(sqlite3_column_int64(statement.get(),6));
+    record.protocol=text_column(7);record.format_id=text_column(8);record.headers_json=text_column(9);record.status=text_column(10);
+    return std::optional<StreamRecord>{std::move(record)};
+}
+
+Result<void> SqliteRepository::clear_segments(const std::string& stream_id) {
+    if(db_==nullptr)return std::unexpected(make_error("sqlite_open",open_error_));
+    Statement statement(db_,"DELETE FROM segments WHERE stream_id=?;");
+    if(!statement.valid())return std::unexpected(database_error(db_,"sqlite_prepare","Could not prepare segment journal reset"));
+    auto bound=bind_text(statement.get(),1,stream_id);if(!bound)return bound;
+    if(sqlite3_step(statement.get())!=SQLITE_DONE)return std::unexpected(database_error(db_,"sqlite_write","Could not reset segment journal"));
+    return {};
+}
+
 Result<void> SqliteRepository::save_segment_checkpoint(const SegmentRecord& record) {
     if (db_ == nullptr) return std::unexpected(make_error("sqlite_open", open_error_));
     if (record.stream_id.empty() || record.end_offset < record.start_offset ||
