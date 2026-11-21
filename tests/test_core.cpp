@@ -117,6 +117,12 @@ bool test_crash_safe_concurrent_writes() {
     if (!write_ok.load(std::memory_order_relaxed) || !writer.flush()) return false;
     writer.close();
 
+    vortex::CrashSafeFileWriter recovered_writer(path);
+    if (!recovered_writer.open_existing(total_size)) return false;
+    const std::span<const std::byte> first_byte(expected.data(), 1U);
+    if (!recovered_writer.write(0U, first_byte) || !recovered_writer.flush()) return false;
+    recovered_writer.close();
+
     std::vector<std::byte> actual(total_size);
     std::ifstream input(path, std::ios::binary);
     if (!input) return false;
@@ -262,6 +268,9 @@ bool test_sqlite_migrations_and_segment_journal() {
     segment.downloaded_bytes = 512U;
     segment.status = "Downloading";
     if (!repository.save_segment_checkpoint(segment)) return false;
+    const auto journal = repository.list_segments(stream.id);
+    if (!journal || journal->size() != 1U || journal->front().downloaded_bytes != 512U ||
+        journal->front().status != "Downloading") return false;
 
     const auto records = repository.list_downloads();
     if (!records || records->size() != 1U) return false;
