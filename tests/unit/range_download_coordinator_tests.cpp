@@ -213,7 +213,7 @@ TEST_CASE("Range coordinator durably checkpoints each validated segment") {
     REQUIRE(pruned);
     CHECK(*pruned == 0);
     REQUIRE(writer.close());
-    database.close();
+    REQUIRE(database.close().has_value());
     std::error_code ignored;
     std::filesystem::remove(path, ignored);
     std::filesystem::remove(database_path, ignored);
