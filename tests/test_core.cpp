@@ -558,8 +558,9 @@ bool test_sqlite_migrations_and_segment_journal() {
     if (!records || records->size() != 1U || records->front().downloaded_bytes != 256U ||
         records->front().total_bytes != 1024U) return false;
     const bool matched = records->front().id == download.id &&
-        records->front().downloaded_bytes == 512U &&
-        records->front().status == "Downloading";
+        records->front().downloaded_bytes == 256U &&
+        records->front().total_bytes == 1024U &&
+        records->front().status == "Queued";
     std::filesystem::remove(path, ignored);
     std::filesystem::remove(path.string() + "-wal", ignored);
     std::filesystem::remove(path.string() + "-shm", ignored);
