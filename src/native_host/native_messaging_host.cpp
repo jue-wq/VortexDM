@@ -5,6 +5,7 @@
 #include "vortex/url.hpp"
 
 #include <array>
+#include <algorithm>
 #include <atomic>
 #include <cstdlib>
 #include <filesystem>
@@ -82,6 +83,36 @@ Result<std::string> NativeMessagingHost::enqueue_download(const nlohmann::json& 
     record.status = "Queued";
     // Cookie and authorization data are intentionally not persisted by the host.
     record.headers_json = "{}";
+    auto saved = repository_->save_download(record);
+    if (!saved) return std::unexpected(saved.error());
+    return record.id;
+}
+
+Result<std::string> NativeMessagingHost::enqueue_media_extract(const nlohmann::json& payload) {
+    if (!repository_) return std::unexpected(make_error("database_unavailable", initialization_error_));
+    if (!payload.contains("webpage_url") || !payload["webpage_url"].is_string())
+        return std::unexpected(make_error("invalid_media_task", "webpage_url is required"));
+    const auto url = payload["webpage_url"].get<std::string>();
+    auto parsed = parse_http_url(url);
+    if (!parsed) return std::unexpected(parsed.error());
+    const auto profiles = repository_->list_ytdlp_profiles();
+    if (!profiles) return std::unexpected(profiles.error());
+    const bool configured = std::any_of(profiles->begin(), profiles->end(), [](const auto& profile) {
+        return profile.is_active && (!profile.local_binary_path.empty() || !profile.python_path.empty());
+    });
+    if (!configured) return std::unexpected(make_error("ytdlp_not_configured", "Configure and activate a yt-dlp executable profile before extracting media"));
+    const auto title = payload.contains("page_title") && payload["page_title"].is_string()
+        ? payload["page_title"].get<std::string>() : suggested_filename(url);
+    DownloadRecord record;
+    record.id = make_task_id();
+    record.task_type = "media_extract";
+    record.url = url;
+    record.filename = sanitize_filename(title.empty() ? "media" : title) + ".mkv";
+    record.save_dir = default_download_directory().string();
+    record.queue_id = payload.value("queue_id", std::string("default"));
+    record.status = "Queued";
+    record.headers_json = "{}";
+    record.extractor_origin_url = url;
     auto saved = repository_->save_download(record);
     if (!saved) return std::unexpected(saved.error());
     return record.id;
@@ -217,9 +248,14 @@ Result<nlohmann::json> NativeMessagingHost::dispatch(const nlohmann::json& reque
         };
     }
     if (type == "extract_media") {
+        const auto task_id = enqueue_media_extract(payload);
+        if (!task_id) return nlohmann::json{
+            {"protocol_version",1},{"request_id",request_id},{"timestamp",timestamp},{"type","ack"},
+            {"payload",{{"accepted",false},{"code",task_id.error().code},{"message",task_id.error().message}}}
+        };
         return nlohmann::json{
             {"protocol_version",1},{"request_id",request_id},{"timestamp",timestamp},{"type","ack"},
-            {"payload",{{"accepted",false},{"code","not_implemented"},{"message","Media extraction service is not configured"}}}
+            {"payload",{{"accepted",true},{"task_id",*task_id}}}
         };
     }
     return std::unexpected(make_error("unknown_message", "Unsupported IPC message type"));

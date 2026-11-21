@@ -25,6 +25,7 @@ private:
     [[nodiscard]] Result<void> write_frame(std::ostream& output, const nlohmann::json& value);
     [[nodiscard]] Result<std::string> enqueue_download(const nlohmann::json& payload);
     [[nodiscard]] Result<std::size_t> enqueue_batch(const nlohmann::json& payload);
+    [[nodiscard]] Result<std::string> enqueue_media_extract(const nlohmann::json& payload);
     ChunkAssembler chunks_;
     std::unique_ptr<SqliteRepository> repository_;
     std::string initialization_error_;
