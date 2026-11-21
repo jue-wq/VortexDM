@@ -45,6 +45,7 @@ add_library(vortex_core
   src/core/src/segment_checkpoint.cpp
   src/core/src/segment_recovery.cpp
   src/core/src/ytdlp_toolchain.cpp
+  src/core/src/media_muxer.cpp
 )
 target_include_directories(vortex_core PUBLIC src/core/include)
 target_link_libraries(vortex_core PUBLIC CURL::libcurl SQLite::SQLite3 nlohmann_json::nlohmann_json OpenSSL::Crypto Threads::Threads)
