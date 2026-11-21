@@ -40,7 +40,6 @@ add_library(vortex_core
   src/core/src/segment_scheduler.cpp
   src/core/src/filename_sanitizer.cpp
   src/core/src/chunk_assembler.cpp
-  src/native_host/native_messaging_host.cpp
 )
 target_include_directories(vortex_core PUBLIC src/core/include)
 target_link_libraries(vortex_core PUBLIC CURL::libcurl SQLite::SQLite3 nlohmann_json::nlohmann_json OpenSSL::Crypto Threads::Threads)
@@ -56,7 +55,7 @@ target_link_libraries(vortex-cli PRIVATE vortex_core)
 
 # Native Messaging hosts are desktop executables. Android Firefox uses the opt-in loopback bridge instead.
 if(NOT ANDROID)
-  add_executable(vortex-native-host src/native_host/main.cpp)
+  add_executable(vortex-native-host src/native_host/main.cpp src/native_host/native_messaging_host.cpp)
   target_link_libraries(vortex-native-host PRIVATE vortex_core)
 endif()
 

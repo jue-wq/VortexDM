@@ -1,10 +1,13 @@
 #include "vortex/crash_safe_file_writer.hpp"
+#include "vortex/chunk_assembler.hpp"
+#include "vortex/native_messaging_host.hpp"
 #include "vortex/sqlite_repository.hpp"
 #include "vortex/segment_scheduler.hpp"
 #include "vortex/task.hpp"
 #include "vortex/url.hpp"
 
 #include <openssl/sha.h>
+#include <nlohmann/json.hpp>
 
 #include <array>
 #include <atomic>
@@ -12,11 +15,59 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <sstream>
+#include <string>
 #include <span>
 #include <thread>
 #include <vector>
 
 namespace {
+std::string encode_base64(std::string_view input) {
+    static constexpr char alphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    std::string encoded;
+    encoded.reserve(((input.size() + 2U) / 3U) * 4U);
+    for (std::size_t offset = 0; offset < input.size(); offset += 3U) {
+        const auto a = static_cast<unsigned char>(input[offset]);
+        const auto b = offset + 1U < input.size() ? static_cast<unsigned char>(input[offset + 1U]) : 0U;
+        const auto c = offset + 2U < input.size() ? static_cast<unsigned char>(input[offset + 2U]) : 0U;
+        const unsigned int bits = (static_cast<unsigned int>(a) << 16U) |
+            (static_cast<unsigned int>(b) << 8U) | static_cast<unsigned int>(c);
+        encoded.push_back(alphabet[(bits >> 18U) & 0x3fU]);
+        encoded.push_back(alphabet[(bits >> 12U) & 0x3fU]);
+        encoded.push_back(offset + 1U < input.size() ? alphabet[(bits >> 6U) & 0x3fU] : '=');
+        encoded.push_back(offset + 2U < input.size() ? alphabet[bits & 0x3fU] : '=');
+    }
+    return encoded;
+}
+
+void append_frame(std::string& stream, const nlohmann::json& message) {
+    const std::string payload = message.dump();
+    const auto size = static_cast<std::uint32_t>(payload.size());
+    stream.push_back(static_cast<char>(size & 0xffU));
+    stream.push_back(static_cast<char>((size >> 8U) & 0xffU));
+    stream.push_back(static_cast<char>((size >> 16U) & 0xffU));
+    stream.push_back(static_cast<char>((size >> 24U) & 0xffU));
+    stream.append(payload);
+}
+
+std::vector<nlohmann::json> read_frames(const std::string& stream) {
+    std::vector<nlohmann::json> messages;
+    std::size_t offset = 0;
+    while (offset + 4U <= stream.size()) {
+        const auto b0 = static_cast<std::uint32_t>(static_cast<unsigned char>(stream[offset]));
+        const auto b1 = static_cast<std::uint32_t>(static_cast<unsigned char>(stream[offset + 1U]));
+        const auto b2 = static_cast<std::uint32_t>(static_cast<unsigned char>(stream[offset + 2U]));
+        const auto b3 = static_cast<std::uint32_t>(static_cast<unsigned char>(stream[offset + 3U]));
+        const std::uint32_t length = b0 | (b1 << 8U) | (b2 << 16U) | (b3 << 24U);
+        offset += 4U;
+        if (length == 0U || static_cast<std::size_t>(length) > stream.size() - offset) return {};
+        messages.push_back(nlohmann::json::parse(stream.substr(offset, length)));
+        offset += length;
+    }
+    if (offset != stream.size()) return {};
+    return messages;
+}
+
 bool test_url_and_state_machine() {
     const auto valid = vortex::parse_http_url("https://example.com/video.mp4");
     if (!valid || valid->host != "example.com") return false;
@@ -92,6 +143,65 @@ bool test_segment_scheduler() {
     return active.size() + stolen->size() == 1000U;
 }
 
+bool test_chunk_assembler_round_trip() {
+    const std::string payload(2U * 1024U * 1024U + 173U, 'v');
+    constexpr std::size_t chunk_size = 256U * 1024U;
+    const std::size_t total = (payload.size() + chunk_size - 1U) / chunk_size;
+    vortex::ChunkAssembler assembler;
+    std::string assembled;
+    for (std::size_t reverse = total; reverse > 0U; --reverse) {
+        const std::size_t index = reverse - 1U;
+        const std::size_t offset = index * chunk_size;
+        const std::string_view part(payload.data() + offset, std::min(chunk_size, payload.size() - offset));
+        const auto result = assembler.add("test-batch", index, total, encode_base64(part));
+        if (!result) return false;
+        if (result->complete) assembled = result->payload;
+    }
+    if (assembled != payload || assembler.pending_count() != 0U) return false;
+
+    auto first = assembler.add("duplicate", 0U, 2U, encode_base64("first"));
+    if (!first || first->complete) return false;
+    const auto duplicate = assembler.add("duplicate", 0U, 2U, encode_base64("again"));
+    return !duplicate;
+}
+
+bool test_native_host_batch_chunk_integration() {
+    nlohmann::json batch = {
+        {"items", nlohmann::json::array({{{"url","https://example.com/large.bin"},{"padding",std::string(2U * 1024U * 1024U, 'x')}}})},
+        {"source_page","https://example.com"}
+    };
+    const std::string serialized = batch.dump();
+    constexpr std::size_t chunk_size = 256U * 1024U;
+    const std::size_t total = (serialized.size() + chunk_size - 1U) / chunk_size;
+    std::string input_bytes;
+    for (std::size_t index = total; index > 0U; --index) {
+        const std::size_t chunk_index = index - 1U;
+        const std::size_t offset = chunk_index * chunk_size;
+        const std::string_view part(serialized.data() + offset, std::min(chunk_size, serialized.size() - offset));
+        const nlohmann::json request = {
+            {"protocol_version",1},{"type","add_batch_chunk"},
+            {"request_id","chunk-" + std::to_string(chunk_index)},{"timestamp",1},
+            {"payload",{{"chunk_id","batch-e2e"},{"chunk_index",chunk_index},{"chunk_total",total},{"chunk_data",encode_base64(part)}}}
+        };
+        append_frame(input_bytes, request);
+    }
+
+    std::istringstream input(input_bytes);
+    std::ostringstream output;
+    vortex::NativeMessagingHost host;
+    if (host.run(input, output) != 0) return false;
+    const auto responses = read_frames(output.str());
+    if (responses.size() != total) return false;
+    for (std::size_t index = 0; index < responses.size(); ++index) {
+        const auto& response = responses[index];
+        if (response.value("type", std::string{}) != "ack" ||
+            response["payload"].value("accepted", false) != true) return false;
+    }
+    const auto& last = responses.back();
+    return last["payload"].value("complete", false) &&
+        last["payload"].value("count", std::size_t{0}) == 1U;
+}
+
 bool test_sqlite_migrations_and_segment_journal() {
     const auto path = std::filesystem::temp_directory_path() / "vortexdm-repository-test.db";
     std::error_code ignored;
@@ -156,10 +266,18 @@ int main() {
         std::cerr << "Segment scheduler test failed\n";
         return 3;
     }
-    if (!test_sqlite_migrations_and_segment_journal()) {
-        std::cerr << "SQLite migration / segment journal test failed\n";
+    if (!test_chunk_assembler_round_trip()) {
+        std::cerr << "C++ chunk assembler test failed\n";
         return 4;
     }
-    std::cout << "core tests passed: URL/state, 100 MiB concurrent write SHA-256, segment scheduler, SQLite migration and segment journal\n";
+    if (!test_native_host_batch_chunk_integration()) {
+        std::cerr << "Native Messaging host batch chunk integration test failed\n";
+        return 5;
+    }
+    if (!test_sqlite_migrations_and_segment_journal()) {
+        std::cerr << "SQLite migration / segment journal test failed\n";
+        return 6;
+    }
+    std::cout << "core tests passed: URL/state, 100 MiB concurrent write SHA-256, segment scheduler, 2 MiB Native Messaging batch, SQLite migration and segment journal\n";
     return 0;
 }
