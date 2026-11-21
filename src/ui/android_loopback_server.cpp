@@ -66,7 +66,11 @@ bool AndroidLoopbackServer::start() {
     if (!repository_ || !server_.listen(QHostAddress::LocalHost, 0)) return false;
     const auto first = QRandomGenerator::system()->generate64();
     const auto second = QRandomGenerator::system()->generate64();
-    api_key_ = QStringLiteral("%1%2").arg(first, 16, 16, QLatin1Char('0')).arg(second, 16, 16, QLatin1Char('0'));
+    const auto third = QRandomGenerator::system()->generate64();
+    const auto fourth = QRandomGenerator::system()->generate64();
+    api_key_ = QStringLiteral("%1%2%3%4").arg(first, 16, 16, QLatin1Char('0'))
+        .arg(second, 16, 16, QLatin1Char('0')).arg(third, 16, 16, QLatin1Char('0'))
+        .arg(fourth, 16, 16, QLatin1Char('0'));
     emit ready();
     return true;
 }
