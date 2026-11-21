@@ -82,11 +82,14 @@ Status RangeDownloadCoordinator::transfer(
                 return std::unexpected(VortexError::make(
                     ErrorCode::invalid_argument, "Stored checkpoint has a negative segment index"));
             }
-            const auto expected_offset = static_cast<std::uint64_t>(checkpoint.segment_index) * chunk_size;
-            if (expected_offset >= total_size) {
+            const auto index = static_cast<std::uint64_t>(checkpoint.segment_index);
+            // Bound the index before multiplication so corrupt persisted metadata
+            // cannot wrap the unsigned offset calculation.
+            if (index > (total_size - 1U) / chunk_size) {
                 return std::unexpected(VortexError::make(
                     ErrorCode::invalid_argument, "Stored checkpoint is outside the current download geometry"));
             }
+            const auto expected_offset = index * chunk_size;
             const auto expected_length = std::min(chunk_size, total_size - expected_offset);
             if (checkpoint.offset != static_cast<std::int64_t>(expected_offset) ||
                 checkpoint.length != static_cast<std::int64_t>(expected_length)) {
