@@ -193,7 +193,7 @@ Result<std::optional<DownloadRecord>> SqliteDatabase::claim_next_queued_download
     {
         Statement select(db_,
             "SELECT id,url,destination,total_bytes,downloaded_bytes,state,checksum_sha256,"
-            "created_at FROM downloads WHERE state=? "
+            "created_at,etag FROM downloads WHERE state=? "
             "ORDER BY created_at,id LIMIT 1;");
         if (select.result() != SQLITE_OK) {
             auto error = database_error("Prepare queued download claim");
@@ -222,7 +222,9 @@ Result<std::optional<DownloadRecord>> SqliteDatabase::claim_next_queued_download
                 DownloadState::running,
                 checksum ? reinterpret_cast<const char*>(checksum) : "",
                 sqlite3_column_int64(select.get(), 7),
-                updated_at_unix
+                updated_at_unix,
+                sqlite3_column_text(select.get(), 8)
+                    ? reinterpret_cast<const char*>(sqlite3_column_text(select.get(), 8)) : ""
             });
         } else if (rc != SQLITE_DONE) {
             auto error = database_error("Read queued download claim");
@@ -273,14 +275,15 @@ Result<std::int64_t> SqliteDatabase::insert_download(const DownloadRecord& recor
     if (record.url.empty() || record.destination.empty() ||
         record.total_bytes < -1 || record.downloaded_bytes < 0 ||
         (record.total_bytes >= 0 && record.downloaded_bytes > record.total_bytes) ||
-        !valid_state(static_cast<std::int32_t>(record.state))) {
+        !valid_state(static_cast<std::int32_t>(record.state)) ||
+        (!record.etag.empty() && !is_strong_etag(record.etag))) {
         return std::unexpected(VortexError::make(
             ErrorCode::invalid_argument, "Invalid download record"
         ));
     }
     Statement statement(db_,
         "INSERT INTO downloads(url,destination,total_bytes,downloaded_bytes,state,"
-        "checksum_sha256,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?);");
+        "checksum_sha256,created_at,updated_at,etag) VALUES(?,?,?,?,?,?,?,?,?);");
     if (statement.result() != SQLITE_OK) return std::unexpected(database_error("Prepare insert"));
     auto* query = statement.get();
     sqlite3_bind_text(query, 1, record.url.c_str(), -1, SQLITE_TRANSIENT);
@@ -291,6 +294,7 @@ Result<std::int64_t> SqliteDatabase::insert_download(const DownloadRecord& recor
     sqlite3_bind_text(query, 6, record.checksum_sha256.c_str(), -1, SQLITE_TRANSIENT);
     sqlite3_bind_int64(query, 7, record.created_at_unix);
     sqlite3_bind_int64(query, 8, record.updated_at_unix);
+    sqlite3_bind_text(query, 9, record.etag.c_str(), -1, SQLITE_TRANSIENT);
     if (sqlite3_step(query) != SQLITE_DONE) return std::unexpected(database_error("Insert download"));
     return sqlite3_last_insert_rowid(db_);
 }
@@ -413,7 +417,7 @@ Result<std::vector<NativeInboxEntry>> SqliteDatabase::list_pending_native_reques
     ));
     Statement statement(db_,
         "SELECT r.request_id,d.id,d.url,d.destination,d.total_bytes,d.downloaded_bytes,"
-        "d.state,d.checksum_sha256,d.created_at,d.updated_at "
+        "d.state,d.checksum_sha256,d.created_at,d.updated_at,d.etag "
         "FROM native_request_dedup r JOIN downloads d ON d.id=r.download_id "
         "LEFT JOIN native_request_delivery delivered ON delivered.request_id=r.request_id "
         "WHERE delivered.request_id IS NULL ORDER BY r.created_at,r.request_id LIMIT ?;");
@@ -443,7 +447,9 @@ Result<std::vector<NativeInboxEntry>> SqliteDatabase::list_pending_native_reques
                 static_cast<DownloadState>(state),
                 checksum ? reinterpret_cast<const char*>(checksum) : "",
                 sqlite3_column_int64(statement.get(), 8),
-                sqlite3_column_int64(statement.get(), 9)
+                sqlite3_column_int64(statement.get(), 9),
+                sqlite3_column_text(statement.get(), 10)
+                    ? reinterpret_cast<const char*>(sqlite3_column_text(statement.get(), 10)) : ""
             }
         });
     }
@@ -546,7 +552,7 @@ Result<std::vector<DownloadRecord>> SqliteDatabase::list_downloads() {
     if (!db_) return std::unexpected(VortexError::make(ErrorCode::database_error, "Database is not open"));
     Statement statement(db_,
         "SELECT id,url,destination,total_bytes,downloaded_bytes,state,checksum_sha256,"
-        "created_at,updated_at FROM downloads ORDER BY created_at DESC,id DESC;");
+        "created_at,updated_at,etag FROM downloads ORDER BY created_at DESC,id DESC;");
     if (statement.result() != SQLITE_OK) return std::unexpected(database_error("Prepare list"));
     std::vector<DownloadRecord> records;
     for (;;) {
@@ -569,7 +575,9 @@ Result<std::vector<DownloadRecord>> SqliteDatabase::list_downloads() {
             static_cast<DownloadState>(state),
             checksum ? reinterpret_cast<const char*>(checksum) : "",
             sqlite3_column_int64(statement.get(), 7),
-            sqlite3_column_int64(statement.get(), 8)
+            sqlite3_column_int64(statement.get(), 8),
+            sqlite3_column_text(statement.get(), 9)
+                ? reinterpret_cast<const char*>(sqlite3_column_text(statement.get(), 9)) : ""
         });
     }
     return records;
