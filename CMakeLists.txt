@@ -98,3 +98,15 @@ if(VORTEX_BUILD_TESTS AND NOT ANDROID)
   enable_testing()
   add_subdirectory(tests)
 endif()
+
+install(TARGETS vortex_core vortex-cli
+  RUNTIME DESTINATION bin
+  LIBRARY DESTINATION lib
+  ARCHIVE DESTINATION lib
+)
+if(NOT ANDROID)
+  install(TARGETS vortex-native-host RUNTIME DESTINATION bin)
+endif()
+if(VORTEX_BUILD_UI AND NOT ANDROID)
+  install(TARGETS vortexdm RUNTIME DESTINATION bin)
+endif()
