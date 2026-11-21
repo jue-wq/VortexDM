@@ -84,3 +84,44 @@ TEST_CASE("Offset writer safely serializes concurrent disjoint segment writes") 
     input.close();
     std::filesystem::remove(path);
 }
+
+TEST_CASE("Offset writer reopens existing partial files without truncating data") {
+    const auto path = unique_path();
+    {
+        vortex::OffsetFileWriter writer;
+        REQUIRE(writer.open(path, 8).has_value());
+        const std::array bytes{
+            std::byte{'R'}, std::byte{'E'}, std::byte{'S'}, std::byte{'U'},
+            std::byte{'M'}, std::byte{'E'}, std::byte{'!'}, std::byte{'!'}
+        };
+        REQUIRE(writer.write_at(0, bytes).has_value());
+        REQUIRE(writer.close().has_value());
+    }
+    {
+        vortex::OffsetFileWriter writer;
+        REQUIRE(writer.open_existing(path, 8).has_value());
+        const std::array replacement{std::byte{'O'}, std::byte{'K'}};
+        REQUIRE(writer.write_at(0, replacement).has_value());
+        REQUIRE(writer.close().has_value());
+    }
+    std::ifstream input(path, std::ios::binary);
+    const std::string content((std::istreambuf_iterator<char>(input)), {});
+    CHECK(content == "OKSUME!!");
+    input.close();
+    std::filesystem::remove(path);
+}
+
+TEST_CASE("Offset writer refuses to reopen an existing file with a mismatched size") {
+    const auto path = unique_path();
+    {
+        vortex::OffsetFileWriter writer;
+        REQUIRE(writer.open(path, 8).has_value());
+        REQUIRE(writer.close().has_value());
+    }
+    vortex::OffsetFileWriter writer;
+    CHECK_FALSE(writer.open_existing(path, 7).has_value());
+    CHECK_FALSE(writer.open_existing(path, 9).has_value());
+    std::error_code ec;
+    CHECK(std::filesystem::file_size(path, ec) == 8);
+    std::filesystem::remove(path);
+}

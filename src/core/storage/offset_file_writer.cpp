@@ -45,6 +45,37 @@ Status OffsetFileWriter::open(const std::filesystem::path& path, const std::uint
     return {};
 }
 
+
+Status OffsetFileWriter::open_existing(
+    const std::filesystem::path& path, const std::uint64_t expected_size
+) {
+    std::scoped_lock lock(mutex_);
+    if (file_.is_open()) return std::unexpected(VortexError::make(
+        ErrorCode::io_error, "Partial file writer is already open"
+    ));
+    if (expected_size > static_cast<std::uint64_t>(std::numeric_limits<std::streamoff>::max())) {
+        return std::unexpected(VortexError::make(
+            ErrorCode::invalid_argument, "Requested partial file is too large"
+        ));
+    }
+
+    std::error_code ec;
+    const auto actual_size = std::filesystem::file_size(path, ec);
+    if (ec) return std::unexpected(VortexError::make(
+        ErrorCode::io_error, "Unable to inspect existing partial file", ec
+    ));
+    if (actual_size != expected_size) return std::unexpected(VortexError::make(
+        ErrorCode::invalid_argument, "Existing partial file size does not match expected size"
+    ));
+
+    file_.open(path, std::ios::binary | std::ios::in | std::ios::out);
+    if (!file_) return std::unexpected(VortexError::make(
+        ErrorCode::io_error, "Unable to open existing partial file: " + path.string()
+    ));
+    size_ = expected_size;
+    return {};
+}
+
 Status OffsetFileWriter::write_at(
     const std::uint64_t offset, const std::span<const std::byte> data
 ) {
