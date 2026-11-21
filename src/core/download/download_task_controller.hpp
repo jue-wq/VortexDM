@@ -25,9 +25,17 @@ public:
 
     [[nodiscard]] Status retry(std::int64_t id, std::int64_t now) {
         std::scoped_lock lock(mutex_);
+        // Allocate the cancellation entry before committing the durable retry.
+        // This prevents an allocation failure from leaving a running task without
+        // a corresponding stop source.
+        std::stop_source fresh_source;
+        auto [source, inserted] = stop_sources_.try_emplace(id);
         auto status = database_.retry_failed_download(id, now);
-        if (!status) return status;
-        stop_sources_.insert_or_assign(id, std::stop_source{});
+        if (!status) {
+            if (inserted) stop_sources_.erase(source);
+            return status;
+        }
+        source->second = std::move(fresh_source);
         return {};
     }
 
@@ -90,10 +98,17 @@ private:
             return std::unexpected(VortexError::make(
                 ErrorCode::invalid_argument, "Download is not in the expected state"));
         }
+        // Reserve the in-memory cancellation entry before changing durable
+        // state, so allocation failure cannot strand a running task.
+        std::stop_source fresh_source;
+        auto [source, inserted] = stop_sources_.try_emplace(id);
         auto status = database_.update_download_progress(
             id, record->downloaded_bytes, DownloadState::running, now);
-        if (!status) return status;
-        stop_sources_.insert_or_assign(id, std::stop_source{});
+        if (!status) {
+            if (inserted) stop_sources_.erase(source);
+            return status;
+        }
+        source->second = std::move(fresh_source);
         return {};
     }
 
