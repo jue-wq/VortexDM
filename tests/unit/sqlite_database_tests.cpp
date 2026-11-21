@@ -76,3 +76,57 @@ TEST_CASE("SQLite storage rejects invalid progress and records") {
     REQUIRE(id);
     CHECK_FALSE(database.update_download_progress(*id, 11, vortex::DownloadState::running, 1).has_value());
 }
+
+TEST_CASE("SQLite recovery pauses tasks left running after an unclean shutdown") {
+    TemporaryDatabase temporary;
+    std::int64_t id{};
+    {
+        vortex::SqliteDatabase database;
+        REQUIRE(database.open(temporary.path()).has_value());
+        REQUIRE(database.migrate().has_value());
+        vortex::DownloadRecord record;
+        record.url = "https://example.test/recovery.bin";
+        record.destination = "recovery.bin";
+        record.total_bytes = 4096;
+        record.downloaded_bytes = 1024;
+        record.state = vortex::DownloadState::running;
+        record.created_at_unix = 100;
+        record.updated_at_unix = 101;
+        const auto inserted = database.insert_download(record);
+        REQUIRE(inserted);
+        id = *inserted;
+        REQUIRE(database.close().has_value());
+    }
+    {
+        vortex::SqliteDatabase database;
+        REQUIRE(database.open(temporary.path()).has_value());
+        REQUIRE(database.migrate().has_value());
+        REQUIRE(database.recover_interrupted_downloads(200).has_value());
+        const auto rows = database.list_downloads();
+        REQUIRE(rows);
+        REQUIRE(rows->size() == 1);
+        CHECK(rows->front().id == id);
+        CHECK(rows->front().state == vortex::DownloadState::paused);
+        CHECK(rows->front().downloaded_bytes == 1024);
+        CHECK(rows->front().updated_at_unix == 200);
+    }
+}
+
+TEST_CASE("SQLite recovery leaves non-running tasks unchanged") {
+    TemporaryDatabase temporary;
+    vortex::SqliteDatabase database;
+    REQUIRE(database.open(temporary.path()).has_value());
+    REQUIRE(database.migrate().has_value());
+    vortex::DownloadRecord record;
+    record.url = "https://example.test/queued.bin";
+    record.destination = "queued.bin";
+    record.state = vortex::DownloadState::queued;
+    const auto id = database.insert_download(record);
+    REQUIRE(id);
+    REQUIRE(database.recover_interrupted_downloads(300).has_value());
+    const auto rows = database.list_downloads();
+    REQUIRE(rows);
+    REQUIRE(rows->size() == 1);
+    CHECK(rows->front().state == vortex::DownloadState::queued);
+    CHECK(rows->front().updated_at_unix == record.updated_at_unix);
+}

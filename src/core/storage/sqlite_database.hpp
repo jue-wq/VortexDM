@@ -22,6 +22,9 @@ public:
     [[nodiscard]] Status open(const std::filesystem::path& path);
     [[nodiscard]] Status close();
     [[nodiscard]] Status migrate();
+    // Converts tasks left running by an unclean shutdown to paused.
+    // File-size/hash reconciliation must happen before a caller resumes them.
+    [[nodiscard]] Status recover_interrupted_downloads(std::int64_t updated_at_unix);
     [[nodiscard]] Result<std::int64_t> insert_download(const DownloadRecord& record);
     [[nodiscard]] Status update_download_progress(
         std::int64_t id, std::int64_t downloaded_bytes, DownloadState state,

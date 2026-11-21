@@ -125,6 +125,34 @@ Status SqliteDatabase::migrate() {
     return status;
 }
 
+
+Status SqliteDatabase::recover_interrupted_downloads(const std::int64_t updated_at_unix) {
+    std::scoped_lock lock(mutex_);
+    if (!db_) return std::unexpected(VortexError::make(
+        ErrorCode::database_error, "Database is not open"
+    ));
+    auto status = execute("BEGIN IMMEDIATE;");
+    if (!status) return status;
+
+    Statement statement(db_,
+        "UPDATE downloads SET state=?, updated_at=? WHERE state=?;");
+    if (statement.result() != SQLITE_OK) {
+        (void)execute("ROLLBACK;");
+        return std::unexpected(database_error("Prepare interrupted download recovery"));
+    }
+    sqlite3_bind_int(statement.get(), 1, static_cast<int>(DownloadState::paused));
+    sqlite3_bind_int64(statement.get(), 2, updated_at_unix);
+    sqlite3_bind_int(statement.get(), 3, static_cast<int>(DownloadState::running));
+    if (sqlite3_step(statement.get()) != SQLITE_DONE) {
+        auto error = database_error("Recover interrupted downloads");
+        (void)execute("ROLLBACK;");
+        return std::unexpected(std::move(error));
+    }
+    status = execute("COMMIT;");
+    if (!status) (void)execute("ROLLBACK;");
+    return status;
+}
+
 Result<std::int64_t> SqliteDatabase::insert_download(const DownloadRecord& record) {
     std::scoped_lock lock(mutex_);
     if (!db_) return std::unexpected(VortexError::make(
