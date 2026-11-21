@@ -66,6 +66,8 @@ size_t receive_body(char* data, const size_t size, const size_t count, void* opa
     const auto bytes = size * count;
     if (bytes == 0) return 0;
     try {
+        if (context->requested_range && !context->range_headers_validated &&
+            !validate_range_headers(*context)) return 0;
         const auto view = std::span{
             reinterpret_cast<const std::byte*>(data), bytes
         };
@@ -112,11 +114,15 @@ Result<HttpTransferResponse> HttpTransport::get(
 ) const {
     if (url.empty() || !sink || options.connect_timeout_seconds <= 0 ||
         options.total_timeout_seconds < 0 || options.maximum_redirects < 0 ||
-        options.user_agent.empty() ||\n        (options.range.has_value() != options.expected_total_size.has_value()) ||\n        (options.expected_total_size && *options.expected_total_size == 0) ||\n        (options.range && options.range->last >= *options.expected_total_size) ||
+        options.user_agent.empty() ||
+        (options.range.has_value() != options.expected_total_size.has_value()) ||
+        (options.expected_total_size && *options.expected_total_size == 0) ||
+        (options.range && options.range->last >= *options.expected_total_size) ||
         (options.range && (options.range->first > options.range->last ||
                            options.range->last == UINT64_MAX)) ||
         (options.if_range && (options.if_range->empty() ||
-            options.if_range->find_first_of("\r\n") != std::string::npos)) ||
+            options.if_range->find_first_of("\r
+") != std::string::npos)) ||
         (options.if_range && !options.range)) {
         return std::unexpected(VortexError::make(
             ErrorCode::invalid_argument, "Invalid HTTP transfer arguments"));
@@ -134,7 +140,9 @@ Result<HttpTransferResponse> HttpTransport::get(
     }
 
     TransferContext context{};
-    context.sink = &sink;\n    context.requested_range = options.range;\n    context.expected_total_size = options.expected_total_size;
+    context.sink = &sink;
+    context.requested_range = options.range;
+    context.expected_total_size = options.expected_total_size;
     const std::string url_copy(url);
     const auto set = [&](const CURLoption option, const auto value) {
         return curl_easy_setopt(handle.get(), option, value) == CURLE_OK;
@@ -190,8 +198,15 @@ Result<HttpTransferResponse> HttpTransport::get(
             ? std::string(curl_easy_strerror(result))
             : std::string(context.callback_error);
         return std::unexpected(VortexError::make(
-            context.sink_failed ? ErrorCode::io_error :\n                (context.range_validation_failed ? ErrorCode::parse_error : ErrorCode::network_error),
+            context.sink_failed ? ErrorCode::io_error :
+                (context.range_validation_failed ? ErrorCode::parse_error : ErrorCode::network_error),
             "HTTP transfer failed: " + message));
+    }
+
+    if (options.range && !context.range_headers_validated &&
+        !validate_range_headers(context)) {
+        return std::unexpected(VortexError::make(
+            ErrorCode::parse_error, "HTTP range response metadata is invalid"));
     }
 
     long status = 0;
