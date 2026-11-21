@@ -516,6 +516,25 @@ Result<std::optional<DownloadRecord>> SqliteRepository::claim_next_queued_downlo
     return std::optional<DownloadRecord>{std::move(record)};
 }
 
+Result<void> SqliteRepository::update_download_progress(
+    const std::string& id, std::uint64_t downloaded, std::uint64_t total) {
+    if(db_==nullptr)return std::unexpected(make_error("sqlite_open",open_error_));
+    if(id.empty() || (total>0U && downloaded>total))
+        return std::unexpected(make_error("invalid_progress","Download progress is outside the valid range"));
+    const auto downloaded_value=as_sqlite_integer(downloaded);
+    const auto total_value=as_sqlite_integer(total);
+    if(!downloaded_value || !total_value)return std::unexpected(make_error("invalid_progress","Download progress exceeds SQLite integer range"));
+    Statement statement(db_,"UPDATE downloads SET downloaded_bytes=?, total_bytes=? WHERE id=?;");
+    if(!statement.valid())return std::unexpected(database_error(db_,"sqlite_prepare","Could not prepare download progress update"));
+    if(sqlite3_bind_int64(statement.get(),1,*downloaded_value)!=SQLITE_OK ||
+       sqlite3_bind_int64(statement.get(),2,*total_value)!=SQLITE_OK)
+        return std::unexpected(database_error(db_,"sqlite_bind","Could not bind download progress"));
+    auto bound=bind_text(statement.get(),3,id);if(!bound)return bound;
+    if(sqlite3_step(statement.get())!=SQLITE_DONE)return std::unexpected(database_error(db_,"sqlite_write","Could not update download progress"));
+    if(sqlite3_changes(db_)!=1)return std::unexpected(make_error("download_not_found","Download task does not exist"));
+    return {};
+}
+
 Result<void> SqliteRepository::update_download_status(
     const std::string& id, const std::string& status, const std::string& error_message) {
     if(db_==nullptr)return std::unexpected(make_error("sqlite_open",open_error_));
