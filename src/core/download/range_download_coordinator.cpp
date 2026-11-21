@@ -231,26 +231,33 @@ Status RangeDownloadCoordinator::transfer(
 
     const auto worker_count = static_cast<std::size_t>(
         std::min<std::uint64_t>(options.maximum_concurrent_requests, segment_count));
-    std::vector<std::jthread> workers;
-    workers.reserve(worker_count);
-    for (std::size_t worker = 0; worker < worker_count; ++worker) {
-        workers.emplace_back([&] {
-            while (!worker_token.stop_requested()) {
-                const auto index = next_segment.fetch_add(1, std::memory_order_relaxed);
-                if (index >= segment_count) return;
-                const auto status = process_segment(index);
-                if (!status) {
-                    if (status.error().code != ErrorCode::cancelled ||
-                        !worker_token.stop_requested()) {
-                        fail(status.error());
-                    }
-                    return;
+    const auto run_worker = [&] {
+        while (!worker_token.stop_requested()) {
+            const auto index = next_segment.fetch_add(1, std::memory_order_relaxed);
+            if (index >= segment_count) return;
+            const auto status = process_segment(index);
+            if (!status) {
+                if (status.error().code != ErrorCode::cancelled ||
+                    !worker_token.stop_requested()) {
+                    fail(status.error());
                 }
+                return;
             }
-        });
-    }
-    for (auto& worker : workers) {
-        if (worker.joinable()) worker.join();
+        }
+    };
+
+    if (worker_count == 1U) {
+        // Preserve caller-thread executor semantics for the default sequential mode.
+        run_worker();
+    } else {
+        std::vector<std::jthread> workers;
+        workers.reserve(worker_count);
+        for (std::size_t worker = 0; worker < worker_count; ++worker) {
+            workers.emplace_back(run_worker);
+        }
+        for (auto& worker : workers) {
+            if (worker.joinable()) worker.join();
+        }
     }
 
     {

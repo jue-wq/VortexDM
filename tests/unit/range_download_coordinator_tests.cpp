@@ -449,10 +449,11 @@ TEST_CASE("Range coordinator resumes only missing ranges after a mid-transfer fa
         [&resumed_requests, &second](const vortex::HttpRequest& request,
                                      const vortex::HttpBodySink& sink, std::stop_token) {
             ++resumed_requests;
-            REQUIRE(request.range.has_value());
-            CHECK(request.range->first == 3);
-            CHECK(request.range->last == 5);
-            REQUIRE(sink(second));
+            if (!request.range.has_value() || request.range->first != 3 ||
+                request.range->last != 5 || !sink(second)) {
+                return vortex::Result<vortex::HttpResponse>{std::unexpected(
+                    vortex::VortexError::make(vortex::ErrorCode::network_error, "invalid retry range or sink"))};
+            }
             vortex::HttpResponse response;
             response.status_code = 206;
             response.headers["content-range"] = "bytes 3-5/6";
@@ -615,7 +616,10 @@ TEST_CASE("Parallel range failure preserves completed checkpoints for retry") {
     const vortex::RangeRequestExecutor failing_executor =
         [&database, id, &first](const vortex::HttpRequest& request,
                                 const vortex::HttpBodySink& sink, std::stop_token) {
-            REQUIRE(request.range.has_value());
+            if (!request.range.has_value()) {
+                return vortex::Result<vortex::HttpResponse>{std::unexpected(
+                    vortex::VortexError::make(vortex::ErrorCode::network_error, "missing request range"))};
+            }
             if (request.range->first == 3) {
                 // Ensure segment zero has been durably checkpointed before failing segment one.
                 for (int attempt = 0; attempt < 500; ++attempt) {
