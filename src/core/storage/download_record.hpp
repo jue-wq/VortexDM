@@ -24,6 +24,8 @@ struct DownloadRecord {
     std::string checksum_sha256;
     std::int64_t created_at_unix{};
     std::int64_t updated_at_unix{};
+    // Strong HTTP entity-tag used to validate a partial file before resuming.
+    std::string etag;
 };
 
 } // namespace vortex
