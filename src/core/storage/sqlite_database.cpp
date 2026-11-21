@@ -143,6 +143,91 @@ Status SqliteDatabase::migrate() {
     return status;
 }
 
+Result<std::optional<DownloadRecord>> SqliteDatabase::claim_next_queued_download(
+    const std::int64_t updated_at_unix
+) {
+    std::scoped_lock lock(mutex_);
+    if (!db_) return std::unexpected(VortexError::make(
+        ErrorCode::database_error, "Database is not open"
+    ));
+
+    auto status = execute("BEGIN IMMEDIATE;");
+    if (!status) return std::unexpected(status.error());
+
+    Statement select(db_,
+        "SELECT id,url,destination,total_bytes,downloaded_bytes,state,checksum_sha256,"
+        "created_at,updated_at FROM downloads WHERE state=? "
+        "ORDER BY created_at,id LIMIT 1;");
+    if (select.result() != SQLITE_OK) {
+        auto error = database_error("Prepare queued download claim");
+        (void)execute("ROLLBACK;");
+        return std::unexpected(std::move(error));
+    }
+    sqlite3_bind_int(select.get(), 1, static_cast<int>(DownloadState::queued));
+    const int rc = sqlite3_step(select.get());
+    if (rc == SQLITE_DONE) {
+        status = execute("COMMIT;");
+        if (!status) {
+            (void)execute("ROLLBACK;");
+            return std::unexpected(status.error());
+        }
+        return std::optional<DownloadRecord>{};
+    }
+    if (rc != SQLITE_ROW) {
+        auto error = database_error("Read queued download claim");
+        (void)execute("ROLLBACK;");
+        return std::unexpected(std::move(error));
+    }
+
+    const auto id = sqlite3_column_int64(select.get(), 0);
+    const auto* url = sqlite3_column_text(select.get(), 1);
+    const auto* destination = sqlite3_column_text(select.get(), 2);
+    const auto* checksum = sqlite3_column_text(select.get(), 6);
+    const auto state = sqlite3_column_int(select.get(), 5);
+    if (!valid_state(state) || state != static_cast<int>(DownloadState::queued)) {
+        (void)execute("ROLLBACK;");
+        return std::unexpected(VortexError::make(
+            ErrorCode::database_error, "Queued download has an invalid state"
+        ));
+    }
+
+    DownloadRecord record{
+        id,
+        url ? reinterpret_cast<const char*>(url) : "",
+        destination ? reinterpret_cast<const char*>(destination) : "",
+        sqlite3_column_int64(select.get(), 3),
+        sqlite3_column_int64(select.get(), 4),
+        DownloadState::running,
+        checksum ? reinterpret_cast<const char*>(checksum) : "",
+        sqlite3_column_int64(select.get(), 7),
+        updated_at_unix
+    };
+
+    Statement update(db_,
+        "UPDATE downloads SET state=?,updated_at=? WHERE id=? AND state=?;");
+    if (update.result() != SQLITE_OK) {
+        auto error = database_error("Prepare queued download claim update");
+        (void)execute("ROLLBACK;");
+        return std::unexpected(std::move(error));
+    }
+    sqlite3_bind_int(update.get(), 1, static_cast<int>(DownloadState::running));
+    sqlite3_bind_int64(update.get(), 2, updated_at_unix);
+    sqlite3_bind_int64(update.get(), 3, id);
+    sqlite3_bind_int(update.get(), 4, static_cast<int>(DownloadState::queued));
+    if (sqlite3_step(update.get()) != SQLITE_DONE || sqlite3_changes(db_) != 1) {
+        auto error = database_error("Claim queued download");
+        (void)execute("ROLLBACK;");
+        return std::unexpected(std::move(error));
+    }
+
+    status = execute("COMMIT;");
+    if (!status) {
+        (void)execute("ROLLBACK;");
+        return std::unexpected(status.error());
+    }
+    return std::optional<DownloadRecord>{std::move(record)};
+}
+
 Result<std::int64_t> SqliteDatabase::insert_download(const DownloadRecord& record) {
     std::scoped_lock lock(mutex_);
     if (!db_) return std::unexpected(VortexError::make(
