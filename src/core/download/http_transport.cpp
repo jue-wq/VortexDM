@@ -92,7 +92,7 @@ Result<HttpTransferResponse> HttpTransport::get(
         (options.range && (options.range->first > options.range->last ||
                            options.range->last == UINT64_MAX)) ||
         (options.if_range && (options.if_range->empty() ||
-            options.if_range->find_first_of("\\r\\n") != std::string::npos)) ||
+            options.if_range->find_first_of("\r\n") != std::string::npos)) ||
         (options.if_range && !options.range)) {
         return std::unexpected(VortexError::make(
             ErrorCode::invalid_argument, "Invalid HTTP transfer arguments"));
@@ -116,9 +116,31 @@ Result<HttpTransferResponse> HttpTransport::get(
         return curl_easy_setopt(handle.get(), option, value) == CURLE_OK;
     };
 
+    char range_buffer[64]{};
+    if (options.range) {
+        const auto written = std::snprintf(range_buffer, sizeof(range_buffer),
+            "%llu-%llu",
+            static_cast<unsigned long long>(options.range->first),
+            static_cast<unsigned long long>(options.range->last));
+        if (written <= 0 || static_cast<std::size_t>(written) >= sizeof(range_buffer)) {
+            return std::unexpected(VortexError::make(
+                ErrorCode::invalid_argument, "HTTP byte range cannot be represented"));
+        }
+    }
+    using HeaderList = std::unique_ptr<curl_slist, decltype(&curl_slist_free_all)>;
+    HeaderList request_headers(nullptr, &curl_slist_free_all);
+    if (options.if_range) {
+        const auto line = "If-Range: " + *options.if_range;
+        request_headers.reset(curl_slist_append(nullptr, line.c_str()));
+        if (!request_headers) return std::unexpected(VortexError::make(
+            ErrorCode::network_error, "Unable to allocate HTTP request headers"));
+    }
+
     bool configured =
         set(CURLOPT_URL, url_copy.c_str()) &&
-        set(CURLOPT_HTTPGET, 1L) &&\n        (!options.range || set(CURLOPT_RANGE, range_buffer)) &&\n        (!options.if_range || set(CURLOPT_HTTPHEADER, request_headers.get())) &&
+        set(CURLOPT_HTTPGET, 1L) &&
+        (!options.range || set(CURLOPT_RANGE, range_buffer)) &&
+        (!options.if_range || set(CURLOPT_HTTPHEADER, request_headers.get())) &&
         set(CURLOPT_FOLLOWLOCATION, 1L) &&
         set(CURLOPT_MAXREDIRS, options.maximum_redirects) &&
         set(CURLOPT_CONNECTTIMEOUT, options.connect_timeout_seconds) &&
