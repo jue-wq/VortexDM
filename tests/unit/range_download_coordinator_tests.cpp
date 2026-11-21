@@ -251,10 +251,11 @@ TEST_CASE("Range coordinator resumes by skipping verified checkpointed ranges") 
         [&requests, &second](const vortex::HttpRequest& request,
                              const vortex::HttpBodySink& sink, std::stop_token) {
             ++requests;
-            REQUIRE(request.range.has_value());
-            CHECK(request.range->first == 3);
-            CHECK(request.range->last == 5);
-            REQUIRE(sink(second));
+            if (!request.range.has_value() || request.range->first != 3 ||
+                request.range->last != 5 || !sink(second)) {
+                return vortex::Result<vortex::HttpResponse>{std::unexpected(
+                    vortex::VortexError::make(vortex::ErrorCode::network_error, "unexpected retry range"))};
+            }
             vortex::HttpResponse response;
             response.status_code = 206;
             response.headers["content-range"] = "bytes 3-5/6";
