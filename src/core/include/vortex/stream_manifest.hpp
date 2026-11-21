@@ -35,12 +35,19 @@ struct HlsManifest {
     const std::string& text,
     const std::string& playlist_url);
 
+struct DashTimelineEntry {
+    std::optional<std::uint64_t> time;
+    std::uint64_t duration{0};
+    std::int64_t repeat{0};
+};
+
 struct DashSegmentTemplate {
     std::string media;
     std::string initialization;
     std::uint64_t timescale{1};
     std::uint64_t duration{0};
     std::uint64_t start_number{1};
+    std::vector<DashTimelineEntry> timeline;
 };
 
 struct DashRepresentation {

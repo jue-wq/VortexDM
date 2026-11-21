@@ -165,6 +165,17 @@ std::optional<DashSegmentTemplate> parse_template(
     result.timescale = xml_uint(source, "timescale", 1U);
     result.duration = xml_uint(source, "duration", 0U);
     result.start_number = xml_uint(source, "startNumber", 1U);
+    if (const auto* timeline = source->FirstChildElement("SegmentTimeline")) {
+        for (auto* entry = timeline->FirstChildElement("S"); entry; entry = entry->NextSiblingElement("S")) {
+            DashTimelineEntry point;
+            if (entry->Attribute("t")) point.time = xml_uint(entry, "t");
+            point.duration = xml_uint(entry, "d");
+            int repeat = 0;
+            if (entry->QueryIntAttribute("r", &repeat) == tinyxml2::XML_SUCCESS) point.repeat = repeat;
+            if (point.duration == 0U || point.repeat < -1) continue;
+            result.timeline.push_back(point);
+        }
+    }
     return result;
 }
 }
