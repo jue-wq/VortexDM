@@ -2,6 +2,18 @@
 
 #include <limits>
 #include <string>
+#include <system_error>
+
+#if defined(_WIN32)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#else
+#include <cerrno>
+#include <fcntl.h>
+#include <unistd.h>
+#endif
 
 namespace vortex {
 
@@ -41,6 +53,7 @@ Status OffsetFileWriter::open(const std::filesystem::path& path, const std::uint
             ));
         }
     }
+    path_ = path;
     size_ = size;
     return {};
 }
@@ -72,6 +85,7 @@ Status OffsetFileWriter::open_existing(
     if (!file_) return std::unexpected(VortexError::make(
         ErrorCode::io_error, "Unable to open existing partial file: " + path.string()
     ));
+    path_ = path;
     size_ = expected_size;
     return {};
 }
@@ -114,6 +128,67 @@ Status OffsetFileWriter::flush() {
     return {};
 }
 
+Status OffsetFileWriter::flush_durable() {
+    std::scoped_lock lock(mutex_);
+    if (!file_.is_open()) return std::unexpected(VortexError::make(
+        ErrorCode::io_error, "Partial file writer is not open"
+    ));
+    file_.flush();
+    if (!file_) return std::unexpected(VortexError::make(
+        ErrorCode::io_error, "Partial file flush failed"
+    ));
+
+#if defined(_WIN32)
+    HANDLE handle = CreateFileW(
+        path_.c_str(), GENERIC_READ | GENERIC_WRITE,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr
+    );
+    if (handle == INVALID_HANDLE_VALUE) {
+        const auto error = std::error_code(
+            static_cast<int>(GetLastError()), std::system_category()
+        );
+        return std::unexpected(VortexError::make(
+            ErrorCode::io_error, "Unable to open partial file for durable flush", error
+        ));
+    }
+    const BOOL okay = FlushFileBuffers(handle);
+    const DWORD flush_error = okay ? ERROR_SUCCESS : GetLastError();
+    CloseHandle(handle);
+    if (!okay) {
+        return std::unexpected(VortexError::make(
+            ErrorCode::io_error, "Windows durable file flush failed",
+            std::error_code(static_cast<int>(flush_error), std::system_category())
+        ));
+    }
+#else
+    const int descriptor = ::open(path_.c_str(), O_WRONLY
+#ifdef O_CLOEXEC
+        | O_CLOEXEC
+#endif
+#ifdef O_NOFOLLOW
+        | O_NOFOLLOW
+#endif
+    );
+    if (descriptor < 0) {
+        const auto error = std::error_code(errno, std::generic_category());
+        return std::unexpected(VortexError::make(
+            ErrorCode::io_error, "Unable to open partial file for durable flush", error
+        ));
+    }
+    const int result = ::fsync(descriptor);
+    const int flush_error = result == 0 ? 0 : errno;
+    ::close(descriptor);
+    if (result != 0) {
+        return std::unexpected(VortexError::make(
+            ErrorCode::io_error, "POSIX durable file flush failed",
+            std::error_code(flush_error, std::generic_category())
+        ));
+    }
+#endif
+    return {};
+}
+
 Status OffsetFileWriter::close() {
     std::scoped_lock lock(mutex_);
     if (!file_.is_open()) return {};
@@ -121,6 +196,7 @@ Status OffsetFileWriter::close() {
     const bool okay = static_cast<bool>(file_);
     file_.close();
     size_ = 0;
+    path_.clear();
     if (!okay) return std::unexpected(VortexError::make(
         ErrorCode::io_error, "Partial file flush failed during close"
     ));

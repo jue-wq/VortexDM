@@ -125,3 +125,27 @@ TEST_CASE("Offset writer refuses to reopen an existing file with a mismatched si
     CHECK(std::filesystem::file_size(path, ec) == 8);
     std::filesystem::remove(path);
 }
+
+TEST_CASE("Offset writer exposes an operating-system durable flush") {
+    const auto path = unique_path();
+    vortex::OffsetFileWriter writer;
+    REQUIRE(writer.open(path, 16).has_value());
+    const std::array bytes{
+        std::byte{'D'}, std::byte{'U'}, std::byte{'R'}, std::byte{'A'},
+        std::byte{'B'}, std::byte{'L'}, std::byte{'E'}
+    };
+    REQUIRE(writer.write_at(0, bytes).has_value());
+    REQUIRE(writer.flush_durable().has_value());
+    REQUIRE(writer.close().has_value());
+
+    std::ifstream input(path, std::ios::binary);
+    const std::string content((std::istreambuf_iterator<char>(input)), {});
+    CHECK(content.substr(0, 7) == "DURABLE");
+    input.close();
+    std::filesystem::remove(path);
+}
+
+TEST_CASE("Offset writer rejects durable flush while closed") {
+    vortex::OffsetFileWriter writer;
+    CHECK_FALSE(writer.flush_durable().has_value());
+}

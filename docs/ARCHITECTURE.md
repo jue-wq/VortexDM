@@ -63,10 +63,10 @@ These rules are mandatory for all modules and contributors.
   metadata (byte range, optional SHA-256, and update time). Checkpoints are
   metadata only: callers must flush and verify file bytes before recording them;
   recovery reconciliation and a durable write/commit protocol remain pending.
-- Synchronized offset writer with pre-sized partial files and strict bounds
-  checks. Its stream flush is not an OS-level durability guarantee; the final
-  crash-recovery protocol still requires platform flush primitives and
-  fault-injection coverage.
+- Synchronized offset writer with pre-sized partial files, strict bounds checks,
+  and an explicit `flush_durable()` using `FlushFileBuffers` on Windows and
+  `fsync` on POSIX. Directory-entry durability, write/checkpoint ordering,
+  reconciliation, and fault-injection coverage are still pending.
 - Balanced inclusive HTTP byte-range planner with a configurable segment cap.
 - Bounded exponential retry policy for transient HTTP failures, including capped Retry-After handling.
 - Strict HTTP `Content-Range` parser and partial-response validator.

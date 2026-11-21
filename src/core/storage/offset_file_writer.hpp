@@ -12,7 +12,7 @@
 namespace vortex {
 
 // Serializes random-access writes to one pre-sized partial file.
-// flush() drains the C++ stream buffer; it does not promise an OS-level fsync.
+// flush() drains the C++ stream buffer; flush_durable() also requests an OS-level flush.
 class OffsetFileWriter final {
 public:
     OffsetFileWriter() = default;
@@ -26,10 +26,13 @@ public:
     [[nodiscard]] Status open_existing(const std::filesystem::path& path, std::uint64_t expected_size);
     [[nodiscard]] Status write_at(std::uint64_t offset, std::span<const std::byte> data);
     [[nodiscard]] Status flush();
+    // Flushes stream buffers and requests durable file-data/metadata persistence from the OS.
+    [[nodiscard]] Status flush_durable();
     [[nodiscard]] Status close();
 
 private:
     std::fstream file_;
+    std::filesystem::path path_;
     std::uint64_t size_{};
     std::mutex mutex_;
 };

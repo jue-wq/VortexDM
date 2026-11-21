@@ -9,7 +9,8 @@ blocking. macOS is not a supported target.
 The repository is an actively developed foundation, not a feature-complete download manager. The checked boxes below describe implemented components; unchecked items are not shipped capabilities.
 
 - [x] Phase 1: C++23 build foundation, SQLite WAL metadata store, synchronized offset writer, and unit tests
-- [ ] Phase 1: OS-level durable flush, crash recovery, and fault-injection validation
+- [x] Phase 1: explicit OS-level file flush primitive (Windows `FlushFileBuffers`, POSIX `fsync`)
+- [ ] Phase 1: directory-entry durability, ordered checkpoint commits, crash recovery, and fault-injection validation
 - [x] Android: Gradle / GeckoView browser bootstrap, navigation controls, and Android CI
 - [x] Android: Vortex Shield host-rule subset with EasyList/EasyPrivacy subscription caching
 - [x] Android: user-initiated official uBlock Origin add-on installation path (compatibility still requires validation)
