@@ -18,7 +18,7 @@ Result<void> run_media_extract_task(
     SqliteRepository& repository,
     const DownloadRecord& task,
     const std::filesystem::path& output_path,
-    const std::atomic_bool& cancel_flag) {
+    std::atomic_bool& cancel_flag) {
     const auto profiles = repository.list_ytdlp_profiles();
     if (!profiles) return std::unexpected(profiles.error());
     const auto profile = std::find_if(profiles->begin(), profiles->end(), [](const auto& value) {
@@ -37,7 +37,8 @@ Result<void> run_media_extract_task(
     if (!executable.is_absolute())
         return std::unexpected(make_error("ytdlp_path", "Configured yt-dlp executable/Python path must be absolute"));
     arguments.insert(arguments.end(), {
-        "--no-warnings", "--no-call-home", "--no-cache-dir", "--no-playlist", "--newline",
+        "--no-warnings", "--no-call-home", "--no-cache-dir",
+        task.task_type == "media_extract_playlist" ? "--yes-playlist" : "--no-playlist", "--newline",
         "--format", "bestvideo*+bestaudio/best", "--merge-output-format", "mkv",
         "--output", output_path.string(), "--", task.url
     });
@@ -49,7 +50,7 @@ Result<void> run_media_extract_task(
         while (!stop.stop_requested() && !cancel_flag.load(std::memory_order_relaxed)) {
             const auto status = repository.get_download_status(id);
             if (!status || *status != "Downloading") {
-                const_cast<std::atomic_bool&>(cancel_flag).store(true, std::memory_order_relaxed);
+                cancel_flag.store(true, std::memory_order_relaxed);
                 break;
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(250));
@@ -124,7 +125,7 @@ void DownloadQueueWorker::run(std::stop_token token) {
             }
         };
         const auto output_path = directory / task.filename;
-        const auto result = task.task_type == "media_extract"
+        const auto result = task.task_type.starts_with("media_extract")
             ? run_media_extract_task(repository_, task, output_path, cancel_requested_)
             : download_file(task.url, output_path, options);
         if (result) {
