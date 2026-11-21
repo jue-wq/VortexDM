@@ -22,6 +22,17 @@ struct ByteRange {
     std::size_t max_connections,
     std::uint64_t minimum_segment_bytes = 2U * 1024U * 1024U);
 
+struct ByteRangeCheckpoint {
+    std::uint64_t start{0};
+    std::uint64_t end{0};
+    std::uint64_t downloaded_bytes{0};
+};
+
+// Reconstructs missing intervals from a durable contiguous-prefix segment journal.
+[[nodiscard]] Result<std::vector<ByteRange>> plan_recovery_ranges(
+    std::uint64_t total_bytes,
+    std::vector<ByteRangeCheckpoint> checkpoints);
+
 // Splits off the upper half of a large active range and returns it as a stealable task.
 [[nodiscard]] std::optional<ByteRange> steal_tail(ByteRange& active, std::uint64_t minimum_chunk_bytes);
 
