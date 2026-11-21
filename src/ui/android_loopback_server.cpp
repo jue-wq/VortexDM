@@ -96,7 +96,20 @@ void AndroidLoopbackServer::handleSocket(QTcpSocket* socket) {
         return;
     }
     const auto split = buffer.indexOf("\r\n\r\n");
-    if (split < 0) { socket->setProperty("requestBuffer", buffer); return; }
+    if (split < 0) {
+        if (buffer.size() > 16384) {
+            socket->setProperty("handled", true);
+            socket->write(response(413, R"({"error":"headers_too_large"})"));
+            socket->disconnectFromHost();
+        } else socket->setProperty("requestBuffer", buffer);
+        return;
+    }
+    if (split > 16384) {
+        socket->setProperty("handled", true);
+        socket->write(response(413, R"({"error":"headers_too_large"})"));
+        socket->disconnectFromHost();
+        return;
+    }
     const auto header = buffer.left(split);
     const auto body = buffer.mid(split + 4);
     const auto lines = header.split('\n');
