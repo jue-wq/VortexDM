@@ -159,8 +159,14 @@ QByteArray AndroidLoopbackServer::dispatchIpc(const QByteArray& body) {
     const auto& payload = request["payload"];
     json answer;
     if (request.value("type", std::string{}) == "handshake") {
+        json queues = json::array();
+        if (repository_) {
+            const auto available = repository_->list_queues();
+            if (available) for (const auto& queue : *available)
+                queues.push_back({{"id",queue.id},{"name",queue.name},{"max_concurrent",queue.max_concurrent}});
+        }
         answer = {{"accepted",true},{"app_version","0.1.0"},{"theme","Modern Dark"},
-                  {"ytdlp_ready",false},{"queues",json::array()}};
+                  {"ytdlp_ready",false},{"queues",std::move(queues)}};
     } else if (request.value("type", std::string{}) == "add_download") {
         const auto task = enqueueDownload(payload);
         if (!task) answer = {{"accepted",false},{"code",task.error().code},{"message",task.error().message}};
@@ -231,7 +237,7 @@ vortex::Result<std::string> AndroidLoopbackServer::enqueueDownload(const json& p
     record.url = url;
     record.filename = vortex::sanitize_filename(requested.empty() ? suggested_name(url) : requested);
     record.save_dir = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation).toStdString();
-    record.queue_id = payload.value("queue_id", std::string{});
+    record.queue_id = payload.value("queue_id", std::string("default"));
     record.status = "Queued";
     record.headers_json = "{}";
     auto saved = repository_->save_download(record);

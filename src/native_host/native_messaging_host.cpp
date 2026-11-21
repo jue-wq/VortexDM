@@ -78,7 +78,7 @@ Result<std::string> NativeMessagingHost::enqueue_download(const nlohmann::json& 
     record.url = url;
     record.filename = filename;
     record.save_dir = default_download_directory().string();
-    record.queue_id = payload.value("queue_id", std::string{});
+    record.queue_id = payload.value("queue_id", std::string("default"));
     record.status = "Queued";
     // Cookie and authorization data are intentionally not persisted by the host.
     record.headers_json = "{}";
@@ -133,10 +133,16 @@ Result<nlohmann::json> NativeMessagingHost::dispatch(const nlohmann::json& reque
     const auto& payload = request["payload"];
 
     if (type == "handshake") {
+        nlohmann::json queues = nlohmann::json::array();
+        if (repository_) {
+            const auto available = repository_->list_queues();
+            if (available) for (const auto& queue : *available)
+                queues.push_back({{"id",queue.id},{"name",queue.name},{"max_concurrent",queue.max_concurrent}});
+        }
         return nlohmann::json{
             {"protocol_version",1},{"request_id",request_id},{"timestamp",timestamp},{"type","ack"},
             {"payload",{{"accepted",true},{"app_version","0.1.0"},{"theme","Modern Dark"},
-                        {"ytdlp_ready",false},{"queues",nlohmann::json::array()}}}
+                        {"ytdlp_ready",false},{"queues",std::move(queues)}}}
         };
     }
     if (type == "add_batch") {

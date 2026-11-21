@@ -58,6 +58,7 @@ bool DownloadListModel::addDownload(const QString& input) {
     record.url = url;
     record.filename = vortex::sanitize_filename(name.empty() ? "download" : name);
     record.save_dir = vortex::default_download_directory().string();
+    record.queue_id = "default";
     record.status = "Queued";
     auto saved = repository_->save_download(record);
     if (!saved) return false;
