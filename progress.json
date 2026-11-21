@@ -118,7 +118,8 @@
         "media_extraction_worker": true,
         "crash_resume_worker": true,
         "android_media_store_export": true,
-        "native_host_installers": true
+        "native_host_installers": true,
+        "native_host_process_e2e_authored": true
       },
       "evidence": [
         "Desktop Native Messaging frame reader baseline exists; Android loopback API and foreground service remain future requirements.",
@@ -129,7 +130,8 @@
         "Queued yt-dlp media extraction is executed by the background worker; Bridge popup no longer asks for cookies it cannot use and disables extraction until a profile is active. Commit 12b40ac.",
         "Worker now calls recover_download_segments for preallocated partial files on resume/restart; otherwise clears stale journal and starts a safe full transfer. Integration tests are authored; execution deferred to final validation.",
         "Android MediaStore export on API 29+ added in commit 10273fb; API 28 SAF/legacy export and device acceptance remain pending.",
-        "Commit 6ca522b adds user-scoped Windows/Linux Native Messaging host registration/uninstall scripts; e236a92 aligns the registered host name with Bridge's com.vortexdm.native_host; d57fdaf adds installation instructions."
+        "Commit 6ca522b adds user-scoped Windows/Linux Native Messaging host registration/uninstall scripts; e236a92 aligns the registered host name with Bridge's com.vortexdm.native_host; d57fdaf adds installation instructions.",
+        "Commit 420b241 adds a Python subprocess E2E test for the actual vortex-native-host binary: framed handshake, add_download persistence and pause/resume/cancel across separate process runs. It is registered in CTest and awaits final execution."
       ]
     },
     {
