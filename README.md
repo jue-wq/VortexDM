@@ -6,23 +6,21 @@ blocking. macOS is not a supported target.
 
 ## Current status
 
-- [x] Phase 1 repository and desktop build-system foundation
-- [x] Android Gradle / GeckoView application bootstrap
-- [x] Android browser address bar and navigation controls
-- [x] Bundled Vortex Shield WebExtension bootstrap
-- [x] Android CI job replacing macOS CI
-- [x] Phase 1 SQLite WAL persistence, download metadata, offset writer, and unit tests
-- [ ] Phase 1 OS-level durable flush, crash recovery, and fault-injection validation
-- [x] Vortex Shield host-rule filter subset and EasyList/EasyPrivacy subscriptions
-- [ ] Full ABP/uBlock-compatible parser, cosmetic filters, and per-site controls
-- [ ] Official uBlock Origin extension compatibility validation
-- [x] Phase 2 inclusive HTTP byte-range planner and unit tests
-- [x] Phase 2 streaming HTTP transport foundation (TLS, timeout, cancellation, explicit redirect handling)\n- [ ] Phase 2 retry orchestration, segment scheduler, and CLI
-- [ ] Phase 3 toolchain manager
-- [ ] Phase 4 media extraction and streaming
-- [x] Phase 5 Native Messaging v1 frame codec and protocol draft
-- [ ] Phase 5 JSON validation, host process, ACK de-duplication, batch assembler, and queue adapter
-- [ ] Phase 6 Qt 6 / QML desktop UI and Android mobile UI
+The repository is an actively developed foundation, not a feature-complete download manager. The checked boxes below describe implemented components; unchecked items are not shipped capabilities.
+
+- [x] Phase 1: C++23 build foundation, SQLite WAL metadata store, synchronized offset writer, and unit tests
+- [ ] Phase 1: OS-level durable flush, crash recovery, and fault-injection validation
+- [x] Android: Gradle / GeckoView browser bootstrap, navigation controls, and Android CI
+- [x] Android: Vortex Shield host-rule subset with EasyList/EasyPrivacy subscription caching
+- [x] Android: user-initiated official uBlock Origin add-on installation path (compatibility still requires validation)
+- [ ] Android: full ABP/uBlock filter compatibility, cosmetic filters, site controls, tabs, downloads, and background transfer lifecycle
+- [x] Phase 2: inclusive HTTP byte-range planner, streaming TLS transport, strict partial-response validation, bounded range staging, and retry orchestration
+- [ ] Phase 2: parallel segment scheduler, durable resume/checkpoint protocol, CLI, and end-to-end transfer tests
+- [ ] Phase 3: toolchain manager
+- [ ] Phase 4: media extraction and streaming integration
+- [x] Phase 5: Native Messaging v1 frame codec and protocol draft
+- [ ] Phase 5: JSON schema validation, production native-host process, ACK de-duplication, batch assembler, and queue adapter
+- [ ] Phase 6: Qt 6 / QML desktop UI and production Android download UI
 
 ## Desktop build (CMake + vcpkg)
 

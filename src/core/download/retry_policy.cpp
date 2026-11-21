@@ -14,11 +14,12 @@ RetryDecision RetryPolicy::decide(
     const std::chrono::milliseconds maximum_delay
 ) noexcept {
     if (attempt >= maximum_retries || base_delay.count() < 0 ||
-        maximum_delay.count() < 0 || http_status == 0 ||
+        maximum_delay.count() < 0 ||
+        // Status 0 represents a transport-level network failure.
+        (http_status != 0 && (http_status < 100 || http_status > 599)) ||
         (http_status >= 200 && http_status < 400) ||
         (http_status >= 400 && http_status < 500 &&
-         http_status != 408 && http_status != 429) ||
-        (http_status < 100 || http_status > 599)) {
+         http_status != 408 && http_status != 429)) {
         return {};
     }
 

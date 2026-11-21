@@ -71,10 +71,7 @@ These rules are mandatory for all modules and contributors.
 - Unit tests for hashing, database persistence, offset writes, range
   partitioning, retry decisions, and `Content-Range` validation.
 
-The retry orchestration, segment scheduler, durable checkpoint
-protocol, Android JNI linkage to the shared storage/download modules, JSON
-schema validation, native host process, and end-to-end browser-to-desktop queue
-adapter are not implemented yet.
+The parallel segment scheduler, durable checkpoint/recovery protocol, Android JNI linkage to the shared storage/download modules, JSON schema validation, native host process, and end-to-end browser-to-desktop queue adapter are not implemented yet.
 
 ## 7. Phase 1 implementation order
 

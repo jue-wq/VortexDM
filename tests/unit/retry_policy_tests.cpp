@@ -33,5 +33,5 @@ TEST_CASE("Retry policy does not retry permanent HTTP errors") {
     CHECK_FALSE(vortex::RetryPolicy::decide(0, 4, 404).retry);
     CHECK(vortex::RetryPolicy::decide(0, 4, 408).retry);
     CHECK(vortex::RetryPolicy::decide(0, 4, 429).retry);
-    CHECK_FALSE(vortex::RetryPolicy::decide(0, 4, 0).retry);
+    CHECK(vortex::RetryPolicy::decide(0, 4, 0).retry);
 }

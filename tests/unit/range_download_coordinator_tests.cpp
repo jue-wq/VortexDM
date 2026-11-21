@@ -93,3 +93,74 @@ TEST_CASE("Range coordinator never writes a response with an invalid Content-Ran
     CHECK(std::string(actual.data(), actual.size()) == std::string(4, '\0'));
     std::filesystem::remove(path);
 }
+
+TEST_CASE("Range coordinator retries transient HTTP responses without writing bad data") {
+    const auto path = temporary_path();
+    vortex::OffsetFileWriter writer;
+    REQUIRE(writer.open(path, 3));
+    std::size_t attempts = 0;
+    std::vector<std::chrono::milliseconds> delays;
+    const vortex::RangeRequestExecutor executor =
+        [&attempts](const vortex::HttpRequest&, const vortex::HttpBodySink& sink,
+                    std::stop_token) {
+            ++attempts;
+            vortex::HttpResponse response;
+            if (attempts == 1) {
+                response.status_code = 503;
+                response.headers["retry-after"] = "2";
+                return vortex::Result<vortex::HttpResponse>{std::move(response)};
+            }
+            const std::array<std::byte, 3> body{
+                std::byte{'o'}, std::byte{'k'}, std::byte{'!'}};
+            REQUIRE(sink(body));
+            response.status_code = 206;
+            response.headers["content-range"] = "bytes 0-2/3";
+            response.headers["content-length"] = "3";
+            response.bytes_received = 3;
+            return vortex::Result<vortex::HttpResponse>{std::move(response)};
+        };
+    vortex::RangeTransferOptions options;
+    options.wait_before_retry = [&delays](std::chrono::milliseconds delay, std::stop_token) {
+        delays.push_back(delay);
+        return true;
+    };
+
+    REQUIRE(vortex::RangeDownloadCoordinator::transfer(
+        "https://example.test/file", 3, 3, writer, executor, options));
+    CHECK(attempts == 2);
+    REQUIRE(delays.size() == 1);
+    CHECK(delays.front() == std::chrono::seconds{2});
+    REQUIRE(writer.close());
+    std::filesystem::remove(path);
+}
+
+TEST_CASE("Range coordinator retries transient transport errors") {
+    const auto path = temporary_path();
+    vortex::OffsetFileWriter writer;
+    REQUIRE(writer.open(path, 2));
+    std::size_t attempts = 0;
+    const vortex::RangeRequestExecutor executor =
+        [&attempts](const vortex::HttpRequest&, const vortex::HttpBodySink& sink,
+                    std::stop_token) {
+            ++attempts;
+            if (attempts == 1) return vortex::Result<vortex::HttpResponse>{
+                std::unexpected(vortex::VortexError::make(
+                    vortex::ErrorCode::network_error, "temporary failure"))};
+            const std::array<std::byte, 2> body{std::byte{'o'}, std::byte{'k'}};
+            REQUIRE(sink(body));
+            vortex::HttpResponse response;
+            response.status_code = 206;
+            response.headers["content-range"] = "bytes 0-1/2";
+            response.headers["content-length"] = "2";
+            response.bytes_received = 2;
+            return vortex::Result<vortex::HttpResponse>{std::move(response)};
+        };
+    vortex::RangeTransferOptions options;
+    options.wait_before_retry = [](std::chrono::milliseconds, std::stop_token) { return true; };
+
+    REQUIRE(vortex::RangeDownloadCoordinator::transfer(
+        "https://example.test/file", 2, 2, writer, executor, options));
+    CHECK(attempts == 2);
+    REQUIRE(writer.close());
+    std::filesystem::remove(path);
+}

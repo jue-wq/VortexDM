@@ -5,6 +5,9 @@
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <curl/curl.h>
 
 #include <algorithm>

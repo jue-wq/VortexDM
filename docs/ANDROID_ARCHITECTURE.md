@@ -51,7 +51,7 @@ The browser must provide a wide-spectrum blocker inspired by uBlock Origin:
 
 ## GeckoView integration decision
 
-GeckoView is pinned to the 163.0.20261120154857 release line. Use GeckoView rather than Android WebView because GeckoView is designed for
+GeckoView is currently pinned to `143.0.20251003115653` in the Android Gradle module. Update this version only after validating the GeckoView API surface and running the Android CI build. Use GeckoView rather than Android WebView because GeckoView is designed for
 embedded browser use and exposes WebExtensions. Its
 WebExtensionController.installBuiltIn API can install app-bundled extensions.
 The Android browser should expose an extension manager and validate extension
