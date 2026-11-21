@@ -1,0 +1,6 @@
+$ErrorActionPreference = "Stop"
+$keyPath = 'HKCU:\Software\Mozilla\NativeMessagingHosts\com.vortexdm.native_host'
+if (Test-Path -LiteralPath $keyPath) {
+    Remove-Item -LiteralPath $keyPath -Recurse -Force
+}
+Write-Host "Removed VortexDM Native Messaging host registration for the current Windows user."
