@@ -53,12 +53,14 @@ bool set_consistent(std::optional<std::string>& target,
 
 std::optional<HttpResponseHeaders> HttpResponseHeaders::parse(
     const std::span<const std::string_view> lines
-) noexcept {
+) {
     HttpResponseHeaders result{};
     bool saw_status = false;
 
     for (auto line : lines) {
-        trim(line);
+        while (!line.empty() && std::isspace(static_cast<unsigned char>(line.back())) != 0) {
+            line.remove_suffix(1);
+        }
         if (line.empty()) continue;
 
         if (line.starts_with("HTTP/")) {
