@@ -19,6 +19,7 @@ add_library(vortex_core STATIC
     src/core/common/logger.cpp
     src/core/storage/sqlite_database.cpp
     src/core/storage/offset_file_writer.cpp
+    src/core/storage/segment_checkpoint_manager.cpp
     src/core/download/segment_planner.cpp
     src/core/download/retry_policy.cpp
     src/core/download/content_range.cpp
@@ -60,6 +61,7 @@ if(VORTEXDM_BUILD_TESTS)
         tests/unit/crypto_utils_tests.cpp
         tests/unit/sqlite_database_tests.cpp
         tests/unit/offset_file_writer_tests.cpp
+        tests/unit/segment_checkpoint_manager_tests.cpp
         tests/unit/segment_planner_tests.cpp
         tests/unit/retry_policy_tests.cpp
         tests/unit/content_range_tests.cpp
