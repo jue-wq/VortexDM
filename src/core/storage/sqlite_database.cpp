@@ -1,4 +1,5 @@
 #include "sqlite_database.hpp"
+#include "core/download/download_state_machine.hpp"
 
 #include <sqlite3.h>
 
@@ -355,6 +356,40 @@ Status SqliteDatabase::mark_native_request_imported(const std::string_view reque
     return std::unexpected(VortexError::make(
         ErrorCode::invalid_argument, "Native request does not exist"
     ));
+}
+
+Status SqliteDatabase::transition_download_state(
+    const std::int64_t id, const DownloadState expected_from,
+    const DownloadState to, const std::int64_t updated_at_unix
+) {
+    std::scoped_lock lock(mutex_);
+    if (!db_) return std::unexpected(VortexError::make(
+        ErrorCode::database_error, "Database is not open"
+    ));
+    if (id <= 0 || !valid_state(static_cast<std::int32_t>(expected_from)) ||
+        !valid_state(static_cast<std::int32_t>(to))) {
+        return std::unexpected(VortexError::make(
+            ErrorCode::invalid_argument, "Invalid download state transition arguments"
+        ));
+    }
+    const auto allowed = DownloadStateMachine::validate_transition(expected_from, to);
+    if (!allowed) return std::unexpected(allowed.error());
+
+    Statement statement(db_,
+        "UPDATE downloads SET state=?, updated_at=? WHERE id=? AND state=?;");
+    if (statement.result() != SQLITE_OK) return std::unexpected(
+        database_error("Prepare state transition"));
+    sqlite3_bind_int(statement.get(), 1, static_cast<int>(to));
+    sqlite3_bind_int64(statement.get(), 2, updated_at_unix);
+    sqlite3_bind_int64(statement.get(), 3, id);
+    sqlite3_bind_int(statement.get(), 4, static_cast<int>(expected_from));
+    if (sqlite3_step(statement.get()) != SQLITE_DONE) return std::unexpected(
+        database_error("Transition download state"));
+    if (sqlite3_changes(db_) == 0) return std::unexpected(VortexError::make(
+        ErrorCode::invalid_argument,
+        "Download does not exist or its state changed concurrently"
+    ));
+    return {};
 }
 
 Status SqliteDatabase::update_download_progress(
