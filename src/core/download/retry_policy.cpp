@@ -24,7 +24,10 @@ RetryDecision RetryPolicy::decide(
     }
 
     if (retry_after && retry_after->count() >= 0) {
-        if (*retry_after >= std::chrono::duration_cast<std::chrono::seconds>(maximum_delay)) {
+        // Compare in a wide floating-point duration to avoid truncating a
+        // sub-second cap to zero or overflowing when Retry-After is very large.
+        using WideMilliseconds = std::chrono::duration<long double, std::milli>;
+        if (WideMilliseconds{*retry_after} >= WideMilliseconds{maximum_delay}) {
             return {true, maximum_delay};
         }
         return {true, std::chrono::duration_cast<std::chrono::milliseconds>(*retry_after)};

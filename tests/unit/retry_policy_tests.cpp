@@ -35,3 +35,21 @@ TEST_CASE("Retry policy does not retry permanent HTTP errors") {
     CHECK(vortex::RetryPolicy::decide(0, 4, 429).retry);
     CHECK(vortex::RetryPolicy::decide(0, 4, 0).retry);
 }
+
+TEST_CASE("Retry policy preserves zero Retry-After with a sub-second cap") {
+    using namespace std::chrono_literals;
+    const auto decision = vortex::RetryPolicy::decide(
+        0, 3, 429, 0s, 500ms, 500ms
+    );
+    CHECK(decision.retry);
+    CHECK(decision.delay == 0ms);
+}
+
+TEST_CASE("Retry policy safely caps extremely large Retry-After values") {
+    using namespace std::chrono_literals;
+    const auto decision = vortex::RetryPolicy::decide(
+        0, 3, 503, std::chrono::seconds::max(), 500ms, 250ms
+    );
+    CHECK(decision.retry);
+    CHECK(decision.delay == 250ms);
+}
