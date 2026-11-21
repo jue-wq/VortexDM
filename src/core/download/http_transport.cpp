@@ -134,8 +134,7 @@ Result<HttpTransferResponse> HttpTransport::get(
          options.range->last >= *options.expected_total_size) ||
         (options.range && (options.range->first > options.range->last ||
                            options.range->last == UINT64_MAX)) ||
-        (options.if_range && (options.if_range->empty() ||
-            options.if_range->find_first_of("\r\n") != std::string::npos)) ||
+        (options.if_range && !is_strong_etag(*options.if_range)) ||
         (options.if_range && !options.range)) {
         return std::unexpected(VortexError::make(
             ErrorCode::invalid_argument, "Invalid HTTP transfer arguments"));
