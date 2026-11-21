@@ -4,6 +4,7 @@
   "description": "Modern C++23 desktop download manager",
   "dependencies": [
     "catch2",
+    "curl",
     "openssl",
     "spdlog",
     "sqlite3",
