@@ -474,7 +474,7 @@ bool test_sqlite_migrations_and_segment_journal() {
     vortex::SqliteRepository repository(path);
     if (!repository.initialize()) return false;
     const auto version = repository.schema_version();
-    if (!version || *version != 1U) return false;
+    if (!version || *version != 2U) return false;
 
     vortex::DownloadRecord download;
     download.id = "download-test-1";
