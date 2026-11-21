@@ -8,16 +8,16 @@ A checked item describes an implemented/reviewed artifact; a phase is complete o
 - [x] URL validation and task state machine
 - [x] Positional crash-safe file writer (pwrite / Windows OVERLAPPED) with preallocation and durable flush
 - [x] 16-thread, 100 MiB, SHA-256 concurrent-write acceptance test
-- [ ] Clean Windows and Linux builds with warnings enabled
+- [x] Clean Windows and Linux builds with warnings enabled (CI run 44954098299)
 - [x] Android arm64 NDK cross-build green
-- [ ] ASan/UBSan and TSan CI runs green
+- [x] ASan/UBSan and TSan CI runs green (CI run 44954098299)
 
 ## Phase 2 — Persistence and reliable HTTP engine
 - [x] SQLite WAL bootstrap and schema version migration v1
 - [x] Downloads, download_streams, segments, queues, categories, ytdlp_profiles and settings tables
 - [x] Download/stream/segment upsert APIs and segment checkpoint persistence
 - [x] Repository migration and checkpoint unit test baseline
-- [ ] Range probing, adaptive segmented scheduler and retry policy
+- [x] HTTP HEAD + Range 0-0 fallback probe and parallel byte-range transfer engine\n- [x] Bounded segment scheduler and tail work-stealing primitive\n- [ ] Adaptive retry/backoff policy integrated into active transfers
 - [ ] Segment journal recovery after forced process termination
 - [ ] Crash-safe writer + SQLite commit ordering end-to-end test
 

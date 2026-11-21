@@ -139,7 +139,7 @@ bool test_segment_scheduler() {
     for (const auto& range : *ranges) total += range.size();
     if (total != 1000U || ranges->front().start != 0U || ranges->back().end != 999U) return false;
 
-    vortex::ByteRange active{0U, 0U, 999U};
+    const auto huge = vortex::make_byte_ranges(UINT64_MAX, 4U, UINT64_MAX - 1U);\n    if (!huge || huge->empty()) return false;\n    vortex::ByteRange almost_max{0U, 0U, UINT64_MAX};\n    if (vortex::steal_tail(almost_max, UINT64_MAX / 2U + 1U)) return false;\n\n    vortex::ByteRange active{0U, 0U, 999U};
     const auto stolen = vortex::steal_tail(active, 100U);
     if (!stolen || active.end + 1U != stolen->start) return false;
     return active.size() + stolen->size() == 1000U;

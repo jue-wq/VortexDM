@@ -17,7 +17,7 @@ Result<std::vector<ByteRange>> make_byte_ranges(
     }
     if (total_bytes == 0U) return std::vector<ByteRange>{};
 
-    const std::uint64_t desired = (total_bytes + minimum_segment_bytes - 1U) / minimum_segment_bytes;
+    const std::uint64_t desired = 1U + (total_bytes - 1U) / minimum_segment_bytes;
     const std::size_t count = std::min<std::size_t>(
         max_connections, static_cast<std::size_t>(std::min<std::uint64_t>(desired, max_connections)));
     const std::uint64_t base_size = total_bytes / static_cast<std::uint64_t>(count);
@@ -36,7 +36,7 @@ Result<std::vector<ByteRange>> make_byte_ranges(
 
 std::optional<ByteRange> steal_tail(ByteRange& active, std::uint64_t minimum_chunk_bytes) {
     const std::uint64_t length = active.size();
-    if (minimum_chunk_bytes == 0U || length < minimum_chunk_bytes * 2U) return std::nullopt;
+    if (minimum_chunk_bytes == 0U || length / 2U < minimum_chunk_bytes) return std::nullopt;
 
     const std::uint64_t stolen_length = length / 2U;
     const std::uint64_t stolen_start = active.end - stolen_length + 1U;
