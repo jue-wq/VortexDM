@@ -8,6 +8,7 @@
 #include "vortex/sqlite_repository.hpp"
 #include "vortex/download_queue_worker.hpp"
 #include "vortex/application_paths.hpp"
+#include "download_list_model.hpp"
 #ifdef Q_OS_ANDROID
 #include "android_loopback_server.hpp"
 #endif
@@ -28,6 +29,7 @@ int main(int argc, char* argv[]) {
     if (!repository.initialize()) return 2;
     vortex::DownloadQueueWorker download_worker(repository);
     download_worker.start();
+    DownloadListModel downloads_model(&repository);
 
 #ifdef Q_OS_ANDROID
     AndroidLoopbackServer bridge_server(&repository);
@@ -38,6 +40,7 @@ int main(int argc, char* argv[]) {
 #ifdef Q_OS_ANDROID
     engine.rootContext()->setContextProperty(QStringLiteral("bridgeServer"), &bridge_server);
 #endif
+    engine.rootContext()->setContextProperty(QStringLiteral("downloadsModel"), &downloads_model);
     engine.loadFromModule("VortexDM", "Main");
     if (engine.rootObjects().isEmpty()) { download_worker.stop(); return 1; }
     QObject::connect(&app, &QCoreApplication::aboutToQuit, [&download_worker] { download_worker.stop(); });
