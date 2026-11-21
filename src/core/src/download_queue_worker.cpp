@@ -243,6 +243,8 @@ void DownloadQueueWorker::run(std::stop_token token) {
                 result = std::unexpected(make_error("download_cancelled", "Task was paused or cancelled before completion"));
         }
         if (result) {
+            if (task.task_type.starts_with("media_extract"))
+                (void)repository_.update_download_filename(task.id, completed_path.filename().string());
             std::error_code size_error;
             const auto final_size = std::filesystem::file_size(completed_path, size_error);
             if (!size_error) (void)repository_.update_download_progress(task.id, final_size, final_size);
