@@ -59,7 +59,10 @@ These rules are mandatory for all modules and contributors.
 
 - SHA-256 file hashing through OpenSSL EVP.
 - SQLite database with WAL, foreign-key enforcement, versioned migration
-  metadata, and download task CRUD/progress persistence.
+  metadata, download task CRUD/progress persistence, and per-segment checkpoint
+  metadata (byte range, optional SHA-256, and update time). Checkpoints are
+  metadata only: callers must flush and verify file bytes before recording them;
+  recovery reconciliation and a durable write/commit protocol remain pending.
 - Synchronized offset writer with pre-sized partial files and strict bounds
   checks. Its stream flush is not an OS-level durability guarantee; the final
   crash-recovery protocol still requires platform flush primitives and
