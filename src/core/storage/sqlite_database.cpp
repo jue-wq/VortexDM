@@ -125,8 +125,13 @@ Status SqliteDatabase::migrate() {
         "request_id TEXT PRIMARY KEY NOT NULL CHECK(length(request_id) BETWEEN 1 AND 128),"
         "download_id INTEGER NOT NULL UNIQUE REFERENCES downloads(id) ON DELETE CASCADE,"
         "created_at INTEGER NOT NULL DEFAULT (unixepoch()));"
+        "CREATE TABLE IF NOT EXISTS native_request_delivery ("
+        "request_id TEXT PRIMARY KEY NOT NULL REFERENCES native_request_dedup(request_id) ON DELETE CASCADE,"
+        "imported_at INTEGER NOT NULL DEFAULT (unixepoch()));"
         "INSERT OR IGNORE INTO schema_migrations(version, applied_at) "
         "VALUES(1, unixepoch());"
+        "INSERT OR IGNORE INTO schema_migrations(version, applied_at) "
+        "VALUES(2, unixepoch());"
     );
     if (!status) {
         (void)execute("ROLLBACK;");
@@ -271,6 +276,76 @@ Result<std::int64_t> SqliteDatabase::enqueue_download_once(
         return std::unexpected(status.error());
     }
     return download_id;
+}
+
+Result<std::vector<NativeInboxEntry>> SqliteDatabase::list_pending_native_requests(
+    const std::size_t limit
+) {
+    std::scoped_lock lock(mutex_);
+    if (!db_) return std::unexpected(VortexError::make(
+        ErrorCode::database_error, "Database is not open"
+    ));
+    if (limit == 0U || limit > 1000U) return std::unexpected(VortexError::make(
+        ErrorCode::invalid_argument, "Native inbox page size must be between 1 and 1000"
+    ));
+    Statement statement(db_,
+        "SELECT r.request_id,d.id,d.url,d.destination,d.total_bytes,d.downloaded_bytes,"
+        "d.state,d.checksum_sha256,d.created_at,d.updated_at "
+        "FROM native_request_dedup r JOIN downloads d ON d.id=r.download_id "
+        "LEFT JOIN native_request_delivery delivered ON delivered.request_id=r.request_id "
+        "WHERE delivered.request_id IS NULL ORDER BY r.created_at,r.request_id LIMIT ?;");
+    if (statement.result() != SQLITE_OK) return std::unexpected(database_error("Prepare pending native inbox list"));
+    sqlite3_bind_int64(statement.get(), 1, static_cast<sqlite3_int64>(limit));
+    std::vector<NativeInboxEntry> entries;
+    for (;;) {
+        const int rc = sqlite3_step(statement.get());
+        if (rc == SQLITE_DONE) break;
+        if (rc != SQLITE_ROW) return std::unexpected(database_error("Read pending native inbox"));
+        const auto state = sqlite3_column_int(statement.get(), 6);
+        if (!valid_state(state)) return std::unexpected(VortexError::make(
+            ErrorCode::database_error, "Stored native inbox download state is invalid"
+        ));
+        const auto* request_id = sqlite3_column_text(statement.get(), 0);
+        const auto* url = sqlite3_column_text(statement.get(), 2);
+        const auto* destination = sqlite3_column_text(statement.get(), 3);
+        const auto* checksum = sqlite3_column_text(statement.get(), 7);
+        entries.push_back(NativeInboxEntry{
+            request_id ? reinterpret_cast<const char*>(request_id) : "",
+            DownloadRecord{
+                sqlite3_column_int64(statement.get(), 1),
+                url ? reinterpret_cast<const char*>(url) : "",
+                destination ? reinterpret_cast<const char*>(destination) : "",
+                sqlite3_column_int64(statement.get(), 4),
+                sqlite3_column_int64(statement.get(), 5),
+                static_cast<DownloadState>(state),
+                checksum ? reinterpret_cast<const char*>(checksum) : "",
+                sqlite3_column_int64(statement.get(), 8),
+                sqlite3_column_int64(statement.get(), 9)
+            }
+        });
+    }
+    return entries;
+}
+
+Status SqliteDatabase::mark_native_request_imported(const std::string_view request_id) {
+    std::scoped_lock lock(mutex_);
+    if (!db_) return std::unexpected(VortexError::make(
+        ErrorCode::database_error, "Database is not open"
+    ));
+    if (!valid_request_id(request_id)) return std::unexpected(VortexError::make(
+        ErrorCode::invalid_argument, "Invalid native request ID"
+    ));
+    Statement statement(db_,
+        "INSERT OR IGNORE INTO native_request_delivery(request_id) "
+        "SELECT request_id FROM native_request_dedup WHERE request_id=?;");
+    if (statement.result() != SQLITE_OK) return std::unexpected(database_error("Prepare native inbox delivery mark"));
+    sqlite3_bind_text(statement.get(), 1, request_id.data(),
+                      static_cast<int>(request_id.size()), SQLITE_TRANSIENT);
+    if (sqlite3_step(statement.get()) != SQLITE_DONE) return std::unexpected(database_error("Mark native request imported"));
+    if (sqlite3_changes(db_) == 0) return std::unexpected(VortexError::make(
+        ErrorCode::invalid_argument, "Native request does not exist"
+    ));
+    return {};
 }
 
 Status SqliteDatabase::update_download_progress(
