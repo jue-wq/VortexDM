@@ -27,7 +27,8 @@ std::optional<double> number_value(const Json& object, const char* key) {
 std::optional<std::uint64_t> size_value(const Json& object) {
     for (const char* key : {"filesize", "filesize_approx"}) {
         const auto found = object.find(key);
-        if (found == object.end() || !found->is_number_unsigned() && !found->is_number_integer()) continue;
+        if (found == object.end() || !found->is_number()) continue;
+        if (found->is_number_unsigned()) return found->get<std::uint64_t>();
         const auto signed_value = found->get<std::int64_t>();
         if (signed_value >= 0) return static_cast<std::uint64_t>(signed_value);
     }
