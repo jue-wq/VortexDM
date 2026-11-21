@@ -28,7 +28,7 @@ using Json = nlohmann::json;
     const auto end = url.find_first_of("/?#", start);
     const auto authority = url.substr(start, end == std::string::npos ? std::string::npos : end - start);
     if (authority.empty() || authority.find('@') != std::string::npos ||
-        authority.find('\\\\') != std::string::npos) return false;
+        authority.find(static_cast<char>(92)) != std::string::npos) return false;
     for (const char raw : url) {
         const auto ch = static_cast<unsigned char>(raw);
         if (ch <= 0x20U || ch == 0x7fU) return false;
