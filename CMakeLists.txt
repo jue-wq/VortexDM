@@ -40,8 +40,16 @@ else()
     target_compile_options(vortexdm_native_host PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion)
 endif()
 
+if(WIN32)
+    set(VORTEXDM_NATIVE_HOST_FILENAME "vortexdm_native_host.exe")
+    file(TO_NATIVE_PATH "${CMAKE_INSTALL_FULL_BINDIR}/${VORTEXDM_NATIVE_HOST_FILENAME}" _vortexdm_host_native_path)
+    string(REPLACE "\\" "\\\\" VORTEXDM_NATIVE_HOST_INSTALL_PATH "${_vortexdm_host_native_path}")
+else()
+    set(VORTEXDM_NATIVE_HOST_FILENAME "vortexdm_native_host")
+    set(VORTEXDM_NATIVE_HOST_INSTALL_PATH "${CMAKE_INSTALL_FULL_BINDIR}/${VORTEXDM_NATIVE_HOST_FILENAME}")
+endif()
+
 install(TARGETS vortexdm_native_host RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-set(VORTEXDM_NATIVE_HOST_INSTALL_PATH "${CMAKE_INSTALL_FULL_BINDIR}/vortexdm_native_host")
 configure_file(
     packaging/firefox/com.vortexdm.native_host.json.in
     ${CMAKE_CURRENT_BINARY_DIR}/com.vortexdm.native_host.json
@@ -49,6 +57,28 @@ configure_file(
 )
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/com.vortexdm.native_host.json
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/mozilla/native-messaging-hosts)
+
+if(WIN32)
+    file(TO_NATIVE_PATH
+        "${CMAKE_INSTALL_FULL_LIBDIR}/mozilla/native-messaging-hosts/com.vortexdm.native_host.json"
+        _vortexdm_manifest_native_path
+    )
+    configure_file(
+        packaging/windows/register-firefox-native-host.ps1.in
+        ${CMAKE_CURRENT_BINARY_DIR}/register-firefox-native-host.ps1
+        @ONLY
+    )
+    configure_file(
+        packaging/windows/unregister-firefox-native-host.ps1.in
+        ${CMAKE_CURRENT_BINARY_DIR}/unregister-firefox-native-host.ps1
+        @ONLY
+    )
+    install(FILES
+        ${CMAKE_CURRENT_BINARY_DIR}/register-firefox-native-host.ps1
+        ${CMAKE_CURRENT_BINARY_DIR}/unregister-firefox-native-host.ps1
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/vortexdm/registration
+    )
+endif()
 
 target_compile_features(vortex_core PUBLIC cxx_std_23)
 target_include_directories(vortex_core
