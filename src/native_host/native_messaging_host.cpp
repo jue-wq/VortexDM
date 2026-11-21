@@ -102,7 +102,10 @@ Result<std::size_t> NativeMessagingHost::enqueue_batch(const nlohmann::json& pay
     std::vector<std::string> inserted;
     for (const auto& item : payload["items"]) {
         if (!item.is_object()) continue;
-        auto result = enqueue_download(item);
+        auto item_payload = item;
+        if (payload.contains("queue_id") && payload["queue_id"].is_string() &&
+            !item_payload.contains("queue_id")) item_payload["queue_id"] = payload["queue_id"];
+        auto result = enqueue_download(item_payload);
         if (!result) return std::unexpected(result.error());
         inserted.push_back(*result);
     }
