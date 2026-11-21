@@ -15,6 +15,7 @@ find_package(OpenSSL REQUIRED)
 find_package(spdlog CONFIG REQUIRED)
 find_package(unofficial-sqlite3 CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
+find_package(CURL CONFIG REQUIRED)
 
 add_library(vortex_core STATIC
     src/core/common/crypto_utils.cpp
@@ -25,6 +26,7 @@ add_library(vortex_core STATIC
     src/core/download/retry_policy.cpp
     src/core/download/content_range.cpp
     src/core/download/http_response_headers.cpp
+    src/core/download/http_transport.cpp
     src/core/ipc/native_messaging_frame.cpp
     src/core/ipc/native_messaging_stream.cpp
     src/core/ipc/native_batch_assembler.cpp
@@ -94,6 +96,7 @@ target_link_libraries(vortex_core
         spdlog::spdlog
         unofficial::sqlite3::sqlite3
         nlohmann_json::nlohmann_json
+        CURL::libcurl
 )
 
 if(MSVC)
