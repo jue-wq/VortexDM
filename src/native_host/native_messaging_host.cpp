@@ -189,10 +189,31 @@ Result<nlohmann::json> NativeMessagingHost::dispatch(const nlohmann::json& reque
             {"payload",{{"accepted",true},{"task_id",*task_id}}}
         };
     }
-    if (type == "task_control" || type == "extract_media") {
+    if (type == "task_control") {
+        if (!repository_ || !payload.contains("task_id") || !payload["task_id"].is_string() ||
+            !payload.contains("action") || !payload["action"].is_string()) {
+            return std::unexpected(make_error("invalid_task_control", "task_id and action are required"));
+        }
+        const auto task_id = payload["task_id"].get<std::string>();
+        const auto action = payload["action"].get<std::string>();
+        const auto current = repository_->get_download_status(task_id);
+        if (!current) return std::unexpected(current.error());
+        std::string next;
+        if (action == "pause" && (*current == "Queued" || *current == "Downloading")) next = "Paused";
+        else if (action == "resume" && *current == "Paused") next = "Queued";
+        else if (action == "cancel" && *current != "Completed" && *current != "Cancelled") next = "Cancelled";
+        else return std::unexpected(make_error("invalid_task_transition", "Task cannot perform the requested action in its current state"));
+        auto updated = repository_->update_download_status(task_id, next);
+        if (!updated) return std::unexpected(updated.error());
         return nlohmann::json{
             {"protocol_version",1},{"request_id",request_id},{"timestamp",timestamp},{"type","ack"},
-            {"payload",{{"accepted",false},{"code","not_implemented"},{"message","This application service is not implemented yet"}}}
+            {"payload",{{"accepted",true},{"task_id",task_id},{"status",next}}}
+        };
+    }
+    if (type == "extract_media") {
+        return nlohmann::json{
+            {"protocol_version",1},{"request_id",request_id},{"timestamp",timestamp},{"type","ack"},
+            {"payload",{{"accepted",false},{"code","not_implemented"},{"message","Media extraction service is not configured"}}}
         };
     }
     return std::unexpected(make_error("unknown_message", "Unsupported IPC message type"));
