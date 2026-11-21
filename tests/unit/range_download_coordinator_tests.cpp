@@ -385,6 +385,93 @@ TEST_CASE("Range coordinator redownloads a checkpoint whose on-disk bytes change
     std::filesystem::remove(database_path + "-shm", ignored);
 }
 
+
+TEST_CASE("Range coordinator resumes only missing ranges after a mid-transfer failure") {
+    const auto path = temporary_path();
+    const auto database_path = path.string() + ".sqlite";
+    vortex::SqliteDatabase database;
+    REQUIRE(database.open(database_path).has_value());
+    REQUIRE(database.migrate().has_value());
+    vortex::DownloadRecord record;
+    record.url = "https://example.test/interrupted.bin";
+    record.destination = path.string();
+    record.total_bytes = 6;
+    const auto id = database.insert_download(record);
+    REQUIRE(id);
+    vortex::OffsetFileWriter writer;
+    REQUIRE(writer.open(path, 6).has_value());
+    vortex::SegmentCheckpointManager manager(writer, database, path);
+
+    const std::array first{std::byte{'a'}, std::byte{'b'}, std::byte{'c'}};
+    std::size_t initial_requests = 0;
+    const vortex::RangeRequestExecutor interrupted_executor =
+        [&initial_requests, &first](const vortex::HttpRequest& request,
+                                    const vortex::HttpBodySink& sink, std::stop_token) {
+            ++initial_requests;
+            REQUIRE(request.range.has_value());
+            if (request.range->first == 3) {
+                return vortex::Result<vortex::HttpResponse>{std::unexpected(
+                    vortex::VortexError::make(vortex::ErrorCode::network_error, "connection lost"))};
+            }
+            CHECK(request.range->first == 0);
+            CHECK(request.range->last == 2);
+            REQUIRE(sink(first));
+            vortex::HttpResponse response;
+            response.status_code = 206;
+            response.headers["content-range"] = "bytes 0-2/6";
+            response.headers["content-length"] = "3";
+            response.bytes_received = 3;
+            return vortex::Result<vortex::HttpResponse>{std::move(response)};
+        };
+    vortex::RangeTransferOptions no_retries;
+    no_retries.maximum_retries = 0;
+    const auto interrupted = vortex::RangeDownloadCoordinator::transfer(
+        "https://example.test/interrupted.bin", 6, 3, writer,
+        interrupted_executor, no_retries, {}, &manager, *id, 20);
+    CHECK_FALSE(interrupted.has_value());
+    CHECK(initial_requests == 2);
+
+    const auto saved_after_failure = manager.list_checkpoints(*id);
+    REQUIRE(saved_after_failure);
+    REQUIRE(saved_after_failure->size() == 1);
+    CHECK(saved_after_failure->front().segment_index == 0);
+
+    const std::array second{std::byte{'d'}, std::byte{'e'}, std::byte{'f'}};
+    std::size_t resumed_requests = 0;
+    const vortex::RangeRequestExecutor resumed_executor =
+        [&resumed_requests, &second](const vortex::HttpRequest& request,
+                                     const vortex::HttpBodySink& sink, std::stop_token) {
+            ++resumed_requests;
+            REQUIRE(request.range.has_value());
+            CHECK(request.range->first == 3);
+            CHECK(request.range->last == 5);
+            REQUIRE(sink(second));
+            vortex::HttpResponse response;
+            response.status_code = 206;
+            response.headers["content-range"] = "bytes 3-5/6";
+            response.headers["content-length"] = "3";
+            response.bytes_received = 3;
+            return vortex::Result<vortex::HttpResponse>{std::move(response)};
+        };
+    REQUIRE(vortex::RangeDownloadCoordinator::transfer(
+        "https://example.test/interrupted.bin", 6, 3, writer,
+        resumed_executor, {}, {}, &manager, *id, 21).has_value());
+    CHECK(resumed_requests == 1);
+    const auto final_checkpoints = manager.list_checkpoints(*id);
+    REQUIRE(final_checkpoints);
+    REQUIRE(final_checkpoints->size() == 2);
+    CHECK(final_checkpoints->at(0).segment_index == 0);
+    CHECK(final_checkpoints->at(1).segment_index == 1);
+
+    REQUIRE(writer.close());
+    REQUIRE(database.close().has_value());
+    std::error_code ignored;
+    std::filesystem::remove(path, ignored);
+    std::filesystem::remove(database_path, ignored);
+    std::filesystem::remove(database_path + "-wal", ignored);
+    std::filesystem::remove(database_path + "-shm", ignored);
+}
+
 TEST_CASE("Range coordinator completes without network requests when all checkpoints verify") {
     const auto path = temporary_path();
     const auto database_path = path.string() + ".sqlite";
