@@ -419,6 +419,9 @@ bool test_segment_recovery_coordinator() {
     stream.temp_path = partial_path.string();
     stream.total_bytes = 100U;
     if (!repository.save_stream(stream)) return false;
+    const auto stored_stream = repository.get_stream_for_download(stream.download_id);
+    if (!stored_stream || !*stored_stream || (**stored_stream).id != stream.id ||
+        (**stored_stream).temp_path != stream.temp_path) return false;
 
     {
         vortex::CrashSafeFileWriter initial(partial_path);
