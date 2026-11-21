@@ -42,6 +42,7 @@ TEST_CASE("SQLite storage migrates and round-trips download records") {
     const auto id = database.insert_download(record);
     REQUIRE(id);
     REQUIRE(*id > 0);
+    REQUIRE(database.update_download_progress(*id, 128, vortex::DownloadState::running, 11).has_value());
     REQUIRE(database.update_download_progress(*id, 256, vortex::DownloadState::paused, 12).has_value());
 
     const auto rows = database.list_downloads();
@@ -209,4 +210,28 @@ TEST_CASE("SQLite removes segment checkpoints when a download is deleted") {
     const auto checkpoints = database.list_segment_checkpoints(*id);
     REQUIRE(checkpoints);
     CHECK(checkpoints->empty());
+}
+
+
+TEST_CASE("SQLite enforces legal download state transitions") {
+    TemporaryDatabase temporary;
+    vortex::SqliteDatabase database;
+    REQUIRE(database.open(temporary.path()).has_value());
+    REQUIRE(database.migrate().has_value());
+    vortex::DownloadRecord record;
+    record.url = "https://example.test/state.bin";
+    record.destination = "state.bin";
+    record.total_bytes = 100;
+    const auto id = database.insert_download(record);
+    REQUIRE(id);
+    CHECK_FALSE(database.update_download_progress(*id, 0, vortex::DownloadState::completed, 1).has_value());
+    REQUIRE(database.update_download_progress(*id, 0, vortex::DownloadState::running, 2).has_value());
+    REQUIRE(database.update_download_progress(*id, 25, vortex::DownloadState::running, 3).has_value());
+    REQUIRE(database.update_download_progress(*id, 25, vortex::DownloadState::paused, 4).has_value());
+    CHECK_FALSE(database.update_download_progress(*id, 25, vortex::DownloadState::completed, 5).has_value());
+    const auto rows = database.list_downloads();
+    REQUIRE(rows);
+    REQUIRE(rows->size() == 1);
+    CHECK(rows->front().state == vortex::DownloadState::paused);
+    CHECK(rows->front().downloaded_bytes == 25);
 }

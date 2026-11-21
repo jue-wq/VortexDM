@@ -1,5 +1,7 @@
 #include "sqlite_database.hpp"
 
+#include "core/download/download_state_machine.hpp"
+
 #include <sqlite3.h>
 
 #include <limits>
@@ -210,20 +212,39 @@ Status SqliteDatabase::update_download_progress(
         !valid_state(static_cast<std::int32_t>(state))) {
         return std::unexpected(VortexError::make(ErrorCode::invalid_argument, "Invalid progress update"));
     }
+    int current_value = -1;
+    {
+        Statement current(db_, "SELECT state FROM downloads WHERE id=?;");
+        if (current.result() != SQLITE_OK) return std::unexpected(database_error("Prepare current download state"));
+        sqlite3_bind_int64(current.get(), 1, id);
+        const int current_result = sqlite3_step(current.get());
+        if (current_result == SQLITE_DONE) return std::unexpected(VortexError::make(
+            ErrorCode::invalid_argument, "Download does not exist"));
+        if (current_result != SQLITE_ROW) return std::unexpected(database_error("Read current download state"));
+        current_value = sqlite3_column_int(current.get(), 0);
+    }
+    if (!valid_state(current_value)) return std::unexpected(VortexError::make(
+        ErrorCode::database_error, "Stored download state is invalid"));
+    const auto current_state = static_cast<DownloadState>(current_value);
+    if (current_state != state) {
+        const auto transition = DownloadStateMachine::validate_transition(current_state, state);
+        if (!transition) return transition;
+    }
+    // Compare the observed state in the UPDATE to reject cross-connection races.
     Statement statement(db_,
         "UPDATE downloads SET downloaded_bytes=?, state=?, updated_at=? "
-        "WHERE id=? AND (total_bytes=-1 OR ?<=total_bytes);");
+        "WHERE id=? AND state=? AND (total_bytes=-1 OR ?<=total_bytes);");
     if (statement.result() != SQLITE_OK) return std::unexpected(database_error("Prepare progress update"));
     auto* query = statement.get();
     sqlite3_bind_int64(query, 1, downloaded_bytes);
     sqlite3_bind_int(query, 2, static_cast<int>(state));
     sqlite3_bind_int64(query, 3, updated_at_unix);
     sqlite3_bind_int64(query, 4, id);
-    sqlite3_bind_int64(query, 5, downloaded_bytes);
+    sqlite3_bind_int(query, 5, current_value);
+    sqlite3_bind_int64(query, 6, downloaded_bytes);
     if (sqlite3_step(query) != SQLITE_DONE) return std::unexpected(database_error("Update progress"));
     if (sqlite3_changes(db_) == 0) return std::unexpected(VortexError::make(
-        ErrorCode::invalid_argument, "Download does not exist or progress exceeds total size"
-    ));
+        ErrorCode::invalid_argument, "Download state changed concurrently or progress exceeds total size"));
     return {};
 }
 
