@@ -64,3 +64,21 @@ TEST_CASE("Native messaging frame rejects malformed and oversized lengths") {
     const std::string invalid_utf8(invalid_bytes, sizeof(invalid_bytes));
     CHECK_FALSE(vortex::NativeMessagingFrame::encode(invalid_utf8).has_value());
 }
+
+TEST_CASE("Native messaging JSON validator enforces nesting and number grammar") {
+    std::string at_limit(128U, '[');
+    at_limit += "0";
+    at_limit.append(128U, ']');
+    CHECK(vortex::NativeMessagingFrame::encode(at_limit).has_value());
+
+    std::string over_limit(129U, '[');
+    over_limit += "0";
+    over_limit.append(129U, ']');
+    CHECK_FALSE(vortex::NativeMessagingFrame::encode(over_limit).has_value());
+
+    CHECK(vortex::NativeMessagingFrame::encode(R"({"integer":-12,"fraction":0.25,"exponent":1.2e-3})").has_value());
+    CHECK_FALSE(vortex::NativeMessagingFrame::encode(R"({"fraction":1.})").has_value());
+    CHECK_FALSE(vortex::NativeMessagingFrame::encode(R"({"exponent":1e+})").has_value());
+    CHECK_FALSE(vortex::NativeMessagingFrame::encode(R"({"integer":-})").has_value());
+    CHECK_FALSE(vortex::NativeMessagingFrame::encode(R"({"integer":+1})").has_value());
+}
