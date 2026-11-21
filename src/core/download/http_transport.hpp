@@ -20,6 +20,7 @@ struct HttpTransferOptions final {
     std::string user_agent{"VortexDM/0.1"};
     // Optional inclusive byte range. If-Range prevents mixing representations.
     std::optional<ByteRange> range;
+    std::optional<std::uint64_t> expected_total_size;
     std::optional<std::string> if_range;
 };
 
