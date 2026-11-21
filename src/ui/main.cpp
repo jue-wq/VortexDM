@@ -4,6 +4,10 @@
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QStandardPaths>
+#ifdef Q_OS_ANDROID
+#include <QJniObject>
+#include <QNativeInterface>
+#endif
 
 #include "vortex/sqlite_repository.hpp"
 #include "vortex/download_queue_worker.hpp"
@@ -34,6 +38,10 @@ int main(int argc, char* argv[]) {
 #ifdef Q_OS_ANDROID
     AndroidLoopbackServer bridge_server(&repository);
     if (!bridge_server.start()) return 3;
+    const auto android_context = QNativeInterface::QAndroidApplication::context();
+    QJniObject::callStaticMethod<void>(
+        "org/vortexdm/VortexForegroundService", "start",
+        "(Landroid/content/Context;)V", android_context.object<jobject>());
 #endif
 
     QQmlApplicationEngine engine;

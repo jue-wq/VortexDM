@@ -86,6 +86,7 @@ if(VORTEX_BUILD_UI)
   if(ANDROID)
     set_property(TARGET vortexdm PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/android")
     set_property(TARGET vortexdm PROPERTY QT_ANDROID_MIN_SDK_VERSION 28)
+    set_property(TARGET vortexdm PROPERTY QT_ANDROID_PACKAGE_NAME "com.vortexdm.app")
   endif()
 endif()
 
