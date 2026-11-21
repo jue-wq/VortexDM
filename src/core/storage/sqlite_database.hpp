@@ -3,6 +3,7 @@
 #include "core/common/result.hpp"
 #include "download_record.hpp"
 
+#include <cstddef>
 #include <filesystem>
 #include <mutex>
 #include <string_view>
