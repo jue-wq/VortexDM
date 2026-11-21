@@ -3,6 +3,7 @@
 #include "vortex/crash_safe_file_writer.hpp"
 #include "vortex/filename_sanitizer.hpp"
 #include "vortex/segment_scheduler.hpp"
+#include "vortex/segment_checkpoint.hpp"
 #include "vortex/url.hpp"
 
 #include <curl/curl.h>
@@ -359,6 +360,7 @@ Result<void> download_ranges(
     int running = 0;
     CURLMcode multi_result = curl_multi_perform(multi.get(), &running);
     bool range_ignored = false;
+    bool checkpoint_failed = false;
     std::string failure;
     while (multi_result == CURLM_OK && (running > 0 || !transfers.empty())) {
         int messages_left = 0;
@@ -409,7 +411,7 @@ Result<void> download_ranges(
         std::error_code ignored;
         std::filesystem::remove(destination, ignored);
         if (options.progress_callback) options.progress_callback(0U, info.total_bytes);
-        return std::unexpected(make_error(options.cancel_requested && options.cancel_requested->load(std::memory_order_relaxed) ? "download_cancelled" : "range_download", failure));
+        return std::unexpected(make_error(options.cancel_requested && options.cancel_requested->load(std::memory_order_relaxed) ? "download_cancelled" : checkpoint_failed ? "segment_checkpoint" : "range_download", failure));
     }
     return writer.flush();
 }
@@ -434,6 +436,35 @@ bool retryable_transfer_error(const Error& error) {
 }
 }
 
+Result<std::uint64_t> download_range_to_writer(
+    const std::string& url, const ByteRange& range, CrashSafeFileWriter& writer,
+    const DownloadOptions& options) {
+    if (range.end < range.start)
+        return std::unexpected(make_error("invalid_range", "Range end must not be before range start"));
+    auto handle = make_curl_handle();
+    if (!handle) return std::unexpected(make_error("curl_init", "Could not initialize libcurl range handle"));
+    SegmentTransfer transfer;
+    transfer.writer = &writer;
+    transfer.range = range;
+    configure_common(handle.get(), url, options.connect_timeout_ms, options.transfer_timeout_ms, options.cancel_requested);
+    const std::string range_spec = std::to_string(range.start) + "-" + std::to_string(range.end);
+    curl_easy_setopt(handle.get(), CURLOPT_RANGE, range_spec.c_str());
+    curl_easy_setopt(handle.get(), CURLOPT_WRITEFUNCTION, &write_segment);
+    curl_easy_setopt(handle.get(), CURLOPT_WRITEDATA, &transfer);
+    const CURLcode result = curl_easy_perform(handle.get());
+    if (result != CURLE_OK) {
+        return std::unexpected(make_error(options.cancel_requested && options.cancel_requested->load(std::memory_order_relaxed)
+            ? "download_cancelled" : "range_recovery", curl_easy_strerror(result)));
+    }
+    long status = 0;
+    curl_easy_getinfo(handle.get(), CURLINFO_RESPONSE_CODE, &status);
+    if (status != 206)
+        return std::unexpected(make_error("range_recovery", "Server did not honor recovery range request (HTTP " + std::to_string(status) + ")"));
+    if (transfer.received != range.size())
+        return std::unexpected(make_error("range_recovery", "Recovery range response was incomplete"));
+    return transfer.received;
+}
+
 Result<void> download_file(
     const std::string& url,
     const std::filesystem::path& destination,
@@ -447,6 +478,11 @@ Result<void> download_file(
         if (!info) {
             last_error = info.error();
         } else {
+            if (options.stream_info_callback) options.stream_info_callback(*info);
+            if (attempt > 0U && options.reset_segment_checkpoints_callback) {
+                auto reset = options.reset_segment_checkpoints_callback();
+                if (!reset) return reset;
+            }
             if (options.progress_callback) options.progress_callback(0U, info->total_bytes);
             Result<void> transfer;
             if (info->size_known && info->supports_ranges && options.max_connections > 1U && info->total_bytes > 0U) {

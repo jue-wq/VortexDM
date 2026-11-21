@@ -1,6 +1,8 @@
 #pragma once
 
 #include "vortex/error.hpp"
+#include "vortex/crash_safe_file_writer.hpp"
+#include "vortex/segment_scheduler.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -31,9 +33,15 @@ struct DownloadOptions {
     std::uint64_t retry_backoff_ms{500};
     const std::atomic_bool* cancel_requested{nullptr};
     std::function<void(std::uint64_t, std::uint64_t)> progress_callback;
+    std::function<void(const RemoteFileInfo&)> stream_info_callback;
+    std::function<Result<void>(CrashSafeFileWriter&, const ByteRange&, std::uint64_t)> segment_checkpoint_callback;
+    std::function<Result<void>()> reset_segment_checkpoints_callback;
 };
 
 [[nodiscard]] Result<RemoteFileInfo> probe_url(const std::string& url);
+[[nodiscard]] Result<std::uint64_t> download_range_to_writer(
+    const std::string& url, const ByteRange& range, CrashSafeFileWriter& writer,
+    const DownloadOptions& options = {});
 [[nodiscard]] Result<void> download_file(
     const std::string& url,
     const std::filesystem::path& destination,
