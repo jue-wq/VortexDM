@@ -377,11 +377,13 @@ bool test_native_host_batch_chunk_integration() {
     const auto& last = responses.back();
     bool accepted = last["payload"].value("complete", false) &&
         last["payload"].value("count", std::size_t{0}) == 1U;
-    vortex::SqliteRepository persisted(database_path);
-    if (!persisted.initialize()) accepted = false;
-    const auto queued = persisted.list_downloads();
-    if (!queued || queued->size()!=1U || queued->front().queue_id!="queue-test" ||
-        queued->front().status!="Queued") accepted = false;
+    {
+        vortex::SqliteRepository persisted(database_path);
+        if (!persisted.initialize()) accepted = false;
+        const auto queued = persisted.list_downloads();
+        if (!queued || queued->size()!=1U || queued->front().queue_id!="queue-test" ||
+            queued->front().status!="Queued") accepted = false;
+    }
     std::filesystem::remove(database_path, database_ignored);
     std::filesystem::remove(database_path.string()+"-wal", database_ignored);
     std::filesystem::remove(database_path.string()+"-shm", database_ignored);
