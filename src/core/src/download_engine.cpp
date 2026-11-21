@@ -478,7 +478,10 @@ Result<void> download_file(
         if (!info) {
             last_error = info.error();
         } else {
-            if (options.stream_info_callback) options.stream_info_callback(*info);
+            if (options.stream_info_callback) {
+                auto saved_stream = options.stream_info_callback(*info);
+                if (!saved_stream) return saved_stream;
+            }
             if (attempt > 0U && options.reset_segment_checkpoints_callback) {
                 auto reset = options.reset_segment_checkpoints_callback();
                 if (!reset) return reset;

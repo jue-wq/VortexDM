@@ -33,7 +33,7 @@ struct DownloadOptions {
     std::uint64_t retry_backoff_ms{500};
     const std::atomic_bool* cancel_requested{nullptr};
     std::function<void(std::uint64_t, std::uint64_t)> progress_callback;
-    std::function<void(const RemoteFileInfo&)> stream_info_callback;
+    std::function<Result<void>(const RemoteFileInfo&)> stream_info_callback;
     std::function<Result<void>(CrashSafeFileWriter&, const ByteRange&, std::uint64_t)> segment_checkpoint_callback;
     std::function<Result<void>()> reset_segment_checkpoints_callback;
 };
