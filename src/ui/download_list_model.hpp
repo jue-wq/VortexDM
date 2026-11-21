@@ -15,6 +15,7 @@ public:
     QHash<int, QByteArray> roleNames() const override;
     [[nodiscard]] int count() const noexcept;
     Q_INVOKABLE bool addDownload(const QString& url);
+    Q_INVOKABLE bool controlTask(const QString& taskId, const QString& action);
     Q_INVOKABLE void refresh();
 
 signals:

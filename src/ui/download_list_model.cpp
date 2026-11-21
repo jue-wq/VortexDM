@@ -65,6 +65,22 @@ bool DownloadListModel::addDownload(const QString& input) {
     return true;
 }
 
+bool DownloadListModel::controlTask(const QString& taskId, const QString& action) {
+    if (!repository_) return false;
+    const auto id = taskId.toStdString();
+    const auto current = repository_->get_download_status(id);
+    if (!current) return false;
+    std::string next;
+    if (action == "pause" && (*current == "Queued" || *current == "Downloading")) next = "Paused";
+    else if (action == "resume" && *current == "Paused") next = "Queued";
+    else if (action == "cancel" && *current != "Completed" && *current != "Cancelled") next = "Cancelled";
+    else return false;
+    const auto updated = repository_->update_download_status(id, next);
+    if (!updated) return false;
+    refresh();
+    return true;
+}
+
 void DownloadListModel::refresh() {
     if (!repository_) return;
     const auto records = repository_->list_downloads();

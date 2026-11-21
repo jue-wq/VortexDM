@@ -71,6 +71,7 @@ ApplicationWindow {
                         clip: true
                         spacing: 8
                         delegate: Rectangle {
+                            required property string taskId
                             required property string filename
                             required property string status
                             required property string url
@@ -96,9 +97,18 @@ ApplicationWindow {
                                         value: totalBytes > 0 ? Math.min(1, downloadedBytes / totalBytes) : status === "Completed" ? 1 : 0
                                     }
                                 }
-                                Label {
-                                    text: status
-                                    color: status === "Completed" ? "#22C55E" : status === "Error" ? "#EF4444" : "#4F8CFF"
+                                ColumnLayout {
+                                    spacing: 4
+                                    Label {
+                                        text: status
+                                        color: status === "Completed" ? "#22C55E" : status === "Error" ? "#EF4444" : "#4F8CFF"
+                                    }
+                                    RowLayout {
+                                        spacing: 4
+                                        Button { visible: status === "Downloading" || status === "Queued"; text: "Pause"; onClicked: downloadsModel.controlTask(taskId,"pause") }
+                                        Button { visible: status === "Paused"; text: "Resume"; onClicked: downloadsModel.controlTask(taskId,"resume") }
+                                        Button { visible: status !== "Completed" && status !== "Cancelled"; text: "Cancel"; onClicked: downloadsModel.controlTask(taskId,"cancel") }
+                                    }
                                 }
                             }
                         }
