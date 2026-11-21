@@ -2,9 +2,11 @@
 
 #include "core/common/result.hpp"
 #include "core/download/http_response_headers.hpp"
+#include "core/download/segment_planner.hpp"
 
 #include <cstddef>
 #include <functional>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -16,6 +18,9 @@ struct HttpTransferOptions final {
     long total_timeout_seconds{0}; // zero disables the overall deadline
     long maximum_redirects{5};
     std::string user_agent{"VortexDM/0.1"};
+    // Optional inclusive byte range. If-Range prevents mixing representations.
+    std::optional<ByteRange> range;
+    std::optional<std::string> if_range;
 };
 
 struct HttpTransferResponse final {
