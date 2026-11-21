@@ -110,7 +110,12 @@ std::string filename_from_disposition(const std::string& disposition) {
     return candidate.empty() ? std::string{} : sanitize_filename(candidate);
 }
 
-void configure_common(CURL* handle, const std::string& url, long connect_timeout_ms, long transfer_timeout_ms) {
+int transfer_progress(void* context, curl_off_t, curl_off_t, curl_off_t, curl_off_t) {
+    const auto* cancel = static_cast<const std::atomic_bool*>(context);
+    return cancel && cancel->load(std::memory_order_relaxed) ? 1 : 0;
+}
+
+void configure_common(CURL* handle, const std::string& url, long connect_timeout_ms, long transfer_timeout_ms, const std::atomic_bool* cancel = nullptr) {
     curl_easy_setopt(handle, CURLOPT_URL, url.c_str());
     curl_easy_setopt(handle, CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(handle, CURLOPT_MAXREDIRS, 8L);
@@ -120,6 +125,11 @@ void configure_common(CURL* handle, const std::string& url, long connect_timeout
     curl_easy_setopt(handle, CURLOPT_TIMEOUT_MS, transfer_timeout_ms);
     curl_easy_setopt(handle, CURLOPT_NOSIGNAL, 1L);
     curl_easy_setopt(handle, CURLOPT_USERAGENT, "VortexDM/0.1");
+    if (cancel) {
+        curl_easy_setopt(handle, CURLOPT_NOPROGRESS, 0L);
+        curl_easy_setopt(handle, CURLOPT_XFERINFOFUNCTION, &transfer_progress);
+        curl_easy_setopt(handle, CURLOPT_XFERINFODATA, const_cast<std::atomic_bool*>(cancel));
+    }
 }
 
 Result<RemoteFileInfo> probe_url_impl(const std::string& url) {
@@ -226,7 +236,7 @@ Result<void> download_sequential(const std::string& url, const std::filesystem::
     std::unique_ptr<std::FILE, decltype(&std::fclose)> file(output.file, &std::fclose);
     std::unique_ptr<CURL, decltype(&curl_easy_cleanup)> handle(curl_easy_init(), &curl_easy_cleanup);
     if (!handle) return std::unexpected(make_error("curl_init", "Could not initialize libcurl"));
-    configure_common(handle.get(), url, options.connect_timeout_ms, options.transfer_timeout_ms);
+    configure_common(handle.get(), url, options.connect_timeout_ms, options.transfer_timeout_ms, options.cancel_requested);
     curl_easy_setopt(handle.get(), CURLOPT_WRITEFUNCTION, &write_sequential);
     curl_easy_setopt(handle.get(), CURLOPT_WRITEDATA, &output);
     const auto result = curl_easy_perform(handle.get());
@@ -234,7 +244,7 @@ Result<void> download_sequential(const std::string& url, const std::filesystem::
         file.reset();
         std::error_code ignored;
         std::filesystem::remove(destination, ignored);
-        return std::unexpected(make_error("network_error", curl_easy_strerror(result)));
+        return std::unexpected(make_error(options.cancel_requested && options.cancel_requested->load(std::memory_order_relaxed) ? "download_cancelled" : "network_error", curl_easy_strerror(result)));
     }
     long status = 0;
     curl_easy_getinfo(handle.get(), CURLINFO_RESPONSE_CODE, &status);
@@ -307,7 +317,7 @@ Result<void> download_ranges(
         state->writer = &writer;
         state->range = range;
         const std::string range_header = std::to_string(range.start) + "-" + std::to_string(range.end);
-        configure_common(handle, url, options.connect_timeout_ms, options.transfer_timeout_ms);
+        configure_common(handle, url, options.connect_timeout_ms, options.transfer_timeout_ms, options.cancel_requested);
         curl_easy_setopt(handle, CURLOPT_RANGE, range_header.c_str());
         curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, &write_segment);
         curl_easy_setopt(handle, CURLOPT_WRITEDATA, state.get());
@@ -377,7 +387,7 @@ Result<void> download_ranges(
         writer.close();
         std::error_code ignored;
         std::filesystem::remove(destination, ignored);
-        return std::unexpected(make_error("range_download", failure));
+        return std::unexpected(make_error(options.cancel_requested && options.cancel_requested->load(std::memory_order_relaxed) ? "download_cancelled" : "range_download", failure));
     }
     return writer.flush();
 }
@@ -404,6 +414,8 @@ Result<void> download_file(
     const std::string& url,
     const std::filesystem::path& destination,
     const DownloadOptions& options) {
+    if (options.cancel_requested && options.cancel_requested->load(std::memory_order_relaxed))
+        return std::unexpected(make_error("download_cancelled", "Download was cancelled before it started"));
     const std::size_t attempts = std::min<std::size_t>(options.max_retries, 10U) + 1U;
     Error last_error = make_error("download_failed", "Download did not start");
     for (std::size_t attempt = 0; attempt < attempts; ++attempt) {
@@ -420,7 +432,8 @@ Result<void> download_file(
             if (transfer) return {};
             last_error = transfer.error();
         }
-        if (attempt + 1U >= attempts || !retryable_transfer_error(last_error)) {
+        if ((options.cancel_requested && options.cancel_requested->load(std::memory_order_relaxed)) ||
+            attempt + 1U >= attempts || !retryable_transfer_error(last_error)) {
             return std::unexpected(last_error);
         }
         std::error_code ignored;
