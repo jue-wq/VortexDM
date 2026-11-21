@@ -293,7 +293,10 @@ Status SqliteDatabase::record_segment_checkpoint(const SegmentCheckpoint& checkp
         "checksum_sha256,updated_at) "
         "SELECT ?,?,?,?,?,? WHERE EXISTS ("
         "SELECT 1 FROM downloads WHERE id=? AND "
-        "(total_bytes=-1 OR (? + ?) <= total_bytes));");
+        "(total_bytes=-1 OR (? + ?) <= total_bytes) "
+        "AND NOT EXISTS (SELECT 1 FROM download_segments s WHERE "
+        "s.download_id=? AND s.byte_offset < (? + ?) "
+        "AND ? < (s.byte_offset + s.byte_length)));");
     if (statement.result() != SQLITE_OK) {
         return std::unexpected(database_error("Prepare segment checkpoint"));
     }
@@ -307,6 +310,10 @@ Status SqliteDatabase::record_segment_checkpoint(const SegmentCheckpoint& checkp
     sqlite3_bind_int64(query, 7, checkpoint.download_id);
     sqlite3_bind_int64(query, 8, checkpoint.offset);
     sqlite3_bind_int64(query, 9, checkpoint.length);
+    sqlite3_bind_int64(query, 10, checkpoint.download_id);
+    sqlite3_bind_int64(query, 11, checkpoint.offset);
+    sqlite3_bind_int64(query, 12, checkpoint.length);
+    sqlite3_bind_int64(query, 13, checkpoint.offset);
     if (sqlite3_step(query) != SQLITE_DONE) {
         return std::unexpected(database_error("Insert segment checkpoint"));
     }

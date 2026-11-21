@@ -160,6 +160,9 @@ TEST_CASE("SQLite persists bounded segment checkpoints across reopen") {
             download_id, 2, 8192, 1, "", 160
         }).has_value());
         CHECK_FALSE(database.record_segment_checkpoint(vortex::SegmentCheckpoint{
+            download_id, 2, 2048, 4096, "overlap", 160
+        }).has_value());
+        CHECK_FALSE(database.record_segment_checkpoint(vortex::SegmentCheckpoint{
             download_id, 3, 0, 0, "", 160
         }).has_value());
         REQUIRE(database.close().has_value());
