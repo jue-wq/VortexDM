@@ -237,6 +237,18 @@ void DownloadQueueWorker::run(std::stop_token token) {
             if (!size_error) (void)repository_.update_download_progress(task.id, final_size, final_size);
             (void)repository_.update_download_status(task.id, "Completed");
         } else if (result.error().code == "download_cancelled" || result.error().code == "process_cancelled" || token.stop_requested()) {
+            if (!task.task_type.starts_with("media_extract")) {
+                const auto stream = repository_.get_stream_for_download(task.id);
+                if (stream && *stream) {
+                    const auto segments = repository_.list_segments((**stream).id);
+                    if (segments) {
+                        std::uint64_t durable_bytes = 0U;
+                        for (const auto& segment : *segments) durable_bytes += segment.downloaded_bytes;
+                        durable_bytes = std::min(durable_bytes, (**stream).total_bytes);
+                        (void)repository_.update_download_progress(task.id, durable_bytes, (**stream).total_bytes);
+                    }
+                }
+            }
             if (token.stop_requested()) {
                 (void)repository_.update_download_status(task.id, "Queued", "Interrupted by application shutdown");
             } else {
