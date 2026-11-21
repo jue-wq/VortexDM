@@ -2,6 +2,9 @@
 
 #include "core/network/http_request_policy.hpp"
 
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <curl/curl.h>
 
 #include <algorithm>
