@@ -535,7 +535,7 @@ Status SqliteDatabase::update_download_validator(
     Statement statement(db_, "UPDATE downloads SET etag=? WHERE id=?;");
     if (statement.result() != SQLITE_OK) return std::unexpected(
         database_error("Prepare download validator update"));
-    sqlite3_bind_text(statement.get(), 1, etag.data(),
+    sqlite3_bind_text(statement.get(), 1, etag.empty() ? "" : etag.data(),
                       static_cast<int>(etag.size()), SQLITE_TRANSIENT);
     sqlite3_bind_int64(statement.get(), 2, id);
     if (sqlite3_step(statement.get()) != SQLITE_DONE) return std::unexpected(
