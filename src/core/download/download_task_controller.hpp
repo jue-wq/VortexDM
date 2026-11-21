@@ -25,17 +25,10 @@ public:
 
     [[nodiscard]] Status retry(std::int64_t id, std::int64_t now) {
         std::scoped_lock lock(mutex_);
-        const auto record = find_record(id);
-        if (!record) return std::unexpected(record.error());
-        if (record->state != DownloadState::failed) {
-            return std::unexpected(VortexError::make(
-                ErrorCode::invalid_argument, "Only failed downloads can be retried"));
-        }
-        auto status = database_.update_download_progress(
-            id, record->downloaded_bytes, DownloadState::queued, now);
+        auto status = database_.retry_failed_download(id, now);
         if (!status) return status;
-        stop_sources_.erase(id);
-        return begin_locked(id, DownloadState::queued, now);
+        stop_sources_.insert_or_assign(id, std::stop_source{});
+        return {};
     }
 
     [[nodiscard]] Status pause(std::int64_t id, std::int64_t now) {

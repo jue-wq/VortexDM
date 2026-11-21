@@ -248,6 +248,69 @@ Status SqliteDatabase::update_download_progress(
     return {};
 }
 
+Status SqliteDatabase::retry_failed_download(
+    const std::int64_t id, const std::int64_t updated_at_unix
+) {
+    std::scoped_lock lock(mutex_);
+    if (!db_) return std::unexpected(VortexError::make(
+        ErrorCode::database_error, "Database is not open"
+    ));
+    if (id <= 0) return std::unexpected(VortexError::make(
+        ErrorCode::invalid_argument, "Invalid download id"
+    ));
+
+    auto status = execute("BEGIN IMMEDIATE;");
+    if (!status) return status;
+
+    Statement queue(db_,
+        "UPDATE downloads SET state=?, updated_at=? WHERE id=? AND state=?;");
+    if (queue.result() != SQLITE_OK) {
+        (void)execute("ROLLBACK;");
+        return std::unexpected(database_error("Prepare failed download retry"));
+    }
+    sqlite3_bind_int(queue.get(), 1, static_cast<int>(DownloadState::queued));
+    sqlite3_bind_int64(queue.get(), 2, updated_at_unix);
+    sqlite3_bind_int64(queue.get(), 3, id);
+    sqlite3_bind_int(queue.get(), 4, static_cast<int>(DownloadState::failed));
+    if (sqlite3_step(queue.get()) != SQLITE_DONE) {
+        auto error = database_error("Queue failed download retry");
+        (void)execute("ROLLBACK;");
+        return std::unexpected(std::move(error));
+    }
+    if (sqlite3_changes(db_) != 1) {
+        (void)execute("ROLLBACK;");
+        return std::unexpected(VortexError::make(
+            ErrorCode::invalid_argument, "Only failed downloads can be retried"
+        ));
+    }
+
+    Statement run(db_,
+        "UPDATE downloads SET state=?, updated_at=? WHERE id=? AND state=?;");
+    if (run.result() != SQLITE_OK) {
+        (void)execute("ROLLBACK;");
+        return std::unexpected(database_error("Prepare resumed failed download"));
+    }
+    sqlite3_bind_int(run.get(), 1, static_cast<int>(DownloadState::running));
+    sqlite3_bind_int64(run.get(), 2, updated_at_unix);
+    sqlite3_bind_int64(run.get(), 3, id);
+    sqlite3_bind_int(run.get(), 4, static_cast<int>(DownloadState::queued));
+    if (sqlite3_step(run.get()) != SQLITE_DONE) {
+        auto error = database_error("Start failed download retry");
+        (void)execute("ROLLBACK;");
+        return std::unexpected(std::move(error));
+    }
+    if (sqlite3_changes(db_) != 1) {
+        (void)execute("ROLLBACK;");
+        return std::unexpected(VortexError::make(
+            ErrorCode::database_error, "Failed download retry lost its queued state"
+        ));
+    }
+
+    status = execute("COMMIT;");
+    if (!status) (void)execute("ROLLBACK;");
+    return status;
+}
+
 Result<std::vector<DownloadRecord>> SqliteDatabase::list_downloads() {
     std::scoped_lock lock(mutex_);
     if (!db_) return std::unexpected(VortexError::make(ErrorCode::database_error, "Database is not open"));

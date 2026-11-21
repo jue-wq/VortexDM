@@ -26,6 +26,7 @@ public:
     // File-size/hash reconciliation must happen before a caller resumes them.
     [[nodiscard]] Status recover_interrupted_downloads(std::int64_t updated_at_unix);
     [[nodiscard]] Result<std::int64_t> insert_download(const DownloadRecord& record);
+    [[nodiscard]] Status retry_failed_download(std::int64_t id, std::int64_t updated_at_unix);
     [[nodiscard]] Status update_download_progress(
         std::int64_t id, std::int64_t downloaded_bytes, DownloadState state,
         std::int64_t updated_at_unix
