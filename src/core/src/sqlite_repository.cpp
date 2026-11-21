@@ -585,8 +585,8 @@ Result<void> SqliteRepository::update_download_progress(
     if(db_==nullptr)return std::unexpected(make_error("sqlite_open",open_error_));
     if(id.empty() || (total>0U && downloaded>total))
         return std::unexpected(make_error("invalid_progress","Download progress is outside the valid range"));
-    const auto downloaded_value=as_sqlite_integer(downloaded);
-    const auto total_value=as_sqlite_integer(total);
+    const auto downloaded_value=as_sqlite_integer(downloaded, "downloaded_bytes");
+    const auto total_value=as_sqlite_integer(total, "total_bytes");
     if(!downloaded_value || !total_value)return std::unexpected(make_error("invalid_progress","Download progress exceeds SQLite integer range"));
     Statement statement(db_,"UPDATE downloads SET downloaded_bytes=?, total_bytes=? WHERE id=?;");
     if(!statement.valid())return std::unexpected(database_error(db_,"sqlite_prepare","Could not prepare download progress update"));
