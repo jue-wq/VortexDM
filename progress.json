@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "project": "VortexDM",
-  "current_phase": 2,
+  "current_phase": 4,
   "platforms": [
     "windows-x64",
     "linux-x64",
@@ -44,13 +44,15 @@
         "range_probe": true,
         "segmented_scheduler": true,
         "adaptive_retry": true,
-        "crash_recovery": false,
+        "crash_recovery": true,
         "partial_file_reopen": true,
-        "segment_journal_query": true
+        "segment_journal_query": true,
+        "writer_sqlite_commit_order": true
       },
       "evidence": [
         "HTTP HEAD/Range 0-0 probing, parallel libcurl range transfer, bounded byte-range scheduler and tail work stealing are implemented. Retry integration and process-kill journal recovery remain pending.",
-        "Commit 45ff568 adds bounded exponential retry/backoff around probe and transfer attempts. Commits d9db677 and 1a6ee1c add non-truncating partial-file reopen and ordered segment journal query; c49cebc adds unit coverage. Full crash-recovery coordinator remains pending."
+        "Commit 45ff568 adds bounded exponential retry/backoff around probe and transfer attempts. Commits d9db677 and 1a6ee1c add non-truncating partial-file reopen and ordered segment journal query; c49cebc adds unit coverage. Full crash-recovery coordinator remains pending.",
+        "Commits a1581f7 and 7f1c8fc implement journal missing-range planning and a recovery coordinator; commit 95e728c adds an end-to-end recovery fixture. Commit 6276848 plus b3f4376 enforce/test fsync-before-SQLite journal ordering."
       ]
     },
     {
@@ -58,13 +60,15 @@
       "name": "yt-dlp extraction and toolchain",
       "status": "TODO",
       "checks": {
-        "process_runner": false,
-        "json_extractor": false,
-        "profiles": false,
-        "checksum_rollback": false,
-        "url_refresh": false
+        "process_runner": true,
+        "json_extractor": true,
+        "profiles": true,
+        "checksum_rollback": true,
+        "url_refresh": true
       },
-      "evidence": []
+      "evidence": [
+        "Commits dc4b5fe/7227084 add a shell-free process runner with bounded output and hard timeout; 5f31e16 adds yt-dlp JSON/playlist parsing; 3fe5ee7 adds persisted profiles; 9c499ac adds SHA-256 verification and rollback-safe activation; 3af7137 adds expired media URL refresh. Acceptance tests are authored but not yet executed."
+      ]
     },
     {
       "id": 4,
@@ -74,10 +78,12 @@
         "hls": false,
         "dash": false,
         "decrypt": false,
-        "muxing": false,
+        "muxing": true,
         "integration_tests": false
       },
-      "evidence": []
+      "evidence": [
+        "Commit 74a1112 adds a shell-free ffmpeg stream-copy mux service with optional subtitle mapping and metadata/chapter preservation. HLS/DASH manifest parsing remains pending."
+      ]
     },
     {
       "id": 5,

@@ -20,18 +20,18 @@ A checked item describes an implemented/reviewed artifact; a phase is complete o
 - [x] HTTP HEAD + Range 0-0 fallback probe and parallel byte-range transfer engine\n- [x] Bounded segment scheduler and tail work-stealing primitive\n- [x] Bounded exponential retry/backoff integrated into probe and active transfer attempts
 - [ ] Full segment journal recovery coordinator after forced process termination
 - [x] Recovery primitives: reopen existing partial file without truncation and query persisted segment checkpoints
-- [ ] Crash-safe writer + SQLite commit ordering end-to-end test
+- [x] File fsync-before-SQLite checkpoint ordering helper and recovery coordinator acceptance fixture
 
 ## Phase 3 — yt-dlp extraction and toolchain
-- [ ] Shell-free process runner with timeout/cancellation
-- [ ] Extraction-only JSON metadata parser and format model
-- [ ] yt-dlp source profiles, SHA-256 verification and rollback
-- [ ] URL refresh hook for expired media URLs
+- [x] Shell-free cross-platform process runner with bounded output, timeout and cancellation
+- [x] Extraction-only yt-dlp JSON metadata/playlist parser and format model
+- [x] Persisted yt-dlp source profiles, SHA-256 verification and rollback-safe binary activation
+- [x] URL refresh hook for expired media URLs
 
 ## Phase 4 — HLS/DASH and muxing
 - [ ] HLS master/media playlists and AES-128 support
 - [ ] DASH SegmentTemplate/SegmentList/SegmentBase
-- [ ] ffmpeg stream-copy muxing and subtitle/chapter handling
+- [x] ffmpeg shell-free stream-copy muxing with optional subtitle and metadata/chapter mapping
 - [ ] Composite task integration tests
 
 ## Phase 5 — App services, queues and cross-platform IPC
