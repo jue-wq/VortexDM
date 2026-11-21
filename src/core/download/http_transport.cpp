@@ -38,6 +38,7 @@ struct TransferContext final {
     std::size_t body_bytes{};
     std::size_t header_bytes{};
     bool sink_failed{};
+    bool header_failed{};
     std::optional<ByteRange> requested_range;
     std::optional<std::uint64_t> expected_total_size;
     bool range_headers_validated{};
@@ -104,6 +105,7 @@ size_t receive_header(char* data, const size_t size, const size_t count,
             context->header_bytes = 0;
         }
         if (bytes > kMaximumResponseHeaderBytes - context->header_bytes) {
+            context->header_failed = true;
             context->callback_error = "HTTP response headers exceeded the 256 KiB limit";
             return 0;
         }
@@ -210,7 +212,8 @@ Result<HttpTransferResponse> HttpTransport::get(
             : std::string(context.callback_error);
         return std::unexpected(VortexError::make(
             context.sink_failed ? ErrorCode::io_error :
-                (context.range_validation_failed ? ErrorCode::parse_error : ErrorCode::network_error),
+                ((context.range_validation_failed || context.header_failed)
+                    ? ErrorCode::parse_error : ErrorCode::network_error),
             "HTTP transfer failed: " + message));
     }
 
