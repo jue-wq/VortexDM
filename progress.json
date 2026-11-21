@@ -104,11 +104,13 @@
         "settings": false,
         "installers": false,
         "android_apk": false,
-        "slo_benchmarks": false
+        "slo_benchmarks": false,
+        "app_icon": true
       },
       "evidence": [
-        "Optional Qt QML shell added; responsive mobile UI and release artifacts remain pending."
+        "Optional Qt QML shell added; responsive mobile UI and release artifacts remain pending.",
+        "User-supplied VortexDM artwork added as Qt application icon resource; commit fd96c2f."
       ]
     }
   ]
-}\n
+}

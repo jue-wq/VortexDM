@@ -42,6 +42,7 @@ A checked item describes an implemented/reviewed artifact; a phase is complete o
 - [ ] Full bidirectional IPC v1 and batch chunk assembler
 
 ## Phase 6 — Responsive Qt UI and release
+- [x] User-approved VortexDM icon asset added to Qt resource bundle and application window icon
 - [x] Optional Qt 6/QML app shell baseline
 - [ ] Desktop ABDM-inspired download list, queues and dialogs
 - [ ] Android portrait/landscape layouts, touch controls and back navigation
