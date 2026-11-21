@@ -63,6 +63,22 @@ TEST_CASE("Native dispatcher rejects unsafe URLs and explicitly rejects unwired 
     REQUIRE(unsafe->has_value());
     CHECK(nlohmann::json::parse(**unsafe)["accepted"] == false);
 
+    const auto malformed_authority = dispatcher.dispatch(
+        R"({"type":"add_download","request_id":"req-port","url":"https://example.com:99999/file"})");
+    REQUIRE(malformed_authority.has_value());
+    REQUIRE(malformed_authority->has_value());
+    CHECK(nlohmann::json::parse(**malformed_authority)["accepted"] == false);
+
+    const auto reserved_filename = dispatcher.dispatch(
+        R"({"type":"add_download","request_id":"req-reserved","url":"https://example.com/file","filename":"C:\\temp\\CON.txt"})");
+    REQUIRE(reserved_filename.has_value());
+    REQUIRE(reserved_filename->has_value());
+    CHECK(nlohmann::json::parse(**reserved_filename)["accepted"] == false);
+    const auto staged = database.list_downloads();
+    REQUIRE(staged.has_value());
+    REQUIRE(staged->size() == 1);
+    CHECK(staged->front().destination == "_CON.txt");
+
     const auto batch = dispatcher.dispatch(
         R"({"type":"add_batch","request_id":"req-batch","links":[{"url":"https://example.com/a"}]})");
     REQUIRE(batch.has_value());
