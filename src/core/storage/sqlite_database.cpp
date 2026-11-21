@@ -311,7 +311,8 @@ Result<std::int64_t> SqliteDatabase::enqueue_download_once(
         record.url.empty() || record.destination.empty() ||
         record.total_bytes < -1 || record.downloaded_bytes < 0 ||
         (record.total_bytes >= 0 && record.downloaded_bytes > record.total_bytes) ||
-        !valid_state(static_cast<std::int32_t>(record.state))) {
+        !valid_state(static_cast<std::int32_t>(record.state)) ||
+        (!record.etag.empty() && !is_strong_etag(record.etag))) {
         return std::unexpected(VortexError::make(
             ErrorCode::invalid_argument, "Invalid request ID or download record"
         ));
@@ -360,7 +361,7 @@ Result<std::int64_t> SqliteDatabase::enqueue_download_once(
 
     Statement insert(db_,
         "INSERT INTO downloads(url,destination,total_bytes,downloaded_bytes,state,"
-        "checksum_sha256,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?);");
+        "checksum_sha256,created_at,updated_at,etag) VALUES(?,?,?,?,?,?,?,?,?);");
     if (insert.result() != SQLITE_OK) {
         auto error = database_error("Prepare native download insert");
         (void)execute("ROLLBACK;");
@@ -375,6 +376,7 @@ Result<std::int64_t> SqliteDatabase::enqueue_download_once(
     sqlite3_bind_text(query, 6, record.checksum_sha256.c_str(), -1, SQLITE_TRANSIENT);
     sqlite3_bind_int64(query, 7, record.created_at_unix);
     sqlite3_bind_int64(query, 8, record.updated_at_unix);
+    sqlite3_bind_text(query, 9, record.etag.c_str(), -1, SQLITE_TRANSIENT);
     if (sqlite3_step(query) != SQLITE_DONE) {
         auto error = database_error("Insert native download");
         (void)execute("ROLLBACK;");
