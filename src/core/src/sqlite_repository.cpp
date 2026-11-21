@@ -630,6 +630,45 @@ Result<std::optional<DownloadRecord>> SqliteRepository::claim_next_queued_downlo
     return std::optional<DownloadRecord>{std::move(record)};
 }
 
+Result<std::optional<DownloadRecord>> SqliteRepository::get_download(const std::string& id) {
+    if(db_==nullptr)return std::unexpected(make_error("sqlite_open",open_error_));
+    Statement statement(db_,R"SQL(
+      SELECT id,task_type,url,filename,save_dir,queue_id,status,total_bytes,downloaded_bytes,
+             etag,last_modified,headers_json,extractor_origin_url,video_format_id,audio_format_id
+      FROM downloads WHERE id=?;
+    )SQL");
+    if(!statement.valid())return std::unexpected(database_error(db_,"sqlite_prepare","Could not prepare download lookup"));
+    auto bound=bind_text(statement.get(),1,id);if(!bound)return std::unexpected(bound.error());
+    const int rc=sqlite3_step(statement.get());
+    if(rc==SQLITE_DONE)return std::optional<DownloadRecord>{};
+    if(rc!=SQLITE_ROW)return std::unexpected(database_error(db_,"sqlite_read","Could not read download task"));
+    const auto text_column=[statement_ptr=statement.get()](int index){
+        const auto* value=reinterpret_cast<const char*>(sqlite3_column_text(statement_ptr,index));
+        return value?std::string(value):std::string{};
+    };
+    DownloadRecord record;
+    record.id=text_column(0);record.task_type=text_column(1);record.url=text_column(2);
+    record.filename=text_column(3);record.save_dir=text_column(4);record.queue_id=text_column(5);
+    record.status=text_column(6);
+    record.total_bytes=static_cast<std::uint64_t>(sqlite3_column_int64(statement.get(),7));
+    record.downloaded_bytes=static_cast<std::uint64_t>(sqlite3_column_int64(statement.get(),8));
+    record.etag=text_column(9);record.last_modified=text_column(10);record.headers_json=text_column(11);
+    record.extractor_origin_url=text_column(12);record.video_format_id=text_column(13);record.audio_format_id=text_column(14);
+    return std::optional<DownloadRecord>{std::move(record)};
+}
+
+Result<void> SqliteRepository::update_download_filename(const std::string& id, const std::string& filename) {
+    if(db_==nullptr)return std::unexpected(make_error("sqlite_open",open_error_));
+    if(id.empty() || filename.empty())return std::unexpected(make_error("invalid_filename","Task id and filename are required"));
+    Statement statement(db_,"UPDATE downloads SET filename=? WHERE id=?;");
+    if(!statement.valid())return std::unexpected(database_error(db_,"sqlite_prepare","Could not prepare filename update"));
+    auto name=bind_text(statement.get(),1,filename);if(!name)return name;
+    auto task=bind_text(statement.get(),2,id);if(!task)return task;
+    if(sqlite3_step(statement.get())!=SQLITE_DONE)return std::unexpected(database_error(db_,"sqlite_write","Could not update download filename"));
+    if(sqlite3_changes(db_)!=1)return std::unexpected(make_error("download_not_found","Download task does not exist"));
+    return {};
+}
+
 Result<std::string> SqliteRepository::get_download_status(const std::string& id) {
     if(db_==nullptr)return std::unexpected(make_error("sqlite_open",open_error_));
     Statement statement(db_,"SELECT status FROM downloads WHERE id=?;");
