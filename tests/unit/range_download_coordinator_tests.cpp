@@ -690,3 +690,34 @@ TEST_CASE("Parallel range failure preserves completed checkpoints for retry") {
     std::filesystem::remove(database_path + "-wal", ignored);
     std::filesystem::remove(database_path + "-shm", ignored);
 }
+
+
+TEST_CASE("Sequential range executor runs on the calling thread") {
+    const auto path = temporary_path();
+    vortex::OffsetFileWriter writer;
+    REQUIRE(writer.open(path, 2));
+    const auto caller_thread = std::this_thread::get_id();
+    std::thread::id executor_thread;
+    const vortex::RangeRequestExecutor executor =
+        [&executor_thread](const vortex::HttpRequest&, const vortex::HttpBodySink& sink,
+                           std::stop_token) {
+            executor_thread = std::this_thread::get_id();
+            const std::array body{std::byte{'o'}, std::byte{'k'}};
+            if (!sink(body)) {
+                return vortex::Result<vortex::HttpResponse>{std::unexpected(
+                    vortex::VortexError::make(vortex::ErrorCode::io_error, "sink rejected body"))};
+            }
+            vortex::HttpResponse response;
+            response.status_code = 206;
+            response.headers["content-range"] = "bytes 0-1/2";
+            response.headers["content-length"] = "2";
+            response.bytes_received = 2;
+            return vortex::Result<vortex::HttpResponse>{std::move(response)};
+        };
+
+    REQUIRE(vortex::RangeDownloadCoordinator::transfer(
+        "https://example.test/sequential.bin", 2, 2, writer, executor));
+    CHECK(executor_thread == caller_thread);
+    REQUIRE(writer.close());
+    std::filesystem::remove(path);
+}
