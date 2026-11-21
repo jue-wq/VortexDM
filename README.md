@@ -21,7 +21,9 @@ blocking. macOS is not a supported target.
 - [ ] Phase 3 toolchain manager
 - [ ] Phase 4 media extraction and streaming
 - [x] Phase 5 Native Messaging v1 frame codec and protocol draft
-- [ ] Phase 5 JSON validation, host process, ACK de-duplication, batch assembler, and queue adapter
+- [x] Phase 5 JSON dispatcher, Firefox Native Messaging host, durable request de-duplication, and bounded batch assembler foundation
+- [x] Phase 5 crash-replay-safe native inbox importer and delivery ledger
+- [ ] Phase 5 wire inbox importer into the running application queue; batch/media/task-control dispatch and status publishing
 - [ ] Phase 6 Qt 6 / QML desktop UI and Android mobile UI
 
 ## Desktop build (CMake + vcpkg)
@@ -42,7 +44,11 @@ and CMake 3.31.6.
     gradle -p android assembleDebug
 
 The current Android build is a browser and blocker bootstrap, not yet a
-production download manager. Vortex Shield now fetches and caches EasyList and
+production download manager. The desktop Native Messaging host is partial: it
+stages single-download requests in a separate SQLite inbox and safely returns
+negative ACKs until an application queue worker consumes them. A reusable,
+idempotent inbox importer is implemented but is not yet invoked by an app
+startup/queue worker. Vortex Shield now fetches and caches EasyList and
 EasyPrivacy, but only parses a conservative host-rule subset. It does not yet
 provide full ABP/uBlock syntax or uBlock Origin feature parity.
 
