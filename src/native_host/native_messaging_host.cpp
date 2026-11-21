@@ -1,6 +1,7 @@
 #include "native_messaging_host.hpp"
 
 #include "vortex/filename_sanitizer.hpp"
+#include "vortex/application_paths.hpp"
 #include "vortex/url.hpp"
 
 #include <array>
@@ -34,16 +35,6 @@ nlohmann::json error_response(const std::string& request_id, const std::string& 
 }
 
 namespace {
-std::filesystem::path default_database_path() {
-#ifdef _WIN32
-    if (const char* root = std::getenv("LOCALAPPDATA")) return std::filesystem::path(root) / "VortexDM" / "vortexdm.sqlite3";
-#else
-    if (const char* root = std::getenv("XDG_DATA_HOME")) return std::filesystem::path(root) / "vortexdm" / "vortexdm.sqlite3";
-    if (const char* home = std::getenv("HOME")) return std::filesystem::path(home) / ".local" / "share" / "vortexdm" / "vortexdm.sqlite3";
-#endif
-    return std::filesystem::temp_directory_path() / "vortexdm.sqlite3";
-}
-
 std::string make_task_id() {
     static std::atomic_uint64_t sequence{0};
     std::random_device random;
@@ -61,7 +52,7 @@ std::string suggested_filename(const std::string& url) {
 }
 
 NativeMessagingHost::NativeMessagingHost(std::filesystem::path database_path) {
-    if (database_path.empty()) database_path = default_database_path();
+    if (database_path.empty()) database_path = application_database_path();
     std::error_code error;
     if (!database_path.parent_path().empty()) std::filesystem::create_directories(database_path.parent_path(), error);
     if (error) { initialization_error_ = error.message(); return; }
@@ -86,7 +77,7 @@ Result<std::string> NativeMessagingHost::enqueue_download(const nlohmann::json& 
     record.id = make_task_id();
     record.url = url;
     record.filename = filename;
-    record.save_dir = payload.value("save_dir", std::string{});
+    record.save_dir = default_download_directory().string();
     record.queue_id = payload.value("queue_id", std::string{});
     record.status = "Queued";
     // Cookie and authorization data are intentionally not persisted by the host.

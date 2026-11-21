@@ -1,6 +1,7 @@
 #include "vortex/download_queue_worker.hpp"
 
 #include "vortex/download_engine.hpp"
+#include "vortex/application_paths.hpp"
 
 #include <chrono>
 #include <cstdlib>
@@ -8,17 +9,6 @@
 #include <thread>
 
 namespace vortex {
-namespace {
-std::filesystem::path default_download_directory() {
-#ifdef _WIN32
-    if (const char* home = std::getenv("USERPROFILE")) return std::filesystem::path(home) / "Downloads";
-#else
-    if (const char* home = std::getenv("HOME")) return std::filesystem::path(home) / "Downloads";
-#endif
-    return std::filesystem::current_path() / "Downloads";
-}
-}
-
 DownloadQueueWorker::DownloadQueueWorker(SqliteRepository& repository) : repository_(repository) {}
 DownloadQueueWorker::~DownloadQueueWorker() { stop(); }
 
@@ -48,7 +38,7 @@ void DownloadQueueWorker::run(std::stop_token token) {
         }
         const auto& task = **claimed;
         std::filesystem::path directory = task.save_dir.empty()
-            ? default_download_directory() : std::filesystem::path(task.save_dir);
+            ? vortex::default_download_directory() : std::filesystem::path(task.save_dir);
         std::error_code filesystem_error;
         std::filesystem::create_directories(directory, filesystem_error);
         if (filesystem_error) {
