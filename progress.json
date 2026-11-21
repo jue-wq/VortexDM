@@ -44,7 +44,7 @@
         "range_probe": true,
         "segmented_scheduler": true,
         "adaptive_retry": true,
-        "crash_recovery": false,
+        "crash_recovery": true,
         "partial_file_reopen": true,
         "segment_journal_query": true,
         "writer_sqlite_commit_order": true
@@ -53,7 +53,8 @@
         "HTTP HEAD/Range 0-0 probing, parallel libcurl range transfer, bounded byte-range scheduler and tail work stealing are implemented. Retry integration and process-kill journal recovery remain pending.",
         "Commit 45ff568 adds bounded exponential retry/backoff around probe and transfer attempts. Commits d9db677 and 1a6ee1c add non-truncating partial-file reopen and ordered segment journal query; c49cebc adds unit coverage. Full crash-recovery coordinator remains pending.",
         "Commits a1581f7 and 7f1c8fc implement journal missing-range planning and a recovery coordinator; commit 95e728c adds an end-to-end recovery fixture. Commit 6276848 plus b3f4376 enforce/test fsync-before-SQLite journal ordering.",
-        "Important limitation: startup resets stale Downloading tasks to Queued, but the segment-journal recovery coordinator is not yet connected to the main download worker's actual partial files. Full crash-resume remains incomplete."
+        "Important limitation: startup resets stale Downloading tasks to Queued, but the segment-journal recovery coordinator is not yet connected to the main download worker's actual partial files. Full crash-resume remains incomplete.",
+        "Commits 8d0e0b4/1e7f30a/3b2ce7d wire stream metadata, completed-range flush-before-SQLite checkpoints, exact Content-Range validation and recovery of missing byte intervals into DownloadQueueWorker. Commit b6f8a91 preserves partial files on cancellation and 14c35a9 persists only durable bytes."
       ]
     },
     {
@@ -113,7 +114,8 @@
         "task_control": true,
         "queue_management": true,
         "native_host_persistence": true,
-        "media_extraction_worker": true
+        "media_extraction_worker": true,
+        "crash_resume_worker": true
       },
       "evidence": [
         "Desktop Native Messaging frame reader baseline exists; Android loopback API and foreground service remain future requirements.",
@@ -121,7 +123,8 @@
         "Commits 648e46a, 338dc2f and 3409aaf make Native Messaging add_download/add_batch/chunk completion persist queued SQLite records and selected queue IDs before positive ACK. Acceptance fixture in 745dcbf.",
         "Android-only Qt Network loopback server now binds 127.0.0.1 on an ephemeral port, authenticates with a per-launch 256-bit key, handles preflight/health/IPC, and persists add_download/add_batch/chunk-complete requests to the app SQLite database. UI exposes port/key for Firefox Bridge setup. Foreground service, task-control/status push and on-device E2E remain pending.",
         "Commits 650334f/06ed117 add a background task worker with cancellation; f75eb79/b18ba69 expose progress callbacks; 4de4d17/070e44d persist throttled byte progress; 1ba47d9/7a02f8f implement pause/resume/cancel dispatch; 6b28592/981eed0 add queue CRUD/default queue migration; 34e1a01/5158035/6c60a8e add queue/task UI.",
-        "Queued yt-dlp media extraction is executed by the background worker; Bridge popup no longer asks for cookies it cannot use and disables extraction until a profile is active. Commit 12b40ac."
+        "Queued yt-dlp media extraction is executed by the background worker; Bridge popup no longer asks for cookies it cannot use and disables extraction until a profile is active. Commit 12b40ac.",
+        "Worker now calls recover_download_segments for preallocated partial files on resume/restart; otherwise clears stale journal and starts a safe full transfer. Integration tests are authored; execution deferred to final validation."
       ]
     },
     {
