@@ -203,6 +203,15 @@ bool test_segment_scheduler() {
     vortex::ByteRange almost_max{0U, 0U, UINT64_MAX};
     if (vortex::steal_tail(almost_max, UINT64_MAX / 2U + 1U)) return false;
 
+    const auto recovery = vortex::plan_recovery_ranges(300U, {
+        {0U, 99U, 100U}, {100U, 199U, 50U}
+    });
+    if (!recovery || recovery->size() != 2U) return false;
+    if ((*recovery)[0].start != 150U || (*recovery)[0].end != 199U ||
+        (*recovery)[1].start != 200U || (*recovery)[1].end != 299U) return false;
+    if (vortex::plan_recovery_ranges(100U, {{0U, 60U, 10U}, {50U, 99U, 50U}})) return false;
+    if (vortex::plan_recovery_ranges(100U, {{0U, 99U, 101U}})) return false;
+
     vortex::ByteRange active{0U, 0U, 999U};
     const auto stolen = vortex::steal_tail(active, 100U);
     if (!stolen || active.end + 1U != stolen->start) return false;
