@@ -5,6 +5,7 @@
 #include "vortex/segment_scheduler.hpp"
 #include "vortex/task.hpp"
 #include "vortex/process_runner.hpp"
+#include "vortex/ytdlp_extractor.hpp"
 #include "vortex/url.hpp"
 
 #include <openssl/sha.h>
@@ -69,6 +70,25 @@ std::vector<nlohmann::json> read_frames(const std::string& stream) {
     }
     if (offset != stream.size()) return {};
     return messages;
+}
+
+bool test_ytdlp_metadata_parser() {
+    const std::string payload = R"JSON({
+      "id":"playlist-1","title":"Sample playlist","webpage_url":"https://example.com/list",
+      "entries":[
+        {"id":"video-1","title":"First video","webpage_url":"https://example.com/v1","duration":12.5,
+         "formats":[{"format_id":"18","ext":"mp4","resolution":"640x360","vcodec":"avc1","acodec":"mp4a","protocol":"https","filesize":1234}]},
+        {"id":"video-2","title":"Second video","webpage_url":"https://example.com/v2"}
+      ]
+    })JSON";
+    const auto parsed = vortex::parse_ytdlp_metadata_json(payload);
+    if (!parsed || !parsed->playlist || parsed->entries.size() != 2U) return false;
+    const auto& first = parsed->entries.front();
+    if (first.id != "video-1" || first.formats.size() != 1U) return false;
+    if (first.formats.front().file_size != 1234U || first.formats.front().extension != "mp4") return false;
+    if (vortex::parse_ytdlp_metadata_json("not-json")) return false;
+    if (vortex::parse_ytdlp_metadata_json("[]")) return false;
+    return !vortex::extract_ytdlp_metadata("/usr/bin/yt-dlp", "file:///etc/passwd");
 }
 
 bool test_process_runner() {
@@ -303,6 +323,10 @@ bool test_sqlite_migrations_and_segment_journal() {
 }
 
 int main() {
+    if (!test_ytdlp_metadata_parser()) {
+        std::cerr << "yt-dlp metadata parser test failed\\n";
+        return 8;
+    }
     if (!test_process_runner()) {
         std::cerr << "Shell-free process runner test failed\\n";
         return 7;
