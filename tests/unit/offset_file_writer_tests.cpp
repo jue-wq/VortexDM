@@ -38,7 +38,8 @@ TEST_CASE("Offset writer writes disjoint ranges at requested offsets") {
         CHECK(content.substr(0, 2) == "AB");
         CHECK(content.substr(6, 2) == "GH");
     }
-    std::filesystem::remove(path);
+    std::error_code cleanup_error;
+    std::filesystem::remove(path, cleanup_error);
 }
 
 TEST_CASE("Offset writer rejects writes outside preallocated bounds") {
