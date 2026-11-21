@@ -53,12 +53,12 @@ void DownloadQueueWorker::run(std::stop_token token) {
         options.cancel_requested = &cancel_requested_;
         auto last_persisted = std::make_shared<std::atomic_uint64_t>(0U);
         options.progress_callback = [this, id=task.id, last_persisted](std::uint64_t downloaded, std::uint64_t total) {
-            const auto current_status = repository_.get_download_status(id);
-            if (!current_status || *current_status != "Downloading")
-                cancel_requested_.store(true, std::memory_order_relaxed);
             const auto previous = last_persisted->load(std::memory_order_relaxed);
             if (downloaded == 0U || downloaded >= previous + 256U * 1024U ||
                 (total > 0U && downloaded >= total)) {
+                const auto current_status = repository_.get_download_status(id);
+                if (!current_status || *current_status != "Downloading")
+                    cancel_requested_.store(true, std::memory_order_relaxed);
                 last_persisted->store(downloaded, std::memory_order_relaxed);
                 (void)repository_.update_download_progress(id, downloaded, total);
             }
