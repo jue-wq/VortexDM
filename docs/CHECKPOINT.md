@@ -1,10 +1,11 @@
 # Durable checkpoint
 
 - Current phase: 1 of 6 (IN_PROGRESS)
-- Platform scope: Windows + Linux + Android arm64; macOS is explicitly excluded.
-- Implemented: C++23 core baseline, libcurl single stream, SQLite WAL bootstrap, CLI, desktop Native Messaging frame reader, optional Qt UI, shared IPC v1 and Android arm64 build preset.
-- CI evidence: run 44953047590 — checkpoint passed, Linux desktop configure/build/test passed, Android SDK/NDK + vcpkg setup passed, Android CMake configure and core build passed. Windows desktop configure/build is still in progress.
-- Remaining Phase 1 DoD: Windows build, sanitizer coverage and 16-thread crash-safe writer test.
+- Platform scope: Windows + Linux + Android arm64; macOS is excluded.
+- New phase-1 code: CrashSafeFileWriter uses positional pwrite on POSIX/Android and Windows OVERLAPPED writes, preallocates file size, and exposes explicit durable flush.
+- New acceptance test: 16 threads write 100 distinct 1 MiB segments (100 MiB total) in shuffled order; final file is verified with SHA-256.
+- CI before this change: run 44953047590 passed checkpoint, Linux desktop and Android arm64 builds; Windows desktop is pending.
+- Sanitizer CI matrix now runs ASan/UBSan and TSan separately; results pending.
 - No phase is marked DONE.
-- Resume: read progress.json; run python tools/check_progress.py; wait for Windows build result; fix any build errors; implement crash-safe file writer/sanitizer gate; attach test run URL and commit SHA before phase transition.
-- Next task: close Windows matrix, then finish crash-safe file writer and transactional SQLite migrations.
+- Resume: run python tools/check_progress.py; run Windows/Linux/Android matrix; inspect 100 MiB SHA-256 test; resolve sanitizer failures before transition.
+- Next task: complete matrix and sanitizer runs, then implement transactional SQLite migrations and segment journal.

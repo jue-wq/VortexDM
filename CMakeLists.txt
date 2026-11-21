@@ -6,19 +6,40 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 option(VORTEX_BUILD_UI "Build the optional Qt 6 desktop/Android UI" OFF)
 option(VORTEX_BUILD_TESTS "Build unit tests" ON)
+option(VORTEX_ENABLE_ASAN_UBSAN "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
+option(VORTEX_ENABLE_TSAN "Enable ThreadSanitizer" OFF)
+
+if(VORTEX_ENABLE_ASAN_UBSAN AND VORTEX_ENABLE_TSAN)
+  message(FATAL_ERROR "ASan/UBSan and TSan must be enabled in separate builds")
+endif()
+if(VORTEX_ENABLE_ASAN_UBSAN OR VORTEX_ENABLE_TSAN)
+  if(NOT CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    message(FATAL_ERROR "Vortex sanitizers require GCC or Clang")
+  endif()
+  if(VORTEX_ENABLE_ASAN_UBSAN)
+    add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer)
+    add_link_options(-fsanitize=address,undefined)
+  else()
+    add_compile_options(-fsanitize=thread -fno-omit-frame-pointer)
+    add_link_options(-fsanitize=thread)
+  endif()
+endif()
 
 find_package(CURL REQUIRED)
 find_package(SQLite3 REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
+find_package(OpenSSL REQUIRED COMPONENTS Crypto)
+find_package(Threads REQUIRED)
 
 add_library(vortex_core
   src/core/src/url.cpp
   src/core/src/task.cpp
   src/core/src/download_engine.cpp
   src/core/src/sqlite_repository.cpp
+  src/core/src/crash_safe_file_writer.cpp
 )
 target_include_directories(vortex_core PUBLIC src/core/include)
-target_link_libraries(vortex_core PUBLIC CURL::libcurl SQLite::SQLite3 nlohmann_json::nlohmann_json)
+target_link_libraries(vortex_core PUBLIC CURL::libcurl SQLite::SQLite3 nlohmann_json::nlohmann_json OpenSSL::Crypto Threads::Threads)
 target_compile_features(vortex_core PUBLIC cxx_std_23)
 if(MSVC)
   target_compile_options(vortex_core PRIVATE /W4 /permissive-)

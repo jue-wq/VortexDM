@@ -49,3 +49,26 @@ jobs:
         run: cmake --preset android-arm64
       - name: Build Android core
         run: cmake --build --preset android-arm64 --parallel 2
+  sanitizers:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        sanitizer: [asan-ubsan, tsan]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: "93ad765c7b66ab9ce97469ec23a90b15c3a14ee5"
+      - name: Configure ASan and UBSan
+        if: matrix.sanitizer == 'asan-ubsan'
+        run: cmake -S . -B build/asan -G Ninja -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" -DCMAKE_BUILD_TYPE=Debug -DVORTEX_ENABLE_ASAN_UBSAN=ON
+      - name: Configure TSan
+        if: matrix.sanitizer == 'tsan'
+        run: cmake -S . -B build/tsan -G Ninja -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" -DCMAKE_BUILD_TYPE=Debug -DVORTEX_ENABLE_TSAN=ON
+      - name: Build sanitizer target
+        run: |
+          if [ "${{ matrix.sanitizer }}" = "asan-ubsan" ]; then cmake --build build/asan --parallel 2; else cmake --build build/tsan --parallel 2; fi
+      - name: Run sanitizer tests
+        run: |
+          if [ "${{ matrix.sanitizer }}" = "asan-ubsan" ]; then ctest --test-dir build/asan --output-on-failure; else TSAN_OPTIONS="halt_on_error=1" ctest --test-dir build/tsan --output-on-failure; fi

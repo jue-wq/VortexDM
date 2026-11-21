@@ -5,17 +5,19 @@ A checked item describes an implemented/reviewed artifact; a phase is complete o
 ## Phase 1 — C++23 foundation and platform build matrix
 - [x] Repository layout, CMake presets and vcpkg manifest
 - [x] Shared IPC v1 contract
-- [x] Initial URL validation, task state machine and core tests
+- [x] URL validation and task state machine
+- [x] Positional crash-safe file writer (pwrite / Windows OVERLAPPED) with preallocation and durable flush
+- [x] 16-thread, 100 MiB, SHA-256 concurrent-write acceptance test
 - [ ] Clean Windows and Linux builds with warnings enabled
-- [ ] Android arm64 NDK cross-build green
-- [ ] 16-thread crash-safe writer and sanitizer coverage
+- [x] Android arm64 NDK cross-build green
+- [ ] ASan/UBSan and TSan CI runs green
 
 ## Phase 2 — Persistence and reliable HTTP engine
 - [x] SQLite WAL repository bootstrap
 - [x] HTTP(S) libcurl single-stream transfer baseline
 - [ ] Transactional task/segment journal and migrations
 - [ ] Range probing, adaptive segmented scheduler and retries
-- [ ] Crash-safe file writer and restart recovery tests
+- [ ] Crash restart recovery tests tied to SQLite segment commits
 
 ## Phase 3 — yt-dlp extraction and toolchain
 - [ ] Shell-free process runner with timeout/cancellation
