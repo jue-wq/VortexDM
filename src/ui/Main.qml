@@ -27,6 +27,7 @@ ApplicationWindow {
             Layout.fillWidth: true
             Layout.fillHeight: true
             Rectangle {
+                visible: Qt.platform.os !== "android"
                 Layout.preferredWidth: 220
                 Layout.fillHeight: true
                 color: "#131720"
@@ -48,14 +49,14 @@ ApplicationWindow {
                     anchors.fill: parent
                     anchors.margins: 22
                     spacing: 14
-                    RowLayout {
+                    ColumnLayout {
                         Layout.fillWidth: true
                         ComboBox {
                             id: queueSelector
+                            Layout.fillWidth: true
                             model: downloadsModel.queues
                             textRole: "name"
                             valueRole: "id"
-                            implicitWidth: 170
                         }
                         TextField {
                             id: downloadUrl
@@ -63,17 +64,20 @@ ApplicationWindow {
                             placeholderText: "Paste an HTTP or HTTPS download URL"
                         }
                         Button {
+                            Layout.fillWidth: true
                             text: "Add download"
                             onClicked: {
                                 if (downloadsModel.addDownload(downloadUrl.text, queueSelector.currentValue)) downloadUrl.clear()
                             }
                         }
                     }
-                    RowLayout {
+                    ColumnLayout {
+                        Layout.fillWidth: true
                         Label { text: "Downloads · " + downloadsModel.count; color: "#E6EDF5"; font.pixelSize: 19; font.bold: true }
-                        Item { Layout.fillWidth: true }
-                        TextField { id: newQueueName; placeholderText: "New queue name"; implicitWidth: 160 }
-                        Button { text: "Create queue"; onClicked: { if (downloadsModel.createQueue(newQueueName.text)) newQueueName.clear() } }
+                        RowLayout {
+                            TextField { id: newQueueName; Layout.fillWidth: true; placeholderText: "New queue name" }
+                            Button { text: "Create queue"; onClicked: { if (downloadsModel.createQueue(newQueueName.text)) newQueueName.clear() } }
+                        }
                     }
                     ListView {
                         id: downloadList
@@ -134,7 +138,7 @@ ApplicationWindow {
                     }
                     Rectangle {
                         Layout.fillWidth: true
-                        height: 118
+                        height: Qt.platform.os === "android" ? 180 : 118
                         radius: 10
                         color: "#181D28"
                         border.color: "#2B3548"
@@ -142,10 +146,10 @@ ApplicationWindow {
                             anchors.fill: parent
                             anchors.margins: 12
                             Label { text: "Media extraction · yt-dlp"; color: "#E6EDF5"; font.bold: true }
-                            RowLayout {
+                            ColumnLayout {
                                 TextField { id: ytDlpBinary; Layout.fillWidth: true; placeholderText: "Absolute yt-dlp executable path" }
                                 TextField { id: ytDlpPython; Layout.fillWidth: true; placeholderText: "Optional Python path (with yt_dlp installed)" }
-                                Button { text: "Save profile"; onClicked: downloadsModel.configureYtDlp(ytDlpBinary.text, ytDlpPython.text) }
+                                Button { Layout.fillWidth: true; text: "Save profile"; onClicked: downloadsModel.configureYtDlp(ytDlpBinary.text, ytDlpPython.text) }
                             }
                         }
                     }
