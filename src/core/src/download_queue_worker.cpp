@@ -46,6 +46,7 @@ void DownloadQueueWorker::run(std::stop_token token) {
             (void)repository_.update_download_status(task.id, "Error", filesystem_error.message());
             continue;
         }
+        if (!token.stop_requested()) cancel_requested_.store(false, std::memory_order_relaxed);
         DownloadOptions options;
         options.max_connections = 8U;
         options.transfer_timeout_ms = 30L * 60L * 1000L;
