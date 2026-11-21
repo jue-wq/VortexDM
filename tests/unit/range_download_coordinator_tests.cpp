@@ -411,7 +411,10 @@ TEST_CASE("Range coordinator resumes only missing ranges after a mid-transfer fa
         [&initial_requests, &first](const vortex::HttpRequest& request,
                                     const vortex::HttpBodySink& sink, std::stop_token) {
             ++initial_requests;
-            REQUIRE(request.range.has_value());
+            if (!request.range.has_value()) {
+                return vortex::Result<vortex::HttpResponse>{std::unexpected(
+                    vortex::VortexError::make(vortex::ErrorCode::network_error, "missing request range"))};
+            }
             if (request.range->first == 3) {
                 return vortex::Result<vortex::HttpResponse>{std::unexpected(
                     vortex::VortexError::make(vortex::ErrorCode::network_error, "connection lost"))};
@@ -628,8 +631,10 @@ TEST_CASE("Parallel range failure preserves completed checkpoints for retry") {
                         vortex::ErrorCode::network_error, "timed out waiting for first checkpoint"))};
             }
 
-            REQUIRE(request.range->first == 0);
-            REQUIRE(sink(first));
+            if (request.range->first != 0 || !sink(first)) {
+                return vortex::Result<vortex::HttpResponse>{std::unexpected(
+                    vortex::VortexError::make(vortex::ErrorCode::network_error, "invalid first range"))};
+            }
             vortex::HttpResponse response;
             response.status_code = 206;
             response.headers["content-range"] = "bytes 0-2/6";
