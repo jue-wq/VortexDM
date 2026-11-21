@@ -6,6 +6,7 @@
 #include <array>
 #include <atomic>
 #include <chrono>
+#include <thread>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -583,4 +584,99 @@ TEST_CASE("Range coordinator bounds concurrent range requests") {
     CHECK(std::string(actual.data(), actual.size()) == "abcdefghijkl");
     input.close();
     std::filesystem::remove(path);
+}
+
+
+TEST_CASE("Parallel range failure preserves completed checkpoints for retry") {
+    const auto path = temporary_path();
+    const auto database_path = path.string() + ".sqlite";
+    vortex::SqliteDatabase database;
+    REQUIRE(database.open(database_path).has_value());
+    REQUIRE(database.migrate().has_value());
+    vortex::DownloadRecord record;
+    record.url = "https://example.test/parallel-recovery.bin";
+    record.destination = path.string();
+    record.total_bytes = 6;
+    const auto id = database.insert_download(record);
+    REQUIRE(id);
+
+    vortex::OffsetFileWriter writer;
+    REQUIRE(writer.open(path, 6).has_value());
+    vortex::SegmentCheckpointManager manager(writer, database, path);
+    const std::array first{std::byte{'a'}, std::byte{'b'}, std::byte{'c'}};
+    vortex::RangeTransferOptions options;
+    options.maximum_concurrent_requests = 2;
+    options.maximum_retries = 0;
+
+    const vortex::RangeRequestExecutor failing_executor =
+        [&database, id, &first](const vortex::HttpRequest& request,
+                                const vortex::HttpBodySink& sink, std::stop_token) {
+            REQUIRE(request.range.has_value());
+            if (request.range->first == 3) {
+                // Ensure segment zero has been durably checkpointed before failing segment one.
+                for (int attempt = 0; attempt < 500; ++attempt) {
+                    const auto saved = database.list_segment_checkpoints(*id);
+                    if (saved && !saved->empty()) {
+                        return vortex::Result<vortex::HttpResponse>{std::unexpected(
+                            vortex::VortexError::make(
+                                vortex::ErrorCode::network_error, "simulated parallel failure"))};
+                    }
+                    std::this_thread::sleep_for(std::chrono::milliseconds{2});
+                }
+                return vortex::Result<vortex::HttpResponse>{std::unexpected(
+                    vortex::VortexError::make(
+                        vortex::ErrorCode::network_error, "timed out waiting for first checkpoint"))};
+            }
+
+            REQUIRE(request.range->first == 0);
+            REQUIRE(sink(first));
+            vortex::HttpResponse response;
+            response.status_code = 206;
+            response.headers["content-range"] = "bytes 0-2/6";
+            response.headers["content-length"] = "3";
+            response.bytes_received = 3;
+            return vortex::Result<vortex::HttpResponse>{std::move(response)};
+        };
+
+    const auto failed = vortex::RangeDownloadCoordinator::transfer(
+        "https://example.test/parallel-recovery.bin", 6, 3, writer,
+        failing_executor, options, {}, &manager, *id, 20);
+    CHECK_FALSE(failed.has_value());
+    const auto after_failure = manager.list_checkpoints(*id);
+    REQUIRE(after_failure);
+    REQUIRE(after_failure->size() == 1);
+    CHECK(after_failure->front().segment_index == 0);
+
+    std::size_t retry_requests = 0;
+    const std::array second{std::byte{'d'}, std::byte{'e'}, std::byte{'f'}};
+    const vortex::RangeRequestExecutor retry_executor =
+        [&retry_requests, &second](const vortex::HttpRequest& request,
+                                   const vortex::HttpBodySink& sink, std::stop_token) {
+            ++retry_requests;
+            REQUIRE(request.range.has_value());
+            CHECK(request.range->first == 3);
+            CHECK(request.range->last == 5);
+            REQUIRE(sink(second));
+            vortex::HttpResponse response;
+            response.status_code = 206;
+            response.headers["content-range"] = "bytes 3-5/6";
+            response.headers["content-length"] = "3";
+            response.bytes_received = 3;
+            return vortex::Result<vortex::HttpResponse>{std::move(response)};
+        };
+    REQUIRE(vortex::RangeDownloadCoordinator::transfer(
+        "https://example.test/parallel-recovery.bin", 6, 3, writer,
+        retry_executor, options, {}, &manager, *id, 21));
+    CHECK(retry_requests == 1);
+    const auto completed = manager.list_checkpoints(*id);
+    REQUIRE(completed);
+    CHECK(completed->size() == 2);
+
+    REQUIRE(writer.close());
+    REQUIRE(database.close().has_value());
+    std::error_code ignored;
+    std::filesystem::remove(path, ignored);
+    std::filesystem::remove(database_path, ignored);
+    std::filesystem::remove(database_path + "-wal", ignored);
+    std::filesystem::remove(database_path + "-shm", ignored);
 }
