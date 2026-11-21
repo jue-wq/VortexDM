@@ -4,6 +4,9 @@
 #include <limits>
 #include <string>
 #include <system_error>
+#ifndef _WIN32
+#include <sys/stat.h>
+#endif
 #include <utility>
 
 #ifdef _WIN32
@@ -73,6 +76,49 @@ Result<void> CrashSafeFileWriter::open(std::uint64_t expected_size) {
         const int error_value = errno;
         (void)::close(descriptor);
         return std::unexpected(system_error("file_preallocate", "Could not size output file", error_value));
+    }
+    file_descriptor_ = descriptor;
+#endif
+    size_ = expected_size;
+    return {};
+}
+
+Result<void> CrashSafeFileWriter::open_existing(std::uint64_t expected_size) {
+    if (is_open()) return std::unexpected(make_error("file_already_open", "The output file is already open"));
+#ifdef _WIN32
+    if (expected_size > static_cast<std::uint64_t>(std::numeric_limits<LONGLONG>::max())) {
+        return std::unexpected(make_error("file_size", "Requested file size exceeds the Windows file limit"));
+    }
+    HANDLE handle = CreateFileW(path_.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, nullptr,
+                                OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, nullptr);
+    if (handle == INVALID_HANDLE_VALUE) {
+        return std::unexpected(system_error("file_open", "Could not reopen partial output file", static_cast<int>(GetLastError())));
+    }
+    LARGE_INTEGER actual_size{};
+    if (!GetFileSizeEx(handle, &actual_size) || actual_size.QuadPart < 0 ||
+        static_cast<std::uint64_t>(actual_size.QuadPart) != expected_size) {
+        const int error_value = static_cast<int>(GetLastError());
+        CloseHandle(handle);
+        return std::unexpected(make_error("file_size_mismatch", "Existing partial file size does not match its recovery journal (system error " + std::to_string(error_value) + ")"));
+    }
+    native_handle_ = handle;
+#else
+    if (expected_size > static_cast<std::uint64_t>(std::numeric_limits<off_t>::max())) {
+        return std::unexpected(make_error("file_size", "Requested file size exceeds the POSIX file limit"));
+    }
+    const int descriptor = ::open(path_.c_str(), O_RDWR | O_CLOEXEC);
+    if (descriptor < 0) {
+        return std::unexpected(system_error("file_open", "Could not reopen partial output file", errno));
+    }
+    struct stat metadata{};
+    if (::fstat(descriptor, &metadata) != 0) {
+        const int error_value = errno;
+        (void)::close(descriptor);
+        return std::unexpected(system_error("file_stat", "Could not inspect partial output file", error_value));
+    }
+    if (metadata.st_size < 0 || static_cast<std::uint64_t>(metadata.st_size) != expected_size) {
+        (void)::close(descriptor);
+        return std::unexpected(make_error("file_size_mismatch", "Existing partial file size does not match its recovery journal"));
     }
     file_descriptor_ = descriptor;
 #endif

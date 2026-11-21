@@ -22,6 +22,8 @@ public:
     CrashSafeFileWriter& operator=(CrashSafeFileWriter&&) = delete;
 
     [[nodiscard]] Result<void> open(std::uint64_t expected_size);
+    // Reopen an existing preallocated partial file without truncating it, for journal recovery.
+    [[nodiscard]] Result<void> open_existing(std::uint64_t expected_size);
     [[nodiscard]] Result<void> write(std::uint64_t offset, std::span<const std::byte> data);
     [[nodiscard]] Result<void> flush();
     void close() noexcept;
