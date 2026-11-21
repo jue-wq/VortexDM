@@ -6,6 +6,15 @@ import android.app.NotificationManager;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.content.ContentValues;
+import android.content.ContentResolver;
+import android.net.Uri;
+import android.os.Environment;
+import android.provider.MediaStore;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
 import android.os.Build;
 import android.os.IBinder;
 
@@ -17,6 +26,35 @@ public final class VortexForegroundService extends Service {
         Intent intent = new Intent(context, VortexForegroundService.class);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent);
         else context.startService(intent);
+    }
+
+    public static boolean exportToDownloads(Context context, String sourcePath, String displayName) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return false;
+        File source = new File(sourcePath);
+        if (!source.isFile() || !source.canRead()) return false;
+        ContentResolver resolver = context.getContentResolver();
+        ContentValues values = new ContentValues();
+        values.put(MediaStore.MediaColumns.DISPLAY_NAME, displayName);
+        values.put(MediaStore.MediaColumns.MIME_TYPE, "application/octet-stream");
+        values.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/VortexDM");
+        values.put(MediaStore.MediaColumns.IS_PENDING, 1);
+        Uri destination = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+        if (destination == null) return false;
+        try (InputStream input = new FileInputStream(source);
+             OutputStream output = resolver.openOutputStream(destination, "w")) {
+            if (output == null) throw new java.io.IOException("Unable to open Downloads output");
+            byte[] buffer = new byte[65536];
+            int read;
+            while ((read = input.read(buffer)) != -1) output.write(buffer, 0, read);
+            output.flush();
+            ContentValues ready = new ContentValues();
+            ready.put(MediaStore.MediaColumns.IS_PENDING, 0);
+            resolver.update(destination, ready, null, null);
+            return true;
+        } catch (Exception error) {
+            resolver.delete(destination, null, null);
+            return false;
+        }
     }
 
     @Override public void onCreate() {

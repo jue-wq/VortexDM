@@ -8,6 +8,10 @@
 #include <QUuid>
 #include <QVariantMap>
 #include <QStandardPaths>
+#ifdef Q_OS_ANDROID
+#include <QJniObject>
+#include <QNativeInterface>
+#endif
 
 DownloadListModel::DownloadListModel(vortex::SqliteRepository* repository, QObject* parent)
     : QAbstractListModel(parent), repository_(repository) {
@@ -123,6 +127,28 @@ bool DownloadListModel::controlTask(const QString& taskId, const QString& action
     if (!updated) return false;
     refresh();
     return true;
+}
+
+bool DownloadListModel::exportDownload(const QString& taskId) {
+#ifdef Q_OS_ANDROID
+    if (!repository_) return false;
+    const auto record = repository_->get_download(taskId.toStdString());
+    if (!record || !*record || (**record).status != "Completed") return false;
+    const std::filesystem::path source = std::filesystem::path((**record).save_dir) / (**record).filename;
+    std::error_code error;
+    if (!std::filesystem::is_regular_file(source, error) || error) return false;
+    const auto context = QNativeInterface::QAndroidApplication::context();
+    const auto source_path = QJniObject::fromString(QString::fromStdString(source.string()));
+    const auto display_name = QJniObject::fromString(QString::fromStdString(source.filename().string()));
+    const jboolean exported = QJniObject::callStaticMethod<jboolean>(
+        "org/vortexdm/VortexForegroundService", "exportToDownloads",
+        "(Landroid/content/Context;Ljava/lang/String;Ljava/lang/String;)Z",
+        context.object<jobject>(), source_path.object<jstring>(), display_name.object<jstring>());
+    return exported == JNI_TRUE;
+#else
+    Q_UNUSED(taskId);
+    return false;
+#endif
 }
 
 void DownloadListModel::refresh() {

@@ -119,11 +119,17 @@ ApplicationWindow {
                                         text: status
                                         color: status === "Completed" ? "#22C55E" : status === "Error" ? "#EF4444" : "#4F8CFF"
                                     }
+                                    Label { id: exportStatus; color: "#8B97AD"; font.pixelSize: 10; text: "" }
                                     RowLayout {
                                         spacing: 4
                                         Button { visible: status === "Downloading" || status === "Queued"; text: "Pause"; onClicked: downloadsModel.controlTask(taskId,"pause") }
                                         Button { visible: status === "Paused"; text: "Resume"; onClicked: downloadsModel.controlTask(taskId,"resume") }
                                         Button { visible: status !== "Completed" && status !== "Cancelled"; text: "Cancel"; onClicked: downloadsModel.controlTask(taskId,"cancel") }
+                                        Button {
+                                            visible: Qt.platform.os === "android" && status === "Completed"
+                                            text: "Export"
+                                            onClicked: exportStatus.text = downloadsModel.exportDownload(taskId) ? "Saved to Downloads/VortexDM" : "Export requires Android 10+"
+                                        }
                                     }
                                 }
                             }
