@@ -359,7 +359,12 @@ bool test_native_host_batch_chunk_integration() {
 
     std::istringstream input(input_bytes);
     std::ostringstream output;
-    vortex::NativeMessagingHost host;
+    const auto database_path = std::filesystem::temp_directory_path() / "vortexdm-native-host-test.sqlite3";
+    std::error_code database_ignored;
+    std::filesystem::remove(database_path, database_ignored);
+    std::filesystem::remove(database_path.string()+"-wal", database_ignored);
+    std::filesystem::remove(database_path.string()+"-shm", database_ignored);
+    vortex::NativeMessagingHost host(database_path);
     if (host.run(input, output) != 0) return false;
     const auto responses = read_frames(output.str());
     if (responses.size() != total) return false;
@@ -369,8 +374,12 @@ bool test_native_host_batch_chunk_integration() {
             response["payload"].value("accepted", false) != true) return false;
     }
     const auto& last = responses.back();
-    return last["payload"].value("complete", false) &&
+    const bool accepted = last["payload"].value("complete", false) &&
         last["payload"].value("count", std::size_t{0}) == 1U;
+    std::filesystem::remove(database_path, database_ignored);
+    std::filesystem::remove(database_path.string()+"-wal", database_ignored);
+    std::filesystem::remove(database_path.string()+"-shm", database_ignored);
+    return accepted;
 }
 
 bool test_segment_recovery_coordinator() {

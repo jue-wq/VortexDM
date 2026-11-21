@@ -4,6 +4,7 @@
 #include "vortex/url.hpp"
 
 #include <array>
+#include <atomic>
 #include <cstdlib>
 #include <filesystem>
 #include <random>
@@ -62,7 +63,7 @@ std::string suggested_filename(const std::string& url) {
 NativeMessagingHost::NativeMessagingHost(std::filesystem::path database_path) {
     if (database_path.empty()) database_path = default_database_path();
     std::error_code error;
-    std::filesystem::create_directories(database_path.parent_path(), error);
+    if (!database_path.parent_path().empty()) std::filesystem::create_directories(database_path.parent_path(), error);
     if (error) { initialization_error_ = error.message(); return; }
     repository_ = std::make_unique<SqliteRepository>(database_path);
     auto initialized = repository_->initialize();
