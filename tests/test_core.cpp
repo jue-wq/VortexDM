@@ -437,6 +437,21 @@ bool test_sqlite_migrations_and_segment_journal() {
     if (!journal || journal->size() != 1U || journal->front().downloaded_bytes != 512U ||
         journal->front().status != "Downloading") return false;
 
+    vortex::YtDlpProfileRecord profile;
+    profile.id = "yt-dlp-official";
+    profile.name = "Official yt-dlp releases";
+    profile.source_type = "github_release";
+    profile.repo_slug = "yt-dlp/yt-dlp";
+    profile.pinned_tag = "stable";
+    profile.include_prereleases = false;
+    profile.local_binary_path = "/opt/vortex/yt-dlp";
+    profile.installed_version = "2026.01.01";
+    profile.is_active = true;
+    if (!repository.save_ytdlp_profile(profile)) return false;
+    const auto profiles = repository.list_ytdlp_profiles();
+    if (!profiles || profiles->size() != 1U || profiles->front().repo_slug != "yt-dlp/yt-dlp" ||
+        !profiles->front().is_active) return false;
+
     const auto records = repository.list_downloads();
     if (!records || records->size() != 1U) return false;
     const bool matched = records->front().id == download.id &&
