@@ -51,11 +51,13 @@ using Json = nlohmann::json;
     }
     if (host.empty() || host.size() > 253U || host.front() == '.' || host.back() == '-') return false;
     bool previous_dot = false;
+    char previous_character = '\0';
     std::size_t label_length = 0;
     for (const char raw : host) {
         const auto ch = static_cast<unsigned char>(raw);
         if (ch == '.') {
-            if (previous_dot || label_length == 0U || label_length > 63U) return false;
+            if (previous_dot || label_length == 0U || label_length > 63U ||
+                previous_character == '-') return false;
             previous_dot = true;
             label_length = 0;
         } else {
@@ -65,6 +67,7 @@ using Json = nlohmann::json;
             previous_dot = false;
             ++label_length;
         }
+        previous_character = raw;
     }
     return label_length > 0U && label_length <= 63U;
 }
