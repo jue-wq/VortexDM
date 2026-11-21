@@ -69,6 +69,12 @@ TEST_CASE("Native dispatcher rejects unsafe URLs and explicitly rejects unwired 
     REQUIRE(malformed_authority->has_value());
     CHECK(nlohmann::json::parse(**malformed_authority)["accepted"] == false);
 
+    const auto malformed_label = dispatcher.dispatch(
+        R"({"type":"add_download","request_id":"req-label","url":"https://bad-.example/file"})");
+    REQUIRE(malformed_label.has_value());
+    REQUIRE(malformed_label->has_value());
+    CHECK(nlohmann::json::parse(**malformed_label)["accepted"] == false);
+
     const auto reserved_filename = dispatcher.dispatch(
         R"({"type":"add_download","request_id":"req-reserved","url":"https://example.com/file","filename":"C:\\temp\\CON.txt"})");
     REQUIRE(reserved_filename.has_value());
