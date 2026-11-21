@@ -41,6 +41,7 @@ add_library(vortex_core
   src/core/src/filename_sanitizer.cpp
   src/core/src/chunk_assembler.cpp
   src/core/src/process_runner.cpp
+  src/core/src/ytdlp_extractor.cpp
 )
 target_include_directories(vortex_core PUBLIC src/core/include)
 target_link_libraries(vortex_core PUBLIC CURL::libcurl SQLite::SQLite3 nlohmann_json::nlohmann_json OpenSSL::Crypto Threads::Threads)
