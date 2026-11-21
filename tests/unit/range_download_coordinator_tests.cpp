@@ -1,4 +1,4 @@
-#include "core/download/range_download_coordinator.hpp"
+#include "core/download/range_download_coordinator.hpp"\n#include "core/storage/sqlite_database.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -165,4 +165,58 @@ TEST_CASE("Range coordinator retries transient transport errors") {
     CHECK(attempts == 2);
     REQUIRE(writer.close());
     std::filesystem::remove(path);
+}
+
+TEST_CASE("Range coordinator durably checkpoints each validated segment") {
+    const auto path = temporary_path();
+    const auto database_path = path.string() + ".sqlite";
+    vortex::SqliteDatabase database;
+    REQUIRE(database.open(database_path).has_value());
+    REQUIRE(database.migrate().has_value());
+    vortex::DownloadRecord record;
+    record.url = "https://example.test/checkpointed.bin";
+    record.destination = path.string();
+    record.total_bytes = 6;
+    const auto id = database.insert_download(record);
+    REQUIRE(id);
+    vortex::OffsetFileWriter writer;
+    REQUIRE(writer.open(path, 6).has_value());
+    vortex::SegmentCheckpointManager manager(writer, database, path);
+    const std::array<std::byte, 6> payload{
+        std::byte{'a'}, std::byte{'b'}, std::byte{'c'},
+        std::byte{'d'}, std::byte{'e'}, std::byte{'f'}
+    };
+    const vortex::RangeRequestExecutor executor =
+        [&payload](const vortex::HttpRequest& request, const vortex::HttpBodySink& sink,
+                   std::stop_token) {
+            const auto range = *request.range;
+            const auto count = static_cast<std::size_t>(range.size());
+            REQUIRE(sink(std::span<const std::byte>{
+                payload.data() + static_cast<std::ptrdiff_t>(range.first), count}));
+            vortex::HttpResponse response;
+            response.status_code = 206;
+            response.headers["content-range"] = "bytes " +
+                std::to_string(range.first) + "-" + std::to_string(range.last) + "/6";
+            response.headers["content-length"] = std::to_string(count);
+            response.bytes_received = count;
+            return vortex::Result<vortex::HttpResponse>{std::move(response)};
+        };
+    REQUIRE(vortex::RangeDownloadCoordinator::transfer(
+        "https://example.test/checkpointed.bin", 6, 3, writer, executor, {}, {},
+        &manager, *id, 42).has_value());
+    const auto checkpoints = database.list_segment_checkpoints(*id);
+    REQUIRE(checkpoints);
+    REQUIRE(checkpoints->size() == 2);
+    CHECK(checkpoints->at(0).offset == 0);
+    CHECK(checkpoints->at(1).offset == 3);
+    const auto pruned = manager.verify_and_prune(*id);
+    REQUIRE(pruned);
+    CHECK(*pruned == 0);
+    REQUIRE(writer.close());
+    database.close();
+    std::error_code ignored;
+    std::filesystem::remove(path, ignored);
+    std::filesystem::remove(database_path, ignored);
+    std::filesystem::remove(database_path + "-wal", ignored);
+    std::filesystem::remove(database_path + "-shm", ignored);
 }

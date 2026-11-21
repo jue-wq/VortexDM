@@ -3,6 +3,7 @@
 #include "core/common/result.hpp"
 #include "core/network/http_client.hpp"
 #include "core/storage/offset_file_writer.hpp"
+#include "core/storage/segment_checkpoint_manager.hpp"
 
 #include <chrono>
 #include <cstddef>

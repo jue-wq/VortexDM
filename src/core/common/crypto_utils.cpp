@@ -3,6 +3,7 @@
 #include <array>
 #include <fstream>
 #include <memory>
+#include <span>
 #include <algorithm>
 #include <limits>
 #include <openssl/evp.h>
@@ -62,6 +63,36 @@ Result<std::string> CryptoUtils::sha256_file(const std::filesystem::path& path) 
     return output;
 }
 
+
+
+Result<std::string> CryptoUtils::sha256_bytes(const std::span<const std::byte> data) {
+    using EvpContext = std::unique_ptr<EVP_MD_CTX, decltype(&EVP_MD_CTX_free)>;
+    EvpContext context(EVP_MD_CTX_new(), &EVP_MD_CTX_free);
+    if (!context || EVP_DigestInit_ex(context.get(), EVP_sha256(), nullptr) != 1) {
+        return std::unexpected(VortexError::make(
+            ErrorCode::internal_error, "Unable to initialize SHA-256 context"
+        ));
+    }
+    if (!data.empty() && EVP_DigestUpdate(context.get(), data.data(), data.size()) != 1) {
+        return std::unexpected(VortexError::make(
+            ErrorCode::internal_error, "SHA-256 memory update failed"
+        ));
+    }
+    std::array<unsigned char, EVP_MAX_MD_SIZE> digest{};
+    unsigned int digest_size = 0;
+    if (EVP_DigestFinal_ex(context.get(), digest.data(), &digest_size) != 1) {
+        return std::unexpected(VortexError::make(
+            ErrorCode::internal_error, "SHA-256 memory finalization failed"
+        ));
+    }
+    constexpr char hex[] = "0123456789abcdef";
+    std::string output(static_cast<std::size_t>(digest_size) * 2, '\\0');
+    for (std::size_t i = 0; i < static_cast<std::size_t>(digest_size); ++i) {
+        output[i * 2] = hex[digest[i] >> 4];
+        output[i * 2 + 1] = hex[digest[i] & 0x0f];
+    }
+    return output;
+}
 
 Result<std::string> CryptoUtils::sha256_file_range(
     const std::filesystem::path& path, const std::uint64_t offset, const std::uint64_t length

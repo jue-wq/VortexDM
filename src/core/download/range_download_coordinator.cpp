@@ -2,6 +2,7 @@
 
 #include "core/download/content_range.hpp"
 #include "core/download/retry_policy.hpp"
+#include "core/common/crypto_utils.hpp"
 
 #include <algorithm>
 #include <charconv>
@@ -59,7 +60,7 @@ Status RangeDownloadCoordinator::transfer(
         total_size > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()) ||
         chunk_size == 0 || chunk_size > maximum_staged_bytes || !executor ||
         options.base_retry_delay.count() < 0 ||
-        options.maximum_retry_delay.count() < 0) {
+        options.maximum_retry_delay.count() < 0 ||\n        (checkpoint_manager != nullptr && download_id <= 0)) {
         return std::unexpected(VortexError::make(
             ErrorCode::invalid_argument, "Invalid ranged download parameters"));
     }
