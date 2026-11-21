@@ -17,6 +17,7 @@ blocking. macOS is not a supported target.
 - [ ] Full ABP/uBlock-compatible parser, cosmetic filters, and per-site controls
 - [ ] Official uBlock Origin extension compatibility validation
 - [x] Phase 2 inclusive HTTP byte-range planner and unit tests
+- [x] Phase 2 transactional FIFO claim primitive for queued downloads (multi-worker safe)
 - [ ] Phase 2 HTTP transport, retries, segment scheduler, and CLI
 - [ ] Phase 3 toolchain manager
 - [ ] Phase 4 media extraction and streaming
