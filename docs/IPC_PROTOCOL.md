@@ -1,6 +1,6 @@
 # VortexDM Browser Bridge IPC Protocol v1 (proposed)
 
-> Status: **partial Native Messaging host implementation**. A standalone Firefox host executable now validates the pinned Gecko extension ID, requires a v1 handshake, and handles durable `add_download` ACKs. Batch, media extraction, and task-control requests are explicitly rejected until their adapters exist.
+> Status: **partial Native Messaging host implementation**. A standalone Firefox host executable now validates the pinned Gecko extension ID, requires a v1 handshake, and durably stages `add_download` requests and returns negative ACKs until application-queue integration exists. Batch, media extraction, and task-control requests are explicitly rejected until their adapters exist.
 
 ## 1. Transport
 
@@ -62,7 +62,7 @@ Required: `action` = `pause`, `resume`, or `focus_app`.
 Optional: `request_id`, `task_id`.
 
 
-The desktop batch assembler and current single-download dispatcher reject non-HTTP(S) URLs, empty authorities, URL user-info credentials, and ASCII whitespace/control characters. This is only defense in depth, not a complete standards-compliant URL parser or SSRF/network policy.
+The desktop batch assembler and current single-download dispatcher reject non-HTTP(S) URLs, empty authorities, URL user-info credentials, ASCII whitespace/control characters, and malformed ordinary DNS/IPv4 host or numeric-port forms. The single-download dispatcher currently rejects IPv6 literals until a shared standards-compliant URL parser is adopted. These checks are defense in depth, not a complete URL parser or SSRF/network policy.
 
 ## 4. Desktop → extension messages
 
