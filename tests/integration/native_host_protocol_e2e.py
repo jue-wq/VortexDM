@@ -107,6 +107,22 @@ def main() -> int:
     if count != 0:
         raise AssertionError("pre-handshake request mutated persistent downloads")
 
+    # A second handshake in one session is a protocol violation.
+    duplicate_db = db_path.with_name(db_path.stem + "-duplicate-handshake.sqlite")
+    duplicate_env = env.copy()
+    duplicate_env["VORTEXDM_DB_PATH"] = str(duplicate_db)
+    duplicate = subprocess.run(
+        [str(host), "browser-bridge@vortexdm.app"],
+        input=frame(handshake) + frame(handshake),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env=duplicate_env,
+        timeout=15,
+        check=False,
+    )
+    if duplicate.returncode != 8:
+        raise AssertionError(f"duplicate handshake should exit 8, got {duplicate.returncode}")
+
     return 0
 
 
