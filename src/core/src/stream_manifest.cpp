@@ -233,9 +233,13 @@ Result<DashManifest> parse_dash_mpd(const std::string& xml_text, const std::stri
             if (segment_base) {
                 item.segment_base_index_range = xml_attr(segment_base, "indexRange");
                 if (const auto* initialization = segment_base->FirstChildElement("Initialization")) {
-                    item.segment_base_index_range = xml_attr(segment_base, "indexRange");
-                    const auto range = xml_attr(initialization, "range");
-                    if (!range.empty()) item.segment_base_index_range = range;
+                    item.segment_base_initialization_range = xml_attr(initialization, "range");
+                    const auto source_url = xml_attr(initialization, "sourceURL");
+                    if (!source_url.empty()) {
+                        auto resolved = resolve_uri(item.base_url, source_url);
+                        if (!resolved) return std::unexpected(resolved.error());
+                        item.segment_base_initialization_url = *resolved;
+                    }
                 }
             }
             if (item.segment_template || !item.segment_urls.empty() || !item.segment_base_index_range.empty() || !item.base_url.empty()) {

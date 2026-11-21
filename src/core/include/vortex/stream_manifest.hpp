@@ -55,6 +55,8 @@ struct DashRepresentation {
     std::vector<std::string> segment_urls;
     std::optional<std::string> initialization_url;
     std::string segment_base_index_range;
+    std::optional<std::string> segment_base_initialization_url;
+    std::string segment_base_initialization_range;
     bool has_content_protection{false};
 };
 
