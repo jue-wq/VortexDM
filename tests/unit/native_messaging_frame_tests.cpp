@@ -17,6 +17,31 @@ TEST_CASE("Native messaging frame round-trips a JSON payload") {
     CHECK(*decoded == json);
 }
 
+TEST_CASE("Native messaging frame validates JSON syntax on encode and decode") {
+    const auto valid = vortex::NativeMessagingFrame::encode(
+        R"({"items":[1,true,null,{"escaped":"line\\nvalue"}]})"
+    );
+    REQUIRE(valid.has_value());
+    CHECK(vortex::NativeMessagingFrame::decode(*valid).has_value());
+
+    CHECK_FALSE(vortex::NativeMessagingFrame::encode(R"({"missing":})").has_value());
+    CHECK_FALSE(vortex::NativeMessagingFrame::encode(R"({"trailing":1,})").has_value());
+    CHECK_FALSE(vortex::NativeMessagingFrame::encode(R"({"number":01})").has_value());
+    CHECK_FALSE(vortex::NativeMessagingFrame::encode(R"({"string":"bad
+control"})").has_value());
+    CHECK_FALSE(vortex::NativeMessagingFrame::encode(R"({"ok":true} garbage)").has_value());
+
+    const std::string invalid_json = "{]";
+    std::vector<std::byte> frame{
+        static_cast<std::byte>(invalid_json.size()), std::byte{0},
+        std::byte{0}, std::byte{0}
+    };
+    for (const unsigned char ch : invalid_json) {
+        frame.push_back(static_cast<std::byte>(ch));
+    }
+    CHECK_FALSE(vortex::NativeMessagingFrame::decode(frame).has_value());
+}
+
 TEST_CASE("Native messaging frame rejects malformed and oversized lengths") {
     const std::vector<std::byte> short_header{std::byte{1}, std::byte{2}};
     CHECK_FALSE(vortex::NativeMessagingFrame::decode(short_header).has_value());
