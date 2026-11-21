@@ -76,6 +76,46 @@ function parseHostRule(rawLine) {
   return { host, exception, types };
 }
 
+async function readBoundedText(response, maximumBytes) {
+  const declaredLength = Number(response.headers.get("content-length"));
+  if (Number.isFinite(declaredLength) && declaredLength > maximumBytes) {
+    throw new Error("Filter list exceeds the configured size limit");
+  }
+  if (!response.body || typeof response.body.getReader !== "function") {
+    const text = await response.text();
+    if (new TextEncoder().encode(text).byteLength > maximumBytes) {
+      throw new Error("Filter list exceeds the configured size limit");
+    }
+    return text;
+  }
+
+  const reader = response.body.getReader();
+  const chunks = [];
+  let received = 0;
+  try {
+    while (true) {
+      const result = await reader.read();
+      if (result.done) break;
+      received += result.value.byteLength;
+      if (received > maximumBytes) {
+        await reader.cancel("Filter list size limit exceeded");
+        throw new Error("Filter list exceeds the configured size limit");
+      }
+      chunks.push(result.value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(received);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+}
+
 function compileSubscriptions(texts) {
   const blocks = seededHosts.map(host => ({ host, exception: false, types: [] }));
   const allows = [];
@@ -122,10 +162,8 @@ async function updateSubscriptions() {
     try {
       const response = await fetch(item.url, { cache: "no-store" });
       if (!response.ok) throw new Error("HTTP " + response.status);
-      const text = await response.text();
-      if (!text || text.length > 20 * 1024 * 1024) {
-        throw new Error("Filter list is empty or exceeds 20 MiB");
-      }
+      const text = await readBoundedText(response, 20 * 1024 * 1024);
+      if (!text) throw new Error("Filter list is empty");
       await browser.storage.local.set({
         ["filter:" + item.id]: text,
         ["filterUpdated:" + item.id]: Date.now()
