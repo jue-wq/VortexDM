@@ -3,6 +3,8 @@
 #include "vortex/download_engine.hpp"
 #include "vortex/application_paths.hpp"
 #include "vortex/process_runner.hpp"
+#include "vortex/segment_recovery.hpp"
+#include "vortex/segment_checkpoint.hpp"
 
 #include <chrono>
 #include <atomic>
@@ -150,7 +152,84 @@ void DownloadQueueWorker::run(std::stop_token token) {
             if (!media_result) result = std::unexpected(media_result.error());
             else completed_path = *media_result;
         } else {
-            result = download_file(task.url, output_path, options);
+            const std::string stream_id = task.id + "-primary";
+            bool recovered = false;
+            bool stop_for_control = false;
+            const auto saved_stream = repository_.get_stream_for_download(task.id);
+            if (saved_stream && *saved_stream && (**saved_stream).total_bytes > 0U) {
+                const auto& stream = **saved_stream;
+                std::error_code file_error;
+                const auto existing_size = std::filesystem::file_size(stream.temp_path, file_error);
+                if (!file_error && existing_size == stream.total_bytes) {
+                    std::jthread recovery_monitor([this, id=task.id](std::stop_token monitor_stop) {
+                        while (!monitor_stop.stop_requested() && !cancel_requested_.load(std::memory_order_relaxed)) {
+                            const auto status = repository_.get_download_status(id);
+                            if (!status || *status != "Downloading") {
+                                cancel_requested_.store(true, std::memory_order_relaxed);
+                                break;
+                            }
+                            std::this_thread::sleep_for(std::chrono::milliseconds(250));
+                        }
+                    });
+                    const auto resumed = recover_download_segments(
+                        stream.temp_path, stream.total_bytes, stream.id, repository_,
+                        [this, &task, &options](CrashSafeFileWriter& writer, const ByteRange& range) -> Result<std::uint64_t> {
+                            const auto status = repository_.get_download_status(task.id);
+                            if (!status || *status != "Downloading") {
+                                cancel_requested_.store(true, std::memory_order_relaxed);
+                                return std::unexpected(make_error("download_cancelled", "Task was paused or cancelled"));
+                            }
+                            return download_range_to_writer(task.url, range, writer, options);
+                        });
+                    recovery_monitor.request_stop();
+                    recovery_monitor.join();
+                    if (resumed) {
+                        const auto status = repository_.get_download_status(task.id);
+                        if (status && *status == "Downloading") {
+                            recovered = true;
+                            completed_path = stream.temp_path;
+                        } else {
+                            result = std::unexpected(make_error("download_cancelled", "Task was paused or cancelled during recovery"));
+                            stop_for_control = true;
+                        }
+                    } else if (resumed.error().code == "download_cancelled") {
+                        result = std::unexpected(resumed.error());
+                        stop_for_control = true;
+                    }
+                }
+            }
+            if (!recovered && !stop_for_control) {
+                cancel_requested_.store(false, std::memory_order_relaxed);
+                auto cleared = repository_.clear_segments(stream_id);
+                if (!cleared) result = std::unexpected(cleared.error());
+                else {
+                    options.stream_info_callback = [this, &task, stream_id, output_path](const RemoteFileInfo& info) -> Result<void> {
+                        StreamRecord stream;
+                        stream.id = stream_id;
+                        stream.download_id = task.id;
+                        stream.stream_role = "primary";
+                        stream.url = info.effective_url;
+                        stream.temp_path = output_path.string();
+                        stream.total_bytes = info.total_bytes;
+                        stream.status = "Downloading";
+                        return repository_.save_stream(stream);
+                    };
+                    options.segment_checkpoint_callback = [this, stream_id](CrashSafeFileWriter& writer, const ByteRange& range, std::uint64_t downloaded) -> Result<void> {
+                        SegmentRecord checkpoint;
+                        checkpoint.stream_id = stream_id;
+                        checkpoint.segment_index = range.id;
+                        checkpoint.start_offset = range.start;
+                        checkpoint.end_offset = range.end;
+                        checkpoint.downloaded_bytes = downloaded;
+                        checkpoint.status = downloaded == range.size() ? "Completed" : "Partial";
+                        return commit_segment_checkpoint(writer, repository_, checkpoint);
+                    };
+                    options.reset_segment_checkpoints_callback = [this, stream_id] {
+                        return repository_.clear_segments(stream_id);
+                    };
+                    result = download_file(task.url, output_path, options);
+                }
+            }
         }
         if (result) {
             std::error_code size_error;
