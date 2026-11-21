@@ -21,6 +21,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: "93ad765c7b66ab9ce97469ec23a90b15c3a14ee5"
       - uses: lukka/run-cmake@v10
         with:
           configurePreset: default

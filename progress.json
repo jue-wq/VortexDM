@@ -1,9 +1,7 @@
 {
-  "schema_version": 1,
-  "project": "VortexDM",
-  "current_phase": 1,
-  "phases": [
-    {"id":1,"name":"Foundation and IPC contract","status":"IN_PROGRESS","checks":{"layout":true,"protocol":true,"baseline_tests":true,"platform_ci":false,"native_host_e2e":false},"evidence":["Initial source/test baseline committed; CI verification pending."]},
+  "schema_version":1,"project":"VortexDM","current_phase":1,
+  "phases":[
+    {"id":1,"name":"Foundation and IPC contract","status":"IN_PROGRESS","checks":{"layout":true,"protocol":true,"baseline_tests":true,"platform_ci":false,"native_host_e2e":false},"evidence":["Checkpoint job passed on initial run; build jobs were blocked before CMake by missing vcpkg baseline. Baseline pinned in follow-up commit."]},
     {"id":2,"name":"Persistence and reliable HTTP engine","status":"IN_PROGRESS","checks":{"sqlite_wal":true,"single_stream_http":true,"migrations":false,"segmented_scheduler":false,"crash_recovery":false},"evidence":["SQLite WAL initialization and libcurl baseline implemented; advanced reliability work pending."]},
     {"id":3,"name":"yt-dlp extraction and toolchain","status":"TODO","checks":{"process_runner":false,"json_extractor":false,"profiles":false,"checksum_rollback":false,"url_refresh":false},"evidence":[]},
     {"id":4,"name":"HLS DASH and muxing","status":"TODO","checks":{"hls":false,"dash":false,"decrypt":false,"muxing":false,"integration_tests":false},"evidence":[]},
