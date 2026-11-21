@@ -216,6 +216,10 @@ QByteArray AndroidLoopbackServer::dispatchIpc(const QByteArray& body) {
                 } catch (...) { answer = {{"accepted",false},{"code","invalid_batch_json"}}; }
             }
         }
+    } else if (request.value("type", std::string{}) == "extract_media") {
+        const auto task = enqueueMediaExtract(payload);
+        if (!task) answer = {{"accepted",false},{"code",task.error().code},{"message",task.error().message}};
+        else answer = {{"accepted",true},{"task_id",*task}};
     } else if (request.value("type", std::string{}) == "task_control") {
         if (!payload.contains("task_id") || !payload["task_id"].is_string() ||
             !payload.contains("action") || !payload["action"].is_string()) {
@@ -260,6 +264,37 @@ vortex::Result<std::string> AndroidLoopbackServer::enqueueDownload(const json& p
     record.queue_id = payload.value("queue_id", std::string("default"));
     record.status = "Queued";
     record.headers_json = "{}";
+    auto saved = repository_->save_download(record);
+    if (!saved) return std::unexpected(saved.error());
+    return record.id;
+}
+
+vortex::Result<std::string> AndroidLoopbackServer::enqueueMediaExtract(const json& payload) {
+    if (!repository_ || !payload.contains("webpage_url") || !payload["webpage_url"].is_string())
+        return std::unexpected(vortex::make_error("invalid_media_task", "webpage_url is required"));
+    const auto url = payload["webpage_url"].get<std::string>();
+    auto parsed = vortex::parse_http_url(url);
+    if (!parsed) return std::unexpected(parsed.error());
+    const auto profiles = repository_->list_ytdlp_profiles();
+    if (!profiles) return std::unexpected(profiles.error());
+    const bool configured = std::any_of(profiles->begin(), profiles->end(), [](const auto& profile) {
+        return profile.is_active && (!profile.local_binary_path.empty() || !profile.python_path.empty());
+    });
+    if (!configured) return std::unexpected(vortex::make_error("ytdlp_not_configured", "Configure and activate a yt-dlp profile first"));
+    const auto title = payload.contains("page_title") && payload["page_title"].is_string()
+        ? payload["page_title"].get<std::string>() : suggested_name(url);
+    const auto mode = payload.contains("playlist_mode") && payload["playlist_mode"].is_string()
+        ? payload["playlist_mode"].get<std::string>() : std::string("single");
+    vortex::DownloadRecord record;
+    record.id = "android-" + QUuid::createUuid().toString(QUuid::WithoutBraces).toStdString();
+    record.task_type = mode == "single" ? "media_extract" : "media_extract_playlist";
+    record.url = url;
+    record.filename = vortex::sanitize_filename(title.empty() ? "media" : title) + ".mkv";
+    record.save_dir = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation).toStdString();
+    record.queue_id = payload.value("queue_id", std::string("default"));
+    record.status = "Queued";
+    record.headers_json = "{}";
+    record.extractor_origin_url = url;
     auto saved = repository_->save_download(record);
     if (!saved) return std::unexpected(saved.error());
     return record.id;

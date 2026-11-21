@@ -30,6 +30,7 @@ private:
     QByteArray dispatchIpc(const QByteArray& body);
     vortex::Result<std::string> enqueueDownload(const nlohmann::json& payload);
     vortex::Result<std::size_t> enqueueBatch(const nlohmann::json& payload);
+    vortex::Result<std::string> enqueueMediaExtract(const nlohmann::json& payload);
 
     QTcpServer server_;
     vortex::SqliteRepository* repository_{nullptr};
