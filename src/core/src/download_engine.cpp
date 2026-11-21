@@ -274,8 +274,40 @@ struct SegmentTransfer {
     std::shared_ptr<std::atomic_uint64_t> aggregate_progress;
     const std::function<void(std::uint64_t, std::uint64_t)>* progress{nullptr};
     std::uint64_t total_bytes{0};
+    std::string content_range;
     bool write_failed{false};
 };
+
+size_t capture_content_range(char* data, size_t size, size_t count, void* context) {
+    const auto bytes = size * count;
+    auto* transfer = static_cast<SegmentTransfer*>(context);
+    std::string line(data, bytes);
+    const auto colon = line.find(':');
+    if (colon != std::string::npos) {
+        std::string name = line.substr(0U, colon);
+        std::transform(name.begin(), name.end(), name.begin(), [](unsigned char ch) {
+            return static_cast<char>(std::tolower(ch));
+        });
+        if (name == "content-range") {
+            auto value = line.substr(colon + 1U);
+            const auto first = value.find_first_not_of(" \t");
+            const auto last = value.find_last_not_of("\r\n \t");
+            transfer->content_range = first == std::string::npos ? std::string{} : value.substr(first, last - first + 1U);
+        }
+    }
+    return bytes;
+}
+
+bool valid_content_range(const SegmentTransfer& transfer) {
+    const auto expected = "bytes " + std::to_string(transfer.range.start) + "-" +
+        std::to_string(transfer.range.end) + "/";
+    if (!transfer.content_range.starts_with(expected)) return false;
+    const auto total_text = transfer.content_range.substr(expected.size());
+    std::uint64_t total = 0;
+    const auto parsed = std::from_chars(total_text.data(), total_text.data() + total_text.size(), total);
+    return parsed.ec == std::errc{} && parsed.ptr == total_text.data() + total_text.size() &&
+        (transfer.total_bytes == 0U || total == transfer.total_bytes);
+}
 
 size_t write_segment(char* data, size_t size, size_t count, void* context) {
     const size_t bytes = size * count;
@@ -342,6 +374,8 @@ Result<void> download_ranges(
         curl_easy_setopt(handle, CURLOPT_RANGE, range_header.c_str());
         curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, &write_segment);
         curl_easy_setopt(handle, CURLOPT_WRITEDATA, state.get());
+        curl_easy_setopt(handle, CURLOPT_HEADERFUNCTION, &capture_content_range);
+        curl_easy_setopt(handle, CURLOPT_HEADERDATA, state.get());
         curl_easy_setopt(handle, CURLOPT_PRIVATE, state.get());
         const auto add_result = curl_multi_add_handle(multi.get(), handle);
         if (add_result != CURLM_OK) {
@@ -437,7 +471,7 @@ bool retryable_transfer_error(const Error& error) {
 }
 
 Result<std::uint64_t> download_range_to_writer(
-    const std::string& url, const ByteRange& range, CrashSafeFileWriter& writer,
+    const std::string& url, const ByteRange& range, std::uint64_t totalBytes, CrashSafeFileWriter& writer,
     const DownloadOptions& options) {
     if (range.end < range.start)
         return std::unexpected(make_error("invalid_range", "Range end must not be before range start"));
@@ -446,11 +480,14 @@ Result<std::uint64_t> download_range_to_writer(
     SegmentTransfer transfer;
     transfer.writer = &writer;
     transfer.range = range;
+    transfer.total_bytes = totalBytes;
     configure_common(handle.get(), url, options.connect_timeout_ms, options.transfer_timeout_ms, options.cancel_requested);
     const std::string range_spec = std::to_string(range.start) + "-" + std::to_string(range.end);
     curl_easy_setopt(handle.get(), CURLOPT_RANGE, range_spec.c_str());
     curl_easy_setopt(handle.get(), CURLOPT_WRITEFUNCTION, &write_segment);
     curl_easy_setopt(handle.get(), CURLOPT_WRITEDATA, &transfer);
+    curl_easy_setopt(handle.get(), CURLOPT_HEADERFUNCTION, &capture_content_range);
+    curl_easy_setopt(handle.get(), CURLOPT_HEADERDATA, &transfer);
     const CURLcode result = curl_easy_perform(handle.get());
     if (result != CURLE_OK) {
         return std::unexpected(make_error(options.cancel_requested && options.cancel_requested->load(std::memory_order_relaxed)
@@ -460,6 +497,8 @@ Result<std::uint64_t> download_range_to_writer(
     curl_easy_getinfo(handle.get(), CURLINFO_RESPONSE_CODE, &status);
     if (status != 206)
         return std::unexpected(make_error("range_recovery", "Server did not honor recovery range request (HTTP " + std::to_string(status) + ")"));
+    if (!valid_content_range(transfer))
+        return std::unexpected(make_error("range_recovery", "Recovery Content-Range did not match the requested interval"));
     if (transfer.received != range.size())
         return std::unexpected(make_error("range_recovery", "Recovery range response was incomplete"));
     return transfer.received;

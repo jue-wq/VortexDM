@@ -40,7 +40,7 @@ struct DownloadOptions {
 
 [[nodiscard]] Result<RemoteFileInfo> probe_url(const std::string& url);
 [[nodiscard]] Result<std::uint64_t> download_range_to_writer(
-    const std::string& url, const ByteRange& range, CrashSafeFileWriter& writer,
+    const std::string& url, const ByteRange& range, std::uint64_t totalBytes, CrashSafeFileWriter& writer,
     const DownloadOptions& options = {});
 [[nodiscard]] Result<void> download_file(
     const std::string& url,
