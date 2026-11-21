@@ -441,11 +441,14 @@ Result<void> download_ranges(
         return download_sequential(url, destination, options, info.total_bytes);
     }
     if (!failure.empty()) {
+        const bool cancelled = options.cancel_requested && options.cancel_requested->load(std::memory_order_relaxed);
         writer.close();
-        std::error_code ignored;
-        std::filesystem::remove(destination, ignored);
-        if (options.progress_callback) options.progress_callback(0U, info.total_bytes);
-        return std::unexpected(make_error(options.cancel_requested && options.cancel_requested->load(std::memory_order_relaxed) ? "download_cancelled" : checkpoint_failed ? "segment_checkpoint" : "range_download", failure));
+        if (!cancelled) {
+            std::error_code ignored;
+            std::filesystem::remove(destination, ignored);
+            if (options.progress_callback) options.progress_callback(0U, info.total_bytes);
+        }
+        return std::unexpected(make_error(cancelled ? "download_cancelled" : checkpoint_failed ? "segment_checkpoint" : "range_download", failure));
     }
     return writer.flush();
 }
