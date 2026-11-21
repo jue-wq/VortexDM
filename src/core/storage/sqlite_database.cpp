@@ -120,10 +120,6 @@ Status SqliteDatabase::migrate() {
         (void)execute("ROLLBACK;");
         return status;
     }
-    if (!status) {
-        (void)execute("ROLLBACK;");
-        return status;
-    }
     status = execute(
         "CREATE TABLE IF NOT EXISTS download_segments ("
         "download_id INTEGER NOT NULL REFERENCES downloads(id) ON DELETE CASCADE,"
