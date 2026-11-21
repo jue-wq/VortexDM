@@ -9,6 +9,9 @@
 
 namespace vortex {
 
+// Only a syntactically valid, non-weak entity-tag is safe for If-Range.
+[[nodiscard]] bool is_strong_etag(std::string_view value) noexcept;
+
 struct HttpResponseHeaders final {
     int status_code{};
     std::optional<std::uint64_t> content_length;
