@@ -54,19 +54,22 @@ Status RangeDownloadCoordinator::transfer(
     const std::string_view url, const std::uint64_t total_size,
     const std::uint64_t chunk_size, OffsetFileWriter& writer,
     const RangeRequestExecutor& executor, const RangeTransferOptions& options,
-    const std::stop_token stop_token
+    const std::stop_token stop_token, SegmentCheckpointManager* checkpoint_manager,
+    const std::int64_t download_id, const std::int64_t updated_at_unix
 ) {
     if (url.empty() || total_size == 0 ||
         total_size > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()) ||
         chunk_size == 0 || chunk_size > maximum_staged_bytes || !executor ||
         options.base_retry_delay.count() < 0 ||
-        options.maximum_retry_delay.count() < 0 ||\n        (checkpoint_manager != nullptr && download_id <= 0)) {
+        options.maximum_retry_delay.count() < 0 ||
+        (checkpoint_manager != nullptr && download_id <= 0)) {
         return std::unexpected(VortexError::make(
             ErrorCode::invalid_argument, "Invalid ranged download parameters"));
     }
 
     const auto& waiter = options.wait_before_retry;
     std::uint64_t offset = 0;
+    std::int32_t segment_index = 0;
     while (offset < total_size) {
         if (stop_token.stop_requested()) {
             return std::unexpected(VortexError::make(
@@ -150,8 +153,21 @@ Status RangeDownloadCoordinator::transfer(
                 "Server returned an invalid or incomplete byte-range response"));
         }
 
-        const auto written = writer.write_at(offset, staged);
-        if (!written) return written;
+        if (checkpoint_manager != nullptr) {
+            if (segment_index == std::numeric_limits<std::int32_t>::max()) {
+                return std::unexpected(VortexError::make(
+                    ErrorCode::invalid_argument, "Too many checkpointed range segments"));
+            }
+            const auto digest = CryptoUtils::sha256_bytes(staged);
+            if (!digest) return std::unexpected(digest.error());
+            const auto committed = checkpoint_manager->commit_segment(
+                download_id, segment_index, offset, staged, *digest, updated_at_unix);
+            if (!committed) return committed;
+            ++segment_index;
+        } else {
+            const auto written = writer.write_at(offset, staged);
+            if (!written) return written;
+        }
         offset += length;
     }
 

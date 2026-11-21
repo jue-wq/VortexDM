@@ -38,7 +38,9 @@ public:
         std::uint64_t chunk_size, OffsetFileWriter& writer,
         const RangeRequestExecutor& executor = &HttpClient::perform,
         const RangeTransferOptions& options = {},
-        std::stop_token stop_token = {}
+        std::stop_token stop_token = {},
+        SegmentCheckpointManager* checkpoint_manager = nullptr,
+        std::int64_t download_id = 0, std::int64_t updated_at_unix = 0
     );
 };
 
