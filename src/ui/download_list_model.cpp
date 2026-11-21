@@ -117,7 +117,9 @@ void DownloadListModel::refresh() {
         QVariantList next_queues;
         for (const auto& queue : *available)
             next_queues.push_back(QVariantMap{{"id",QString::fromStdString(queue.id)},{"name",QString::fromStdString(queue.name)}});
-        queues_ = std::move(next_queues);
-        emit queuesChanged();
+        if (queues_ != next_queues) {
+            queues_ = std::move(next_queues);
+            emit queuesChanged();
+        }
     }
 }
