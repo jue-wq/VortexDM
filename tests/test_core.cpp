@@ -512,6 +512,16 @@ bool test_sqlite_migrations_and_segment_journal() {
     if (!journal || journal->size() != 1U || journal->front().downloaded_bytes != 512U ||
         journal->front().status != "Downloading") return false;
 
+    const auto default_queues = repository.list_queues();
+    if (!default_queues || default_queues->size()!=1U || default_queues->front().id!="default") return false;
+    vortex::QueueRecord custom_queue;
+    custom_queue.id = "queue-test";
+    custom_queue.name = "Test queue";
+    custom_queue.max_concurrent = 4U;
+    if (!repository.save_queue(custom_queue)) return false;
+    const auto queues = repository.list_queues();
+    if (!queues || queues->size()!=2U) return false;
+
     vortex::YtDlpProfileRecord profile;
     profile.id = "yt-dlp-official";
     profile.name = "Official yt-dlp releases";
