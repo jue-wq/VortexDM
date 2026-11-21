@@ -96,7 +96,7 @@ bool test_hls_and_dash_manifests() {
   <AdaptationSet mimeType="video/mp4" codecs="avc1">
    <Representation id="template" bandwidth="1000000" width="1280" height="720">
     <BaseURL>https://cdn.example/template/</BaseURL>
-    <SegmentTemplate timescale="1000" duration="4000" startNumber="5" media="chunk-$Number$.m4s" initialization="init.mp4"/>
+    <SegmentTemplate timescale="1000" duration="4000" startNumber="5" media="chunk-$Number$.m4s" initialization="init.mp4"><SegmentTimeline><S t="0" d="4000" r="2"/></SegmentTimeline></SegmentTemplate>
    </Representation>
   </AdaptationSet>
   <AdaptationSet mimeType="audio/mp4">
@@ -117,7 +117,8 @@ bool test_hls_and_dash_manifests() {
     if (!parsed_dash || parsed_dash->dynamic || parsed_dash->representations.size()!=3U) return false;
     const auto& templ = parsed_dash->representations[0];
     if (!templ.segment_template || templ.segment_template->start_number!=5U ||
-        templ.segment_template->duration!=4000U || templ.id!="template") return false;
+        templ.segment_template->duration!=4000U || templ.segment_template->timeline.size()!=1U ||
+        templ.segment_template->timeline.front().repeat!=2 || templ.id!="template") return false;
     const auto& list = parsed_dash->representations[1];
     if (list.segment_urls.size()!=2U || !list.initialization_url ||
         *list.initialization_url!="https://cdn.example/list/init-audio.mp4") return false;
