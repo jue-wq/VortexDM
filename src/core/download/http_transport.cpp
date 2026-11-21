@@ -30,7 +30,7 @@ CurlGlobal& curl_global() {
 struct TransferContext final {
     const HttpBodySink* sink{};
     std::vector<std::string> header_lines;
-    std::string callback_error;
+    const char* callback_error{};
     std::size_t body_bytes{};
     bool sink_failed{};
 };
@@ -103,7 +103,8 @@ Result<HttpTransferResponse> HttpTransport::get(
             ErrorCode::network_error, "Unable to create libcurl handle"));
     }
 
-    TransferContext context{&sink};
+    TransferContext context{};
+    context.sink = &sink;
     const std::string url_copy(url);
     const auto set = [&](const CURLoption option, const auto value) {
         return curl_easy_setopt(handle.get(), option, value) == CURLE_OK;
@@ -120,7 +121,7 @@ Result<HttpTransferResponse> HttpTransport::get(
         set(CURLOPT_SSL_VERIFYPEER, 1L) &&
         set(CURLOPT_SSL_VERIFYHOST, 2L) &&
         set(CURLOPT_PROTOCOLS_STR, "http,https") &&
-        set(CURLOPT_REDIR_PROTOCOLS_STR, "http,https") &&
+        set(CURLOPT_REDIR_PROTOCOLS_STR, "https") &&
         set(CURLOPT_USERAGENT, options.user_agent.c_str()) &&
         set(CURLOPT_WRITEFUNCTION, &receive_body) &&
         set(CURLOPT_WRITEDATA, &context) &&
