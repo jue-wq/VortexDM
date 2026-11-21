@@ -97,6 +97,10 @@ TEST_CASE("SQLite native request IDs make enqueue durable and idempotent") {
     REQUIRE(replay);
     CHECK(*replay == *first);
 
+    auto conflicting_replay = record;
+    conflicting_replay.url = "https://attacker.example/other.bin";
+    CHECK_FALSE(database.enqueue_download_once("native-request-001", conflicting_replay).has_value());
+
     const auto rows = database.list_downloads();
     REQUIRE(rows);
     CHECK(rows->size() == 1);
