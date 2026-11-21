@@ -2,9 +2,10 @@
 
 - Project: VortexDM (C++23)
 - Status: **IN_PROGRESS**
-- Current phase: **Phase 1 — build foundation and shared contract**
-- Last checkpoint: baseline implementation committed; CI/platform verification pending.
-- Rule: do not mark a phase DONE until its Definition of Done is evidenced in `progress.json` and CI.
-- Next action: execute clean Windows/Linux/macOS builds, fix compiler/test failures, then complete Phase 1 and deepen Phase 2.
+- Current phase: **Phase 1 — C++23 foundation and platform build matrix**
+- Supported targets: Windows 10/11, Linux and Android 9+ arm64-v8a. **macOS removed.**
+- Latest platform correction: Android arm64 preset and CI build added; desktop Native Messaging host excluded from Android.
+- Not yet verified: Android cross-build and desktop CI must pass before Phase 1 completion. No phase is marked DONE.
+- Next action: validate Windows/Linux/Android builds, then continue reliable persistence and crash recovery.
 
-The machine-readable source of truth is `../progress.json`. The check script rejects invalid statuses and DONE phases without all checks and evidence.
+The machine-readable source of truth is `../progress.json`; run `python tools/check_progress.py` before updating phase status. See `PLATFORM_SUPPORT.md`.

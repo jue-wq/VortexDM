@@ -1,13 +1,16 @@
 cmake_minimum_required(VERSION 3.25)
 project(VortexDM VERSION 0.1.0 LANGUAGES CXX)
+
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-option(VORTEX_BUILD_UI "Build the optional Qt 6 desktop UI" OFF)
+option(VORTEX_BUILD_UI "Build the optional Qt 6 desktop/Android UI" OFF)
 option(VORTEX_BUILD_TESTS "Build unit tests" ON)
+
 find_package(CURL REQUIRED)
 find_package(SQLite3 REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
+
 add_library(vortex_core
   src/core/src/url.cpp
   src/core/src/task.cpp
@@ -22,18 +25,29 @@ if(MSVC)
 else()
   target_compile_options(vortex_core PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Wshadow)
 endif()
+
 add_executable(vortex-cli src/cli/main.cpp)
 target_link_libraries(vortex-cli PRIVATE vortex_core)
-add_executable(vortex-native-host src/native_host/main.cpp)
-target_link_libraries(vortex-native-host PRIVATE vortex_core)
+
+# Native Messaging hosts are desktop executables. Android Firefox uses the opt-in loopback bridge instead.
+if(NOT ANDROID)
+  add_executable(vortex-native-host src/native_host/main.cpp)
+  target_link_libraries(vortex-native-host PRIVATE vortex_core)
+endif()
+
 if(VORTEX_BUILD_UI)
-  find_package(Qt6 6.5 REQUIRED COMPONENTS Quick)
+  find_package(Qt6 6.8 REQUIRED COMPONENTS Quick)
   qt_standard_project_setup()
   qt_add_executable(vortexdm src/ui/main.cpp)
   qt_add_qml_module(vortexdm URI VortexDM VERSION 1.0 QML_FILES src/ui/Main.qml)
   target_link_libraries(vortexdm PRIVATE Qt6::Quick vortex_core)
+  if(ANDROID)
+    set_property(TARGET vortexdm PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/android")
+    set_property(TARGET vortexdm PROPERTY QT_ANDROID_MIN_SDK_VERSION 28)
+  endif()
 endif()
-if(VORTEX_BUILD_TESTS)
+
+if(VORTEX_BUILD_TESTS AND NOT ANDROID)
   enable_testing()
   add_subdirectory(tests)
 endif()

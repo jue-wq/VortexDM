@@ -1,17 +1,18 @@
 # Phase checklist
 
-A checked item means code exists and has been reviewed; a phase is not complete until its Definition of Done has CI evidence in `progress.json`.
+A checked item describes an implemented/reviewed artifact; a phase is complete only when its Definition of Done and CI evidence exist.
 
-## Phase 1 — CMake, C++23 foundation and protocol
+## Phase 1 — C++23 foundation and platform build matrix
 - [x] Repository layout, CMake presets and vcpkg manifest
-- [x] Shared IPC v1 contract checked in
-- [x] Initial URL validation, task state machine and local tests
-- [ ] Windows, Linux and macOS clean builds verified
-- [ ] Native host handshake/chunk integration tests pass
+- [x] Shared IPC v1 contract
+- [x] Initial URL validation, task state machine and core tests
+- [ ] Clean Windows and Linux builds with warnings enabled
+- [ ] Android arm64 NDK cross-build green
+- [ ] 16-thread crash-safe writer and sanitizer coverage
 
 ## Phase 2 — Persistence and reliable HTTP engine
 - [x] SQLite WAL repository bootstrap
-- [x] HTTP(S) libcurl single-stream download baseline
+- [x] HTTP(S) libcurl single-stream transfer baseline
 - [ ] Transactional task/segment journal and migrations
 - [ ] Range probing, adaptive segmented scheduler and retries
 - [ ] Crash-safe file writer and restart recovery tests
@@ -28,16 +29,18 @@ A checked item means code exists and has been reviewed; a phase is not complete 
 - [ ] ffmpeg stream-copy muxing and subtitle/chapter handling
 - [ ] Composite task integration tests
 
-## Phase 5 — Application services and browser host
-- [x] Native Messaging frame reader/writer baseline
-- [ ] Local-user-only host registration/installers
+## Phase 5 — App services, queues and cross-platform IPC
+- [x] Desktop Native Messaging frame reader baseline
+- [ ] Local-user-only Windows/Linux host registration
+- [ ] Android opt-in loopback IPC server (127.0.0.1 + random API key)
+- [ ] Android foreground service, scoped storage and process-death recovery
 - [ ] Queue/category scheduler and typed application services
 - [ ] Full bidirectional IPC v1 and batch chunk assembler
-- [ ] CLI parity for add/pause/resume/cancel/status
 
-## Phase 6 — Desktop UI, packaging and release
+## Phase 6 — Responsive Qt UI and release
 - [x] Optional Qt 6/QML app shell baseline
-- [ ] Main download list, queue/category models and dialogs
+- [ ] Desktop ABDM-inspired download list, queues and dialogs
+- [ ] Android portrait/landscape layouts, touch controls and back navigation
 - [ ] Theme tokens and settings screens
-- [ ] Signed/reproducible installers and multi-OS release artifacts
+- [ ] Windows installer, Linux packages and Android APK/AAB
 - [ ] SLO benchmarks and final acceptance suite
