@@ -272,3 +272,63 @@ TEST_CASE("Download task controller persists lifecycle and signals cancellation"
     CHECK(rows->front().state == vortex::DownloadState::completed);
     CHECK(rows->front().downloaded_bytes == 100);
 }
+
+
+TEST_CASE("Download task controller retries failed tasks with a fresh stop source") {
+    TemporaryDatabase temporary;
+    vortex::SqliteDatabase database;
+    REQUIRE(database.open(temporary.path()).has_value());
+    REQUIRE(database.migrate().has_value());
+
+    vortex::DownloadRecord record;
+    record.url = "https://example.test/retry.bin";
+    record.destination = "retry.bin";
+    record.total_bytes = 200;
+    const auto id = database.insert_download(record);
+    REQUIRE(id);
+
+    vortex::DownloadTaskController controller(database);
+    REQUIRE(controller.start(*id, 10).has_value());
+    const auto first_token = controller.stop_token(*id);
+    REQUIRE(controller.update_progress(*id, 75, 11).has_value());
+    REQUIRE(controller.fail(*id, 12).has_value());
+    CHECK(first_token.stop_requested());
+
+    REQUIRE(controller.retry(*id, 13).has_value());
+    const auto retry_token = controller.stop_token(*id);
+    CHECK_FALSE(retry_token.stop_requested());
+    CHECK_FALSE(controller.retry(*id, 14).has_value());
+    REQUIRE(controller.update_progress(*id, 90, 15).has_value());
+
+    const auto rows = database.list_downloads();
+    REQUIRE(rows);
+    REQUIRE(rows->size() == 1);
+    CHECK(rows->front().state == vortex::DownloadState::running);
+    CHECK(rows->front().downloaded_bytes == 90);
+}
+
+TEST_CASE("Download task controller cancellation stops the active transfer") {
+    TemporaryDatabase temporary;
+    vortex::SqliteDatabase database;
+    REQUIRE(database.open(temporary.path()).has_value());
+    REQUIRE(database.migrate().has_value());
+
+    vortex::DownloadRecord record;
+    record.url = "https://example.test/cancel.bin";
+    record.destination = "cancel.bin";
+    record.total_bytes = 200;
+    const auto id = database.insert_download(record);
+    REQUIRE(id);
+
+    vortex::DownloadTaskController controller(database);
+    REQUIRE(controller.start(*id, 20).has_value());
+    const auto token = controller.stop_token(*id);
+    REQUIRE(controller.cancel(*id, 21).has_value());
+    CHECK(token.stop_requested());
+    CHECK_FALSE(controller.update_progress(*id, 1, 22).has_value());
+
+    const auto rows = database.list_downloads();
+    REQUIRE(rows);
+    REQUIRE(rows->size() == 1);
+    CHECK(rows->front().state == vortex::DownloadState::cancelled);
+}
