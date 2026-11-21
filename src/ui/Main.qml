@@ -132,6 +132,23 @@ ApplicationWindow {
                         text: "No downloads yet"
                         color: "#8B97AD"
                     }
+                    Rectangle {
+                        Layout.fillWidth: true
+                        height: 118
+                        radius: 10
+                        color: "#181D28"
+                        border.color: "#2B3548"
+                        ColumnLayout {
+                            anchors.fill: parent
+                            anchors.margins: 12
+                            Label { text: "Media extraction · yt-dlp"; color: "#E6EDF5"; font.bold: true }
+                            RowLayout {
+                                TextField { id: ytDlpBinary; Layout.fillWidth: true; placeholderText: "Absolute yt-dlp executable path" }
+                                TextField { id: ytDlpPython; Layout.fillWidth: true; placeholderText: "Optional Python path (with yt_dlp installed)" }
+                                Button { text: "Save profile"; onClicked: downloadsModel.configureYtDlp(ytDlpBinary.text, ytDlpPython.text) }
+                            }
+                        }
+                    }
                     Loader {
                         active: Qt.platform.os === "android"
                         Layout.fillWidth: true

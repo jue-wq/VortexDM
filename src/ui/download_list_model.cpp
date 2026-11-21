@@ -60,6 +60,29 @@ bool DownloadListModel::createQueue(const QString& name) {
     return true;
 }
 
+bool DownloadListModel::configureYtDlp(const QString& binaryPath, const QString& pythonPath) {
+    if (!repository_) return false;
+    const auto binary = binaryPath.trimmed().toStdString();
+    const auto python = pythonPath.trimmed().toStdString();
+    if (binary.empty() && python.empty()) return false;
+    std::error_code error;
+    if (!binary.empty() && (!std::filesystem::path(binary).is_absolute() ||
+        !std::filesystem::is_regular_file(binary, error) || error)) return false;
+    error.clear();
+    if (!python.empty() && (!std::filesystem::path(python).is_absolute() ||
+        !std::filesystem::is_regular_file(python, error) || error)) return false;
+    vortex::YtDlpProfileRecord profile;
+    profile.id = "local-active";
+    profile.name = "Local yt-dlp";
+    profile.source_type = "local";
+    profile.local_binary_path = binary;
+    profile.python_path = python;
+    profile.is_active = true;
+    const auto saved = repository_->save_ytdlp_profile(profile);
+    if (!saved) return false;
+    return true;
+}
+
 bool DownloadListModel::addDownload(const QString& input, const QString& queueId) {
     if (!repository_) return false;
     const auto url = input.trimmed().toStdString();

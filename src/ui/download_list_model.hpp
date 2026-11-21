@@ -18,6 +18,7 @@ public:
     [[nodiscard]] int count() const noexcept;
     [[nodiscard]] QVariantList queues() const;
     Q_INVOKABLE bool createQueue(const QString& name);
+    Q_INVOKABLE bool configureYtDlp(const QString& binaryPath, const QString& pythonPath);
     Q_INVOKABLE bool addDownload(const QString& url, const QString& queueId = QString());
     Q_INVOKABLE bool controlTask(const QString& taskId, const QString& action);
     Q_INVOKABLE void refresh();
