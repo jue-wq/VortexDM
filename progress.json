@@ -3,7 +3,7 @@
   "platforms":["windows-x64","linux-x64","android-arm64-v8a"],
   "excluded_platforms":["macos"],
   "phases":[
-    {"id":1,"name":"Foundation and platform build matrix","status":"IN_PROGRESS","checks":{"layout":true,"protocol":true,"baseline_tests":true,"windows_ci":false,"linux_ci":false,"android_arm64_ci":false,"sanitizers":false},"evidence":["Android target added; CI verification pending. Previous desktop CI was blocked before compilation by missing vcpkg baseline, now pinned."]},
+    {"id":1,"name":"Foundation and platform build matrix","status":"IN_PROGRESS","checks":{"layout":true,"protocol":true,"baseline_tests":true,"windows_ci":false,"linux_ci":true,"android_arm64_ci":false,"sanitizers":false},"evidence":["Linux desktop CMake configure/build/test job passed in CI run 44952459886. Android configure failed during FindThreads; Android preset now records Bionic pthread availability and requires rerun. Windows CI remains running."]},
     {"id":2,"name":"Persistence and reliable HTTP engine","status":"IN_PROGRESS","checks":{"sqlite_wal":true,"single_stream_http":true,"migrations":false,"segmented_scheduler":false,"crash_recovery":false},"evidence":["SQLite WAL initialization and libcurl baseline implemented; advanced reliability work pending."]},
     {"id":3,"name":"yt-dlp extraction and toolchain","status":"TODO","checks":{"process_runner":false,"json_extractor":false,"profiles":false,"checksum_rollback":false,"url_refresh":false},"evidence":[]},
     {"id":4,"name":"HLS DASH and muxing","status":"TODO","checks":{"hls":false,"dash":false,"decrypt":false,"muxing":false,"integration_tests":false},"evidence":[]},
