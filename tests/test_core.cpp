@@ -4,6 +4,7 @@
 #include "vortex/sqlite_repository.hpp"
 #include "vortex/segment_scheduler.hpp"
 #include "vortex/task.hpp"
+#include "vortex/process_runner.hpp"
 #include "vortex/url.hpp"
 
 #include <openssl/sha.h>
@@ -68,6 +69,23 @@ std::vector<nlohmann::json> read_frames(const std::string& stream) {
     }
     if (offset != stream.size()) return {};
     return messages;
+}
+
+bool test_process_runner() {
+#ifdef _WIN32
+    const auto executable = std::filesystem::path("C:/Windows/System32/whoami.exe");
+    const auto result = vortex::run_process(executable, {});
+    return result && result->exit_code == 0 && !result->output.empty();
+#else
+    vortex::ProcessOptions limited;
+    limited.max_output_bytes = 4U;
+    const auto output = vortex::run_process("/bin/echo", {"safe; not a shell command"}, limited);
+    if (!output || output->exit_code != 0 || !output->output_truncated || output->output.size() != 4U) return false;
+    vortex::ProcessOptions timeout;
+    timeout.timeout = std::chrono::milliseconds(50);
+    const auto timed = vortex::run_process("/bin/sleep", {"2"}, timeout);
+    return !timed && timed.error().code == "process_timeout";
+#endif
 }
 
 bool test_url_and_state_machine() {
@@ -285,6 +303,10 @@ bool test_sqlite_migrations_and_segment_journal() {
 }
 
 int main() {
+    if (!test_process_runner()) {
+        std::cerr << "Shell-free process runner test failed\\n";
+        return 7;
+    }
     if (!test_url_and_state_machine()) {
         std::cerr << "URL or task state-machine test failed\n";
         return 1;
