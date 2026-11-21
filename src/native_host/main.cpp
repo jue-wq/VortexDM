@@ -73,9 +73,12 @@ int main(const int argc, char** argv) {
         return fail("could not resolve a per-user data directory", 3);
     }
     std::error_code directory_error;
-    std::filesystem::create_directories(database_path->parent_path(), directory_error);
-    if (directory_error) {
-        return fail("could not create the native inbox data directory", 3);
+    const auto database_directory = database_path->parent_path();
+    if (!database_directory.empty()) {
+        std::filesystem::create_directories(database_directory, directory_error);
+        if (directory_error) {
+            return fail("could not create the native inbox data directory", 3);
+        }
     }
 
     vortex::SqliteDatabase database;
