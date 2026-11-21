@@ -117,7 +117,8 @@ Result<HttpTransferResponse> HttpTransport::get(
         options.user_agent.empty() ||
         (options.range.has_value() != options.expected_total_size.has_value()) ||
         (options.expected_total_size && *options.expected_total_size == 0) ||
-        (options.range && options.expected_total_size &&\n         options.range->last >= *options.expected_total_size) ||
+        (options.range && options.expected_total_size &&
+         options.range->last >= *options.expected_total_size) ||
         (options.range && (options.range->first > options.range->last ||
                            options.range->last == UINT64_MAX)) ||
         (options.if_range && (options.if_range->empty() ||
