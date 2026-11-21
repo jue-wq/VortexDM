@@ -423,12 +423,14 @@ Result<RemoteFileInfo> probe_url(const std::string& url) {
 namespace {
 bool retryable_transfer_error(const Error& error) {
     if (error.code == "network_error" || error.code == "probe_failed" ||
-        error.code == "range_download" || error.code == "curl_multi_init" ||
-        error.code == "curl_multi_add") return true;
-    if (error.code != "http_error") return false;
-    return error.message.find("HTTP 5") != std::string::npos ||
-        error.message.find("HTTP 408") != std::string::npos ||
-        error.message.find("HTTP 429") != std::string::npos;
+        error.code == "curl_multi_init" || error.code == "curl_multi_add") return true;
+    if (error.code == "range_download" || error.code == "http_error") {
+        const bool client_error = error.message.find("HTTP 4") != std::string::npos;
+        if (client_error) return error.message.find("HTTP 408") != std::string::npos ||
+            error.message.find("HTTP 429") != std::string::npos;
+        return error.message.find("HTTP 5") != std::string::npos || error.code == "range_download";
+    }
+    return false;
 }
 }
 
@@ -464,7 +466,8 @@ Result<void> download_file(
         if (options.progress_callback) options.progress_callback(0U, 0U);
         const auto exponent = std::min<std::size_t>(attempt, 6U);
         const std::uint64_t multiplier = std::uint64_t{1} << exponent;
-        const std::uint64_t delay = std::min<std::uint64_t>(options.retry_backoff_ms * multiplier, 30000U);
+        const std::uint64_t delay = options.retry_backoff_ms > 30000U / multiplier
+            ? 30000U : std::min<std::uint64_t>(options.retry_backoff_ms * multiplier, 30000U);
         std::this_thread::sleep_for(std::chrono::milliseconds(delay));
     }
     return std::unexpected(last_error);
