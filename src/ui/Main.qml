@@ -44,23 +44,75 @@ ApplicationWindow {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 color: "#0E1117"
-                Column {
-                    anchors.centerIn: parent
-                    spacing: 8
-                    Label { anchors.horizontalCenter: parent.horizontalCenter; text: "Your downloads will appear here"; color: "#E6EDF5"; font.pixelSize: 20 }
-                    Label { anchors.horizontalCenter: parent.horizontalCenter; text: "The download workspace is being implemented in phases."; color: "#8B97AD" }
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 22
+                    spacing: 14
+                    RowLayout {
+                        Layout.fillWidth: true
+                        TextField {
+                            id: downloadUrl
+                            Layout.fillWidth: true
+                            placeholderText: "Paste an HTTP or HTTPS download URL"
+                        }
+                        Button {
+                            text: "Add download"
+                            onClicked: {
+                                if (downloadsModel.addDownload(downloadUrl.text)) downloadUrl.clear()
+                            }
+                        }
+                    }
+                    Label { text: "Downloads · " + downloadsModel.count; color: "#E6EDF5"; font.pixelSize: 19; font.bold: true }
+                    ListView {
+                        id: downloadList
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        model: downloadsModel
+                        clip: true
+                        spacing: 8
+                        delegate: Rectangle {
+                            required property string filename
+                            required property string status
+                            required property string url
+                            width: downloadList.width
+                            height: 72
+                            radius: 8
+                            color: "#181D28"
+                            border.color: "#242B3B"
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.margins: 12
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    Label { text: filename; color: "#E6EDF5"; font.bold: true; elide: Text.ElideRight; Layout.fillWidth: true }
+                                    Label { text: url; color: "#8B97AD"; font.pixelSize: 11; elide: Text.ElideMiddle; Layout.fillWidth: true }
+                                }
+                                Label {
+                                    text: status
+                                    color: status === "Completed" ? "#22C55E" : status === "Error" ? "#EF4444" : "#4F8CFF"
+                                }
+                            }
+                        }
+                        Label {
+                            anchors.centerIn: parent
+                            visible: downloadsModel.count === 0
+                            text: "No downloads yet"
+                            color: "#8B97AD"
+                        }
+                    }
                     Loader {
                         active: Qt.platform.os === "android"
+                        Layout.fillWidth: true
                         sourceComponent: Component {
                             Rectangle {
-                                width: 520
-                                height: 190
+                                Layout.fillWidth: true
+                                height: 174
                                 radius: 10
                                 color: "#181D28"
                                 border.color: "#2B3548"
                                 ColumnLayout {
                                     anchors.fill: parent
-                                    anchors.margins: 16
+                                    anchors.margins: 14
                                     Label { text: "Android Browser Bridge"; color: "#E6EDF5"; font.bold: true; font.pixelSize: 16 }
                                     Label { text: bridgeServer.running ? "Listening on 127.0.0.1:" + bridgeServer.port : "Loopback server unavailable"; color: bridgeServer.running ? "#22C55E" : "#EF4444" }
                                     Label { text: "One-time API key (copy into Firefox add-on settings)"; color: "#8B97AD" }
