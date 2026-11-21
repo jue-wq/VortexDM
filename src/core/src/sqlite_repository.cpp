@@ -231,6 +231,21 @@ Result<void> SqliteRepository::migrate() {
         }
     }
 
+    if (current_version < 2) {
+        auto default_queue = execute(
+            "INSERT OR IGNORE INTO queues(id,name,max_concurrent,is_active) "
+            "VALUES('default','Default',3,1);");
+        if (!default_queue) {
+            rollback();
+            return default_queue;
+        }
+        auto insert_version = execute("INSERT INTO schema_migrations(version) VALUES(2);");
+        if (!insert_version) {
+            rollback();
+            return insert_version;
+        }
+    }
+
     auto commit = execute("COMMIT;");
     if (!commit) {
         rollback();
