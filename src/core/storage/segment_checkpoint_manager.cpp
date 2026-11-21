@@ -3,6 +3,7 @@
 #include "core/common/crypto_utils.hpp"
 
 #include <limits>
+#include <utility>
 
 namespace vortex {
 namespace {

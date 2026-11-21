@@ -46,10 +46,6 @@ TEST_CASE("Segment checkpoint is recorded only after durable write and digest ve
     REQUIRE(writer.open(path, 8).has_value());
     vortex::SegmentCheckpointManager manager(writer, database, path);
     const std::array bytes{std::byte{'a'}, std::byte{'b'}, std::byte{'c'}};
-    const auto digest = vortex::CryptoUtils::sha256_file_range(path, 0, 0);
-    REQUIRE(digest);
-    const auto expected = vortex::CryptoUtils::sha256_file_range;
-    (void)expected;
     const std::string sha = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
     REQUIRE(manager.commit_segment(*id, 0, 0, bytes, sha, 10).has_value());
     const auto checkpoints = database.list_segment_checkpoints(*id);
