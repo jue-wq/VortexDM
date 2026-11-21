@@ -342,10 +342,19 @@ Status SqliteDatabase::mark_native_request_imported(const std::string_view reque
     sqlite3_bind_text(statement.get(), 1, request_id.data(),
                       static_cast<int>(request_id.size()), SQLITE_TRANSIENT);
     if (sqlite3_step(statement.get()) != SQLITE_DONE) return std::unexpected(database_error("Mark native request imported"));
-    if (sqlite3_changes(db_) == 0) return std::unexpected(VortexError::make(
+    if (sqlite3_changes(db_) != 0) return {};
+
+    Statement verify(db_,
+        "SELECT 1 FROM native_request_delivery WHERE request_id=?;");
+    if (verify.result() != SQLITE_OK) return std::unexpected(database_error("Prepare native delivery verification"));
+    sqlite3_bind_text(verify.get(), 1, request_id.data(),
+                      static_cast<int>(request_id.size()), SQLITE_TRANSIENT);
+    const int verify_rc = sqlite3_step(verify.get());
+    if (verify_rc == SQLITE_ROW) return {}; // Another importer already committed the delivery mark.
+    if (verify_rc != SQLITE_DONE) return std::unexpected(database_error("Verify native request delivery"));
+    return std::unexpected(VortexError::make(
         ErrorCode::invalid_argument, "Native request does not exist"
     ));
-    return {};
 }
 
 Status SqliteDatabase::update_download_progress(
