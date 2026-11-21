@@ -1,4 +1,5 @@
 #include "core/storage/sqlite_database.hpp"
+#include "core/download/download_task_controller.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -234,4 +235,40 @@ TEST_CASE("SQLite enforces legal download state transitions") {
     REQUIRE(rows->size() == 1);
     CHECK(rows->front().state == vortex::DownloadState::paused);
     CHECK(rows->front().downloaded_bytes == 25);
+}
+
+
+TEST_CASE("Download task controller persists lifecycle and signals cancellation") {
+    TemporaryDatabase temporary;
+    vortex::SqliteDatabase database;
+    REQUIRE(database.open(temporary.path()).has_value());
+    REQUIRE(database.migrate().has_value());
+
+    vortex::DownloadRecord record;
+    record.url = "https://example.test/task.bin";
+    record.destination = "task.bin";
+    record.total_bytes = 100;
+    const auto id = database.insert_download(record);
+    REQUIRE(id);
+
+    vortex::DownloadTaskController controller(database);
+    REQUIRE(controller.start(*id, 1).has_value());
+    auto token = controller.stop_token(*id);
+    CHECK_FALSE(token.stop_requested());
+    REQUIRE(controller.update_progress(*id, 40, 2).has_value());
+    REQUIRE(controller.pause(*id, 3).has_value());
+    CHECK(token.stop_requested());
+    CHECK_FALSE(controller.update_progress(*id, 50, 4).has_value());
+
+    REQUIRE(controller.resume(*id, 5).has_value());
+    CHECK_FALSE(controller.stop_token(*id).stop_requested());
+    REQUIRE(controller.update_progress(*id, 100, 6).has_value());
+    REQUIRE(controller.complete(*id, 7).has_value());
+    CHECK_FALSE(controller.resume(*id, 8).has_value());
+
+    const auto rows = database.list_downloads();
+    REQUIRE(rows);
+    REQUIRE(rows->size() == 1);
+    CHECK(rows->front().state == vortex::DownloadState::completed);
+    CHECK(rows->front().downloaded_bytes == 100);
 }
