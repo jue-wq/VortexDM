@@ -499,6 +499,7 @@ Result<std::optional<DownloadRecord>> SqliteRepository::claim_next_queued_downlo
     record.downloaded_bytes=static_cast<std::uint64_t>(sqlite3_column_int64(statement.get(),8));
     record.etag=text_column(9);record.last_modified=text_column(10);record.headers_json=text_column(11);
     record.extractor_origin_url=text_column(12);record.video_format_id=text_column(13);record.audio_format_id=text_column(14);
+    (void)sqlite3_reset(statement.get());
     Statement claim(db_, "UPDATE downloads SET status='Downloading' WHERE id=? AND status='Queued';");
     if (!claim.valid()) {
         (void)execute("ROLLBACK;");
