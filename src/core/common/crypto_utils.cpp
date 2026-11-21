@@ -86,7 +86,7 @@ Result<std::string> CryptoUtils::sha256_bytes(const std::span<const std::byte> d
         ));
     }
     constexpr char hex[] = "0123456789abcdef";
-    std::string output(static_cast<std::size_t>(digest_size) * 2, '\\0');
+    std::string output(static_cast<std::size_t>(digest_size) * 2, '\0');
     for (std::size_t i = 0; i < static_cast<std::size_t>(digest_size); ++i) {
         output[i * 2] = hex[digest[i] >> 4];
         output[i * 2 + 1] = hex[digest[i] & 0x0f];
