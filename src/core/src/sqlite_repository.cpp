@@ -389,7 +389,7 @@ Result<std::optional<StreamRecord>> SqliteRepository::get_stream_for_download(co
     if(db_==nullptr)return std::unexpected(make_error("sqlite_open",open_error_));
     Statement statement(db_,R"SQL(
       SELECT id,download_id,stream_role,url,temp_path,total_bytes,downloaded_bytes,protocol,format_id,headers_json,status
-      FROM streams WHERE download_id=? ORDER BY stream_role LIMIT 1;
+      FROM download_streams WHERE download_id=? ORDER BY stream_role LIMIT 1;
     )SQL");
     if(!statement.valid())return std::unexpected(database_error(db_,"sqlite_prepare","Could not prepare stream lookup"));
     auto bound=bind_text(statement.get(),1,download_id);if(!bound)return std::unexpected(bound.error());
