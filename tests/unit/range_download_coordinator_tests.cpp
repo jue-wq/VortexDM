@@ -220,3 +220,58 @@ TEST_CASE("Range coordinator durably checkpoints each validated segment") {
     std::filesystem::remove(database_path + "-wal", ignored);
     std::filesystem::remove(database_path + "-shm", ignored);
 }
+
+TEST_CASE("Range coordinator resumes by skipping verified checkpointed ranges") {
+    const auto path = temporary_path();
+    const auto database_path = path.string() + ".sqlite";
+    vortex::SqliteDatabase database;
+    REQUIRE(database.open(database_path).has_value());
+    REQUIRE(database.migrate().has_value());
+    vortex::DownloadRecord record;
+    record.url = "https://example.test/resume.bin";
+    record.destination = path.string();
+    record.total_bytes = 6;
+    const auto id = database.insert_download(record);
+    REQUIRE(id);
+    vortex::OffsetFileWriter writer;
+    REQUIRE(writer.open(path, 6).has_value());
+    vortex::SegmentCheckpointManager manager(writer, database, path);
+    const std::array first{std::byte{'a'}, std::byte{'b'}, std::byte{'c'}};
+    const std::string first_sha =
+        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+    REQUIRE(manager.commit_segment(*id, 0, 0, first, first_sha, 10).has_value());
+
+    std::size_t requests = 0;
+    const std::array second{std::byte{'d'}, std::byte{'e'}, std::byte{'f'}};
+    const vortex::RangeRequestExecutor executor =
+        [&requests, &second](const vortex::HttpRequest& request,
+                             const vortex::HttpBodySink& sink, std::stop_token) {
+            ++requests;
+            REQUIRE(request.range.has_value());
+            CHECK(request.range->first == 3);
+            CHECK(request.range->last == 5);
+            REQUIRE(sink(second));
+            vortex::HttpResponse response;
+            response.status_code = 206;
+            response.headers["content-range"] = "bytes 3-5/6";
+            response.headers["content-length"] = "3";
+            response.bytes_received = 3;
+            return vortex::Result<vortex::HttpResponse>{std::move(response)};
+        };
+    REQUIRE(vortex::RangeDownloadCoordinator::transfer(
+        "https://example.test/resume.bin", 6, 3, writer, executor, {}, {},
+        &manager, *id, 11).has_value());
+    CHECK(requests == 1);
+    const auto checkpoints = manager.list_checkpoints(*id);
+    REQUIRE(checkpoints);
+    REQUIRE(checkpoints->size() == 2);
+    CHECK(checkpoints->at(0).segment_index == 0);
+    CHECK(checkpoints->at(1).segment_index == 1);
+    REQUIRE(writer.close());
+    REQUIRE(database.close().has_value());
+    std::error_code ignored;
+    std::filesystem::remove(path, ignored);
+    std::filesystem::remove(database_path, ignored);
+    std::filesystem::remove(database_path + "-wal", ignored);
+    std::filesystem::remove(database_path + "-shm", ignored);
+}
