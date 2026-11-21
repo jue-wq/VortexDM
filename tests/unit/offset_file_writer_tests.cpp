@@ -36,6 +36,7 @@ TEST_CASE("Offset writer writes disjoint ranges at requested offsets") {
     CHECK(content.size() == 8);
     CHECK(content.substr(0, 2) == "AB");
     CHECK(content.substr(6, 2) == "GH");
+    input.close();
     std::filesystem::remove(path);
 }
 
@@ -80,5 +81,6 @@ TEST_CASE("Offset writer safely serializes concurrent disjoint segment writes") 
         CHECK(content.substr(segment * segment_size, segment_size) ==
               std::string(segment_size, expected));
     }
+    input.close();
     std::filesystem::remove(path);
 }

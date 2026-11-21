@@ -61,6 +61,7 @@ TEST_CASE("Range coordinator validates each response before committing bytes") {
     std::array<char, 10> actual{};
     input.read(actual.data(), static_cast<std::streamsize>(actual.size()));
     CHECK(std::string(actual.data(), actual.size()) == "0123456789");
+    input.close();
     std::filesystem::remove(path);
 }
 
