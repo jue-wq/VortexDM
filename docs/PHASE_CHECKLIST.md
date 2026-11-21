@@ -17,8 +17,9 @@ A checked item describes an implemented/reviewed artifact; a phase is complete o
 - [x] Downloads, download_streams, segments, queues, categories, ytdlp_profiles and settings tables
 - [x] Download/stream/segment upsert APIs and segment checkpoint persistence
 - [x] Repository migration and checkpoint unit test baseline
-- [x] HTTP HEAD + Range 0-0 fallback probe and parallel byte-range transfer engine\n- [x] Bounded segment scheduler and tail work-stealing primitive\n- [ ] Adaptive retry/backoff policy integrated into active transfers
-- [ ] Segment journal recovery after forced process termination
+- [x] HTTP HEAD + Range 0-0 fallback probe and parallel byte-range transfer engine\n- [x] Bounded segment scheduler and tail work-stealing primitive\n- [x] Bounded exponential retry/backoff integrated into probe and active transfer attempts
+- [ ] Full segment journal recovery coordinator after forced process termination
+- [x] Recovery primitives: reopen existing partial file without truncation and query persisted segment checkpoints
 - [ ] Crash-safe writer + SQLite commit ordering end-to-end test
 
 ## Phase 3 — yt-dlp extraction and toolchain
