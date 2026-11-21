@@ -63,6 +63,7 @@ public:
     [[nodiscard]] Result<void> save_download(const DownloadRecord& record);
     [[nodiscard]] Result<void> save_stream(const StreamRecord& record);
     [[nodiscard]] Result<void> save_segment_checkpoint(const SegmentRecord& record);
+    [[nodiscard]] Result<std::vector<SegmentRecord>> list_segments(const std::string& stream_id);
     [[nodiscard]] Result<std::vector<DownloadRecord>> list_downloads();
     [[nodiscard]] Result<std::uint64_t> schema_version();
 

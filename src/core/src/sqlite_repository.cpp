@@ -371,6 +371,34 @@ Result<void> SqliteRepository::save_segment_checkpoint(const SegmentRecord& reco
     return {};
 }
 
+Result<std::vector<SegmentRecord>> SqliteRepository::list_segments(const std::string& stream_id) {
+    if (db_ == nullptr) return std::unexpected(make_error("sqlite_open", open_error_));
+    if (stream_id.empty()) return std::unexpected(make_error("invalid_stream", "Stream id is required"));
+    Statement statement(db_, R"SQL(
+      SELECT stream_id, segment_index, start_offset, end_offset, downloaded_bytes, status
+      FROM segments WHERE stream_id=? ORDER BY segment_index;
+    )SQL");
+    if (!statement.valid()) return std::unexpected(database_error(db_, "sqlite_prepare", "Could not prepare segment recovery query"));
+    auto bound = bind_text(statement.get(), 1, stream_id);
+    if (!bound) return std::unexpected(bound.error());
+    std::vector<SegmentRecord> records;
+    int rc = SQLITE_OK;
+    while ((rc = sqlite3_step(statement.get())) == SQLITE_ROW) {
+        const auto* stream = reinterpret_cast<const char*>(sqlite3_column_text(statement.get(), 0));
+        const auto* status = reinterpret_cast<const char*>(sqlite3_column_text(statement.get(), 5));
+        SegmentRecord record;
+        record.stream_id = stream != nullptr ? stream : "";
+        record.segment_index = static_cast<std::uint64_t>(sqlite3_column_int64(statement.get(), 1));
+        record.start_offset = static_cast<std::uint64_t>(sqlite3_column_int64(statement.get(), 2));
+        record.end_offset = static_cast<std::uint64_t>(sqlite3_column_int64(statement.get(), 3));
+        record.downloaded_bytes = static_cast<std::uint64_t>(sqlite3_column_int64(statement.get(), 4));
+        record.status = status != nullptr ? status : "Pending";
+        records.push_back(std::move(record));
+    }
+    if (rc != SQLITE_DONE) return std::unexpected(database_error(db_, "sqlite_read", "Could not read segment recovery journal"));
+    return records;
+}
+
 Result<std::vector<DownloadRecord>> SqliteRepository::list_downloads() {
     if (db_ == nullptr) return std::unexpected(make_error("sqlite_open", open_error_));
     Statement statement(db_, R"SQL(
