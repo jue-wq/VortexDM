@@ -41,7 +41,7 @@ Result<std::filesystem::path> run_media_extract_task(
     const auto output_template = output_path.parent_path() /
         (output_path.stem().string() + (playlist ? "-%(playlist_index)s-%(title)s" : "") + ".%(ext)s");
     arguments.insert(arguments.end(), {
-        "--no-warnings", "--no-call-home", "--no-cache-dir",
+        "--no-warnings", "--no-call-home", "--no-cache-dir", "--quiet", "--no-progress",
         playlist ? "--yes-playlist" : "--no-playlist", "--newline",
         "--format", "bestvideo*+bestaudio/best", "--merge-output-format", "mkv",
         "--output", output_template.string(), "--print", "after_move:VTX_FILE:%(filepath)s",
