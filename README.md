@@ -11,7 +11,7 @@ blocking. macOS is not a supported target.
 - [x] Android browser address bar and navigation controls
 - [x] Bundled Vortex Shield WebExtension bootstrap
 - [x] Android CI job replacing macOS CI
-- [x] Phase 1 SQLite WAL persistence, download metadata, offset writer, and unit tests
+- [x] Phase 1 SQLite WAL persistence, download metadata, offset writer, guarded compare-and-swap state transitions, and unit tests
 - [ ] Phase 1 OS-level durable flush, crash recovery, and fault-injection validation
 - [x] Vortex Shield host-rule filter subset and EasyList/EasyPrivacy subscriptions
 - [ ] Full ABP/uBlock-compatible parser, cosmetic filters, and per-site controls
