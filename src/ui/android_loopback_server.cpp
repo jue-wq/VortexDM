@@ -185,8 +185,15 @@ QByteArray AndroidLoopbackServer::dispatchIpc(const QByteArray& body) {
             if (available) for (const auto& queue : *available)
                 queues.push_back({{"id",queue.id},{"name",queue.name},{"max_concurrent",queue.max_concurrent}});
         }
+        bool ytdlp_ready = false;
+        if (repository_) {
+            const auto profiles = repository_->list_ytdlp_profiles();
+            if (profiles) ytdlp_ready = std::any_of(profiles->begin(), profiles->end(), [](const auto& profile) {
+                return profile.is_active && (!profile.local_binary_path.empty() || !profile.python_path.empty());
+            });
+        }
         answer = {{"accepted",true},{"app_version","0.1.0"},{"theme","Modern Dark"},
-                  {"ytdlp_ready",false},{"queues",std::move(queues)}};
+                  {"ytdlp_ready",ytdlp_ready},{"queues",std::move(queues)}};
     } else if (request.value("type", std::string{}) == "add_download") {
         const auto task = enqueueDownload(payload);
         if (!task) answer = {{"accepted",false},{"code",task.error().code},{"message",task.error().message}};

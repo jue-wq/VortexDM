@@ -172,10 +172,17 @@ Result<nlohmann::json> NativeMessagingHost::dispatch(const nlohmann::json& reque
             if (available) for (const auto& queue : *available)
                 queues.push_back({{"id",queue.id},{"name",queue.name},{"max_concurrent",queue.max_concurrent}});
         }
+        bool ytdlp_ready = false;
+        if (repository_) {
+            const auto profiles = repository_->list_ytdlp_profiles();
+            if (profiles) ytdlp_ready = std::any_of(profiles->begin(), profiles->end(), [](const auto& profile) {
+                return profile.is_active && (!profile.local_binary_path.empty() || !profile.python_path.empty());
+            });
+        }
         return nlohmann::json{
             {"protocol_version",1},{"request_id",request_id},{"timestamp",timestamp},{"type","ack"},
             {"payload",{{"accepted",true},{"app_version","0.1.0"},{"theme","Modern Dark"},
-                        {"ytdlp_ready",false},{"queues",std::move(queues)}}}
+                        {"ytdlp_ready",ytdlp_ready},{"queues",std::move(queues)}}}
         };
     }
     if (type == "add_batch") {
