@@ -11,10 +11,11 @@
 #include <memory>
 #include <algorithm>
 #include <thread>
+#include <string_view>
 
 namespace vortex {
 namespace {
-Result<void> run_media_extract_task(
+Result<std::filesystem::path> run_media_extract_task(
     SqliteRepository& repository,
     const DownloadRecord& task,
     const std::filesystem::path& output_path,
@@ -36,11 +37,15 @@ Result<void> run_media_extract_task(
     }
     if (!executable.is_absolute())
         return std::unexpected(make_error("ytdlp_path", "Configured yt-dlp executable/Python path must be absolute"));
+    const bool playlist = task.task_type == "media_extract_playlist";
+    const auto output_template = output_path.parent_path() /
+        (output_path.stem().string() + (playlist ? "-%(playlist_index)s-%(title)s" : "") + ".%(ext)s");
     arguments.insert(arguments.end(), {
         "--no-warnings", "--no-call-home", "--no-cache-dir",
-        task.task_type == "media_extract_playlist" ? "--yes-playlist" : "--no-playlist", "--newline",
+        playlist ? "--yes-playlist" : "--no-playlist", "--newline",
         "--format", "bestvideo*+bestaudio/best", "--merge-output-format", "mkv",
-        "--output", output_path.string(), "--", task.url
+        "--output", output_template.string(), "--print", "after_move:VTX_FILE:%(filepath)s",
+        "--", task.url
     });
     ProcessOptions options;
     options.timeout = std::chrono::hours(3);
@@ -62,11 +67,24 @@ Result<void> run_media_extract_task(
     if (!process) return std::unexpected(process.error());
     if (process->exit_code != 0)
         return std::unexpected(make_error("ytdlp_failed", "yt-dlp exited with code " + std::to_string(process->exit_code) + ": " + process->output));
+    std::filesystem::path final_path;
+    std::size_t output_offset = 0U;
+    while (output_offset <= process->output.size()) {
+        const auto line_end = process->output.find_first_of("\\r\\n", output_offset);
+        const auto line = process->output.substr(output_offset,
+            line_end == std::string::npos ? std::string::npos : line_end - output_offset);
+        constexpr std::string_view marker = "VTX_FILE:";
+        if (line.starts_with(marker)) final_path = line.substr(marker.size());
+        if (line_end == std::string::npos) break;
+        output_offset = line_end + 1U;
+    }
+    if (final_path.empty())
+        return std::unexpected(make_error("ytdlp_output_missing", "yt-dlp did not report its final output path"));
     std::error_code error;
-    const auto size = std::filesystem::file_size(output_path, error);
+    const auto size = std::filesystem::file_size(final_path, error);
     if (error || size == 0U)
-        return std::unexpected(make_error("ytdlp_output_missing", "yt-dlp exited successfully but no output file was found"));
-    return {};
+        return std::unexpected(make_error("ytdlp_output_missing", "yt-dlp exited successfully but the output file is missing or empty"));
+    return final_path;
 }
 }
 
@@ -125,12 +143,18 @@ void DownloadQueueWorker::run(std::stop_token token) {
             }
         };
         const auto output_path = directory / task.filename;
-        const auto result = task.task_type.starts_with("media_extract")
-            ? run_media_extract_task(repository_, task, output_path, cancel_requested_)
-            : download_file(task.url, output_path, options);
+        std::filesystem::path completed_path = output_path;
+        Result<void> result;
+        if (task.task_type.starts_with("media_extract")) {
+            const auto media_result = run_media_extract_task(repository_, task, output_path, cancel_requested_);
+            if (!media_result) result = std::unexpected(media_result.error());
+            else completed_path = *media_result;
+        } else {
+            result = download_file(task.url, output_path, options);
+        }
         if (result) {
             std::error_code size_error;
-            const auto final_size = std::filesystem::file_size(output_path, size_error);
+            const auto final_size = std::filesystem::file_size(completed_path, size_error);
             if (!size_error) (void)repository_.update_download_progress(task.id, final_size, final_size);
             (void)repository_.update_download_status(task.id, "Completed");
         } else if (result.error().code == "download_cancelled" || result.error().code == "process_cancelled" || token.stop_requested()) {
