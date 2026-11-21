@@ -74,8 +74,10 @@ ApplicationWindow {
                             required property string filename
                             required property string status
                             required property string url
+                            required property double totalBytes
+                            required property double downloadedBytes
                             width: downloadList.width
-                            height: 72
+                            height: 82
                             radius: 8
                             color: "#181D28"
                             border.color: "#242B3B"
@@ -86,6 +88,13 @@ ApplicationWindow {
                                     Layout.fillWidth: true
                                     Label { text: filename; color: "#E6EDF5"; font.bold: true; elide: Text.ElideRight; Layout.fillWidth: true }
                                     Label { text: url; color: "#8B97AD"; font.pixelSize: 11; elide: Text.ElideMiddle; Layout.fillWidth: true }
+                                    ProgressBar {
+                                        Layout.fillWidth: true
+                                        implicitHeight: 4
+                                        from: 0
+                                        to: 1
+                                        value: totalBytes > 0 ? Math.min(1, downloadedBytes / totalBytes) : status === "Completed" ? 1 : 0
+                                    }
                                 }
                                 Label {
                                     text: status
