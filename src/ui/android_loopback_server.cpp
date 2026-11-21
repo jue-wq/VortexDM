@@ -55,6 +55,7 @@ AndroidLoopbackServer::AndroidLoopbackServer(vortex::SqliteRepository* repositor
             if (!socket) continue;
             connect(socket, &QTcpSocket::readyRead, this, [this, socket] { handleSocket(socket); });
             connect(socket, &QTcpSocket::disconnected, socket, &QObject::deleteLater);
+            if (socket->bytesAvailable() > 0) handleSocket(socket);
             QTimer::singleShot(5000, socket, [socket] {
                 if (socket->state() != QAbstractSocket::UnconnectedState) socket->disconnectFromHost();
             });
@@ -111,6 +112,8 @@ void AndroidLoopbackServer::handleSocket(QTcpSocket* socket) {
     const QByteArray path = request_line[1];
     QByteArray key;
     int content_length = 0;
+    bool has_content_length = false;
+    bool content_length_valid = true;
     for (int index = 1; index < lines.size(); ++index) {
         const auto line = lines[index].trimmed();
         const auto colon = line.indexOf(':');
@@ -118,9 +121,13 @@ void AndroidLoopbackServer::handleSocket(QTcpSocket* socket) {
         const auto name = line.left(colon).trimmed().toLower();
         const auto value = line.mid(colon + 1).trimmed();
         if (name == "x-vortex-api-key") key = value;
-        if (name == "content-length") content_length = value.toInt();
+        if (name == "content-length") {
+            has_content_length = true;
+            content_length = value.toInt(&content_length_valid);
+        }
     }
-    if (content_length < 0 || content_length > 1024 * 1024) {
+    if (!content_length_valid || content_length < 0 || content_length > 1024 * 1024 ||
+        (method == "POST" && !has_content_length)) {
         socket->setProperty("handled", true);
         socket->write(response(413, R"({"error":"invalid_content_length"})"));
         socket->disconnectFromHost();
