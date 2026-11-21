@@ -18,7 +18,8 @@ blocking. macOS is not a supported target.
 - [ ] Official uBlock Origin extension compatibility validation
 - [x] Phase 2 inclusive HTTP byte-range planner and unit tests
 - [x] Phase 2 transactional FIFO claim primitive for queued downloads (multi-worker safe)
-- [ ] Phase 2 HTTP transport, retries, segment scheduler, and CLI
+- [x] Phase 2 libcurl HTTP(S) streaming transport foundation (TLS verification, protocol allowlist, bounded redirects, timeout controls)
+- [ ] Phase 2 file sink integration, range/resume orchestration, retries, segment scheduler, and CLI
 - [x] Phase 2 strict HTTP response metadata parser and unit tests (Content-Length, Content-Range, Accept-Ranges, Retry-After, validators)
 - [ ] Phase 3 toolchain manager
 - [ ] Phase 4 media extraction and streaming
