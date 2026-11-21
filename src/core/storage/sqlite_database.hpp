@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <filesystem>
 #include <mutex>
+#include <optional>
 #include <string_view>
 #include <vector>
 
@@ -30,6 +31,10 @@ public:
     [[nodiscard]] Status close();
     [[nodiscard]] Status migrate();
     [[nodiscard]] Result<std::int64_t> insert_download(const DownloadRecord& record);
+    // Atomically claims the oldest queued item and changes it to running.
+    [[nodiscard]] Result<std::optional<DownloadRecord>> claim_next_queued_download(
+        std::int64_t updated_at_unix
+    );
     // Atomically inserts a download and binds a stable IPC request ID. Replays return the original download ID.
     [[nodiscard]] Result<std::int64_t> enqueue_download_once(std::string_view request_id, const DownloadRecord& record);
     [[nodiscard]] Result<std::vector<NativeInboxEntry>> list_pending_native_requests(std::size_t limit = 100);
