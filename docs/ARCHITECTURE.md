@@ -71,10 +71,15 @@ These rules are mandatory for all modules and contributors.
 - Unit tests for hashing, database persistence, offset writes, range
   partitioning, retry decisions, and `Content-Range` validation.
 
-The HTTP transport, retry policy, segment scheduler, durable checkpoint
-protocol, Android JNI linkage to the shared storage/download modules, JSON
-schema validation, native host process, and end-to-end browser-to-desktop queue
-adapter are not implemented yet.
+The HTTP transport, segment scheduler, durable checkpoint protocol, Android JNI
+linkage to the shared storage/download modules, full schema/URL policy
+validation, and end-to-end browser-to-desktop queue adapter are not implemented
+yet. A partial Native Messaging host now validates a pinned Firefox origin,
+requires protocol-v1 handshake before dispatch, stages single-download requests
+in a separate SQLite inbox with persistent request-ID de-duplication, and
+returns a negative ACK until the real application queue is connected. The
+bounded batch assembler exists but is not wired into dispatch. Process-level
+Native Messaging tests are committed but remain pending CI verification.
 
 ## 7. Phase 1 implementation order
 
