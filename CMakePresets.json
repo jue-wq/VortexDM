@@ -1,0 +1,17 @@
+{
+  "version": 6,
+  "configurePresets": [{
+    "name": "default",
+    "displayName": "Default vcpkg build",
+    "generator": "Ninja",
+    "binaryDir": "${sourceDir}/build",
+    "cacheVariables": {
+      "CMAKE_BUILD_TYPE": "Release",
+      "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+      "VORTEX_BUILD_TESTS": "ON",
+      "VORTEX_BUILD_UI": "OFF"
+    }
+  }],
+  "buildPresets": [{"name":"default","configurePreset":"default"}],
+  "testPresets": [{"name":"default","configurePreset":"default","output":{"outputOnFailure":true}}]
+}

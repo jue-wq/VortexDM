@@ -1,0 +1,3 @@
+add_executable(vortex_core_tests test_core.cpp)
+target_link_libraries(vortex_core_tests PRIVATE vortex_core)
+add_test(NAME vortex_core_tests COMMAND vortex_core_tests)

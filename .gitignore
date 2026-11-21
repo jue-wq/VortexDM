@@ -1,0 +1,11 @@
+build/
+out/
+.vcpkg/
+.vscode/
+.idea/
+*.db
+*.db-shm
+*.db-wal
+*.part
+*.tmp
+.toolchain/
