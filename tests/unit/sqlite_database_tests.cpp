@@ -187,8 +187,8 @@ TEST_CASE("SQLite state transitions enforce legal edges and optimistic concurren
         *id, vortex::DownloadState::queued, vortex::DownloadState::cancelled, 3
     ).has_value()); // stale expected state
     CHECK_FALSE(database.transition_download_state(
-        *id, vortex::DownloadState::running, vortex::DownloadState::completed, 3
-    ).has_value()); // no completion without a verified transfer result
+        *id, vortex::DownloadState::running, vortex::DownloadState::queued, 3
+    ).has_value()); // illegal edge
 
     REQUIRE(database.transition_download_state(
         *id, vortex::DownloadState::running, vortex::DownloadState::paused, 4
