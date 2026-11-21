@@ -228,10 +228,11 @@ size_t write_sequential(char* data, size_t size, size_t count, void* context) {
     return written;
 }
 
-Result<void> download_sequential(const std::string& url, const std::filesystem::path& destination, const DownloadOptions& options) {
+Result<void> download_sequential(const std::string& url, const std::filesystem::path& destination, const DownloadOptions& options, std::uint64_t total_bytes = 0U) {
     const auto native = destination.string();
     SequentialOutput output;
     output.progress = &options.progress_callback;
+    output.total = total_bytes;
 #ifdef _WIN32
     output.file = _wfopen(destination.c_str(), L"wb");
 #else
@@ -400,7 +401,7 @@ Result<void> download_ranges(
         std::error_code ignored;
         std::filesystem::remove(destination, ignored);
         if (options.progress_callback) options.progress_callback(0U, info.total_bytes);
-        return download_sequential(url, destination, options);
+        return download_sequential(url, destination, options, info.total_bytes);
     }
     if (!failure.empty()) {
         writer.close();
@@ -448,7 +449,7 @@ Result<void> download_file(
             if (info->size_known && info->supports_ranges && options.max_connections > 1U && info->total_bytes > 0U) {
                 transfer = download_ranges(info->effective_url, destination, *info, options);
             } else {
-                transfer = download_sequential(info->effective_url, destination, options);
+                transfer = download_sequential(info->effective_url, destination, options, info->total_bytes);
             }
             if (transfer) return {};
             last_error = transfer.error();
