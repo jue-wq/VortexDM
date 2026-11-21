@@ -1,0 +1,68 @@
+#include "vortex/download_queue_worker.hpp"
+
+#include "vortex/download_engine.hpp"
+
+#include <chrono>
+#include <cstdlib>
+#include <filesystem>
+#include <thread>
+
+namespace vortex {
+namespace {
+std::filesystem::path default_download_directory() {
+#ifdef _WIN32
+    if (const char* home = std::getenv("USERPROFILE")) return std::filesystem::path(home) / "Downloads";
+#else
+    if (const char* home = std::getenv("HOME")) return std::filesystem::path(home) / "Downloads";
+#endif
+    return std::filesystem::current_path() / "Downloads";
+}
+}
+
+DownloadQueueWorker::DownloadQueueWorker(SqliteRepository& repository) : repository_(repository) {}
+DownloadQueueWorker::~DownloadQueueWorker() { stop(); }
+
+void DownloadQueueWorker::start() {
+    if (thread_.joinable()) return;
+    thread_ = std::jthread([this](std::stop_token token) { run(token); });
+}
+
+void DownloadQueueWorker::stop() {
+    if (!thread_.joinable()) return;
+    thread_.request_stop();
+    thread_.join();
+}
+
+void DownloadQueueWorker::run(std::stop_token token) {
+    while (!token.stop_requested()) {
+        auto claimed = repository_.claim_next_queued_download();
+        if (!claimed) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            continue;
+        }
+        if (!*claimed) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(350));
+            continue;
+        }
+        const auto& task = **claimed;
+        std::filesystem::path directory = task.save_dir.empty()
+            ? default_download_directory() : std::filesystem::path(task.save_dir);
+        std::error_code filesystem_error;
+        std::filesystem::create_directories(directory, filesystem_error);
+        if (filesystem_error) {
+            (void)repository_.update_download_status(task.id, "Error", filesystem_error.message());
+            continue;
+        }
+        DownloadOptions options;
+        options.max_connections = 8U;
+        options.transfer_timeout_ms = 30L * 60L * 1000L;
+        const auto result = download_file(task.url, directory / task.filename, options);
+        if (result) {
+            (void)repository_.update_download_status(task.id, "Completed");
+        } else {
+            (void)repository_.update_download_status(task.id, "Error", result.error().code + ": " + result.error().message);
+        }
+    }
+}
+
+} // namespace vortex

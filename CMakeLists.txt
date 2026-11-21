@@ -36,6 +36,7 @@ add_library(vortex_core
   src/core/src/url.cpp
   src/core/src/task.cpp
   src/core/src/download_engine.cpp
+  src/core/src/download_queue_worker.cpp
   src/core/src/sqlite_repository.cpp
   src/core/src/crash_safe_file_writer.cpp
   src/core/src/segment_scheduler.cpp
