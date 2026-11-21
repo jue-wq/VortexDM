@@ -44,7 +44,8 @@ A checked item describes an implemented/reviewed artifact; a phase is complete o
 - [ ] Queue/category scheduler and typed application services
 - [x] Native host persists acknowledged add_download/add_batch/add_batch_chunk tasks into SQLite with queue IDs
 - [x] Android loopback handshake, add_download, add_batch and chunk assembly/persistence
-- [ ] Task-control dispatch, app-to-extension status push and foreground service
+- [x] Task-control dispatch (pause/resume/cancel) and foreground dataSync service scaffold
+- [ ] App-to-extension status push and physical-device foreground verification
 
 ## Phase 6 — Responsive Qt UI and release
 - [x] User-approved VortexDM icon asset added to Qt resource bundle and application window icon

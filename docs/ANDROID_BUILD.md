@@ -15,7 +15,7 @@ Use a Qt for Android kit and an Android arm64 vcpkg triplet. The project require
 - `ANDROID_PLATFORM=android-28`
 - `QT_ANDROID_PACKAGE_SOURCE_DIR=<repo>/android`
 
-The Android package declares INTERNET and dataSync foreground-service permissions. The Java foreground service keeps the application process alive while the in-process download worker is active. If Android terminates the process, persisted queued tasks remain in SQLite and are picked up when VortexDM is launched again.
+The Android package declares INTERNET and dataSync foreground-service permissions. The Java foreground service keeps the application process alive while the in-process download worker is active. If Android terminates the process, persisted queued tasks remain in SQLite and are picked up when VortexDM is launched again. Active task states are reset to Queued on worker startup; partial byte-range resume is not yet wired into the main queue worker.
 
 ## Browser Bridge connection
 1. Launch VortexDM on the Android device.

@@ -44,7 +44,7 @@
         "range_probe": true,
         "segmented_scheduler": true,
         "adaptive_retry": true,
-        "crash_recovery": true,
+        "crash_recovery": false,
         "partial_file_reopen": true,
         "segment_journal_query": true,
         "writer_sqlite_commit_order": true
@@ -52,7 +52,8 @@
       "evidence": [
         "HTTP HEAD/Range 0-0 probing, parallel libcurl range transfer, bounded byte-range scheduler and tail work stealing are implemented. Retry integration and process-kill journal recovery remain pending.",
         "Commit 45ff568 adds bounded exponential retry/backoff around probe and transfer attempts. Commits d9db677 and 1a6ee1c add non-truncating partial-file reopen and ordered segment journal query; c49cebc adds unit coverage. Full crash-recovery coordinator remains pending.",
-        "Commits a1581f7 and 7f1c8fc implement journal missing-range planning and a recovery coordinator; commit 95e728c adds an end-to-end recovery fixture. Commit 6276848 plus b3f4376 enforce/test fsync-before-SQLite journal ordering."
+        "Commits a1581f7 and 7f1c8fc implement journal missing-range planning and a recovery coordinator; commit 95e728c adds an end-to-end recovery fixture. Commit 6276848 plus b3f4376 enforce/test fsync-before-SQLite journal ordering.",
+        "Important limitation: startup resets stale Downloading tasks to Queued, but the segment-journal recovery coordinator is not yet connected to the main download worker's actual partial files. Full crash-resume remains incomplete."
       ]
     },
     {
@@ -66,11 +67,13 @@
         "checksum_rollback": true,
         "url_refresh": true,
         "hls": true,
-        "dash": true
+        "dash": true,
+        "ytdlp_execution": true
       },
       "evidence": [
         "Commits dc4b5fe/7227084 add a shell-free process runner with bounded output and hard timeout; 5f31e16 adds yt-dlp JSON/playlist parsing; 3fe5ee7 adds persisted profiles; 9c499ac adds SHA-256 verification and rollback-safe activation; 3af7137 adds expired media URL refresh. Acceptance tests are authored but not yet executed.",
-        "Commits 733214c, c8b94cf, 9a9d6ed and 59b18e3 add HLS playlist/AES-128 metadata and DASH SegmentTemplate/Timeline/List/Base parsing. Parser acceptance fixtures added in e8dbfeb/bc69b0c; CI pending."
+        "Commits 733214c, c8b94cf, 9a9d6ed and 59b18e3 add HLS playlist/AES-128 metadata and DASH SegmentTemplate/Timeline/List/Base parsing. Parser acceptance fixtures added in e8dbfeb/bc69b0c; CI pending.",
+        "Commit f1948e8 adds media extraction queueing behind an active yt-dlp profile; 2f0537d/a75b224/c2b3127 execute the selected yt-dlp binary or Python module in the worker with cancellation, output verification and playlist mode. 657cc4e adds profile configuration UI and 39b4ad2 reports capability in handshake."
       ]
     },
     {
@@ -109,14 +112,16 @@
         "download_progress": true,
         "task_control": true,
         "queue_management": true,
-        "native_host_persistence": true
+        "native_host_persistence": true,
+        "media_extraction_worker": true
       },
       "evidence": [
         "Desktop Native Messaging frame reader baseline exists; Android loopback API and foreground service remain future requirements.",
         "Android ad-blocking requirement clarified: original Raymond Hill uBlock Origin via official Firefox for Android add-on; embedded GeckoView remains an unverified optional path.",
         "Commits 648e46a, 338dc2f and 3409aaf make Native Messaging add_download/add_batch/chunk completion persist queued SQLite records and selected queue IDs before positive ACK. Acceptance fixture in 745dcbf.",
         "Android-only Qt Network loopback server now binds 127.0.0.1 on an ephemeral port, authenticates with a per-launch 256-bit key, handles preflight/health/IPC, and persists add_download/add_batch/chunk-complete requests to the app SQLite database. UI exposes port/key for Firefox Bridge setup. Foreground service, task-control/status push and on-device E2E remain pending.",
-        "Commits 650334f/06ed117 add a background task worker with cancellation; f75eb79/b18ba69 expose progress callbacks; 4de4d17/070e44d persist throttled byte progress; 1ba47d9/7a02f8f implement pause/resume/cancel dispatch; 6b28592/981eed0 add queue CRUD/default queue migration; 34e1a01/5158035/6c60a8e add queue/task UI."
+        "Commits 650334f/06ed117 add a background task worker with cancellation; f75eb79/b18ba69 expose progress callbacks; 4de4d17/070e44d persist throttled byte progress; 1ba47d9/7a02f8f implement pause/resume/cancel dispatch; 6b28592/981eed0 add queue CRUD/default queue migration; 34e1a01/5158035/6c60a8e add queue/task UI.",
+        "Queued yt-dlp media extraction is executed by the background worker; Bridge popup no longer asks for cookies it cannot use and disables extraction until a profile is active. Commit 12b40ac."
       ]
     },
     {
