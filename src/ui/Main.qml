@@ -50,6 +50,13 @@ ApplicationWindow {
                     spacing: 14
                     RowLayout {
                         Layout.fillWidth: true
+                        ComboBox {
+                            id: queueSelector
+                            model: downloadsModel.queues
+                            textRole: "name"
+                            valueRole: "id"
+                            implicitWidth: 170
+                        }
                         TextField {
                             id: downloadUrl
                             Layout.fillWidth: true
@@ -58,11 +65,16 @@ ApplicationWindow {
                         Button {
                             text: "Add download"
                             onClicked: {
-                                if (downloadsModel.addDownload(downloadUrl.text)) downloadUrl.clear()
+                                if (downloadsModel.addDownload(downloadUrl.text, queueSelector.currentValue)) downloadUrl.clear()
                             }
                         }
                     }
-                    Label { text: "Downloads · " + downloadsModel.count; color: "#E6EDF5"; font.pixelSize: 19; font.bold: true }
+                    RowLayout {
+                        Label { text: "Downloads · " + downloadsModel.count; color: "#E6EDF5"; font.pixelSize: 19; font.bold: true }
+                        Item { Layout.fillWidth: true }
+                        TextField { id: newQueueName; placeholderText: "New queue name"; implicitWidth: 160 }
+                        Button { text: "Create queue"; onClicked: { if (downloadsModel.createQueue(newQueueName.text)) newQueueName.clear() } }
+                    }
                     ListView {
                         id: downloadList
                         Layout.fillWidth: true

@@ -8,18 +8,22 @@
 class DownloadListModel final : public QAbstractListModel {
     Q_OBJECT
     Q_PROPERTY(int count READ count NOTIFY countChanged)
+    Q_PROPERTY(QVariantList queues READ queues NOTIFY queuesChanged)
 public:
     explicit DownloadListModel(vortex::SqliteRepository* repository, QObject* parent = nullptr);
     int rowCount(const QModelIndex& parent = QModelIndex()) const override;
     QVariant data(const QModelIndex& index, int role) const override;
     QHash<int, QByteArray> roleNames() const override;
     [[nodiscard]] int count() const noexcept;
-    Q_INVOKABLE bool addDownload(const QString& url);
+    [[nodiscard]] QVariantList queues() const;
+    Q_INVOKABLE bool createQueue(const QString& name);
+    Q_INVOKABLE bool addDownload(const QString& url, const QString& queueId = QString());
     Q_INVOKABLE bool controlTask(const QString& taskId, const QString& action);
     Q_INVOKABLE void refresh();
 
 signals:
     void countChanged();
+    void queuesChanged();
 
 private:
     struct Row {
@@ -33,5 +37,6 @@ private:
     };
     vortex::SqliteRepository* repository_{nullptr};
     QVector<Row> rows_;
+    QVariantList queues_;
     QTimer refresh_timer_;
 };

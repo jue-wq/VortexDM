@@ -6,6 +6,7 @@
 
 #include <QFileInfo>
 #include <QUuid>
+#include <QVariantMap>
 
 DownloadListModel::DownloadListModel(vortex::SqliteRepository* repository, QObject* parent)
     : QAbstractListModel(parent), repository_(repository) {
@@ -44,8 +45,22 @@ QHash<int, QByteArray> DownloadListModel::roleNames() const {
 }
 
 int DownloadListModel::count() const noexcept { return rows_.size(); }
+QVariantList DownloadListModel::queues() const { return queues_; }
 
-bool DownloadListModel::addDownload(const QString& input) {
+bool DownloadListModel::createQueue(const QString& name) {
+    if (!repository_ || name.trimmed().isEmpty()) return false;
+    vortex::QueueRecord queue;
+    queue.id = "queue-" + QUuid::createUuid().toString(QUuid::WithoutBraces).toStdString();
+    queue.name = name.trimmed().toStdString();
+    queue.max_concurrent = 3U;
+    queue.is_active = true;
+    const auto saved = repository_->save_queue(queue);
+    if (!saved) return false;
+    refresh();
+    return true;
+}
+
+bool DownloadListModel::addDownload(const QString& input, const QString& queueId) {
     if (!repository_) return false;
     const auto url = input.trimmed().toStdString();
     auto parsed = vortex::parse_http_url(url);
@@ -97,4 +112,12 @@ void DownloadListModel::refresh() {
     rows_ = std::move(next);
     endResetModel();
     emit countChanged();
+    const auto available = repository_->list_queues();
+    if (available) {
+        QVariantList next_queues;
+        for (const auto& queue : *available)
+            next_queues.push_back(QVariantMap{{"id",QString::fromStdString(queue.id)},{"name",QString::fromStdString(queue.name)}});
+        queues_ = std::move(next_queues);
+        emit queuesChanged();
+    }
 }
