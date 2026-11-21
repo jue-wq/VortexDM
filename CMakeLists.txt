@@ -24,6 +24,7 @@ add_library(vortex_core STATIC
     src/core/download/segment_planner.cpp
     src/core/download/retry_policy.cpp
     src/core/download/content_range.cpp
+    src/core/download/http_response_headers.cpp
     src/core/ipc/native_messaging_frame.cpp
     src/core/ipc/native_messaging_stream.cpp
     src/core/ipc/native_batch_assembler.cpp
@@ -116,6 +117,7 @@ if(VORTEXDM_BUILD_TESTS)
         tests/unit/segment_planner_tests.cpp
         tests/unit/retry_policy_tests.cpp
         tests/unit/content_range_tests.cpp
+        tests/unit/http_response_headers_tests.cpp
         tests/unit/download_state_machine_tests.cpp
         tests/unit/native_messaging_frame_tests.cpp
         tests/unit/native_batch_assembler_tests.cpp
