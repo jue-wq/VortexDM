@@ -8,6 +8,7 @@
 #include "vortex/ytdlp_extractor.hpp"
 #include "vortex/segment_checkpoint.hpp"
 #include "vortex/segment_recovery.hpp"
+#include "vortex/ytdlp_toolchain.hpp"
 #include "vortex/url.hpp"
 
 #include <openssl/sha.h>
@@ -72,6 +73,46 @@ std::vector<nlohmann::json> read_frames(const std::string& stream) {
     }
     if (offset != stream.size()) return {};
     return messages;
+}
+
+bool test_ytdlp_toolchain_verification_and_rollback() {
+    const auto directory = std::filesystem::temp_directory_path() / "vortexdm-toolchain-test";
+    std::error_code ignored;
+    std::filesystem::remove_all(directory, ignored);
+    std::filesystem::create_directories(directory, ignored);
+    if (ignored) return false;
+    const auto candidate = directory / "candidate";
+    const auto active = directory / "yt-dlp";
+    {
+        std::ofstream output(candidate, std::ios::binary);
+        output << "verified-candidate";
+    }
+    {
+        std::ofstream output(active, std::ios::binary);
+        output << "previous-version";
+    }
+    const std::string candidate_bytes = "verified-candidate";
+    std::array<unsigned char, SHA256_DIGEST_LENGTH> digest{};
+    (void)SHA256(reinterpret_cast<const unsigned char*>(candidate_bytes.data()), candidate_bytes.size(), digest.data());
+    static constexpr char hex[] = "0123456789abcdef";
+    std::string expected;
+    for (const auto value : digest) { expected.push_back(hex[value >> 4U]); expected.push_back(hex[value & 0x0fU]); }
+    if (!vortex::verify_sha256_file(candidate, expected)) return false;
+    if (vortex::verify_sha256_file(candidate, std::string(64U, '0'))) return false;
+    if (!vortex::activate_verified_tool(candidate, active, expected)) return false;
+    {
+        std::ifstream input(active, std::ios::binary);
+        std::string actual((std::istreambuf_iterator<char>(input)), {});
+        if (actual != candidate_bytes) return false;
+    }
+    if (!vortex::rollback_tool(active)) return false;
+    {
+        std::ifstream input(active, std::ios::binary);
+        std::string actual((std::istreambuf_iterator<char>(input)), {});
+        if (actual != "previous-version") return false;
+    }
+    std::filesystem::remove_all(directory, ignored);
+    return true;
 }
 
 bool test_ytdlp_metadata_parser() {
@@ -409,6 +450,10 @@ bool test_sqlite_migrations_and_segment_journal() {
 }
 
 int main() {
+    if (!test_ytdlp_toolchain_verification_and_rollback()) {
+        std::cerr << "yt-dlp toolchain verification/rollback test failed\\n";
+        return 10;
+    }
     if (!test_segment_recovery_coordinator()) {
         std::cerr << "Segment recovery coordinator test failed\\n";
         return 9;
