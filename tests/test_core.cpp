@@ -1,5 +1,6 @@
 #include "vortex/crash_safe_file_writer.hpp"
 #include "vortex/sqlite_repository.hpp"
+#include "vortex/segment_scheduler.hpp"
 #include "vortex/task.hpp"
 #include "vortex/url.hpp"
 
@@ -77,6 +78,20 @@ bool test_crash_safe_concurrent_writes() {
     return expected_hash == actual_hash;
 }
 
+
+bool test_segment_scheduler() {
+    const auto ranges = vortex::make_byte_ranges(1000U, 4U, 100U);
+    if (!ranges || ranges->size() != 4U) return false;
+    std::uint64_t total = 0;
+    for (const auto& range : *ranges) total += range.size();
+    if (total != 1000U || ranges->front().start != 0U || ranges->back().end != 999U) return false;
+
+    vortex::ByteRange active{0U, 0U, 999U};
+    const auto stolen = vortex::steal_tail(active, 100U);
+    if (!stolen || active.end + 1U != stolen->start) return false;
+    return active.size() + stolen->size() == 1000U;
+}
+
 bool test_sqlite_migrations_and_segment_journal() {
     const auto path = std::filesystem::temp_directory_path() / "vortexdm-repository-test.db";
     std::error_code ignored;
@@ -137,10 +152,14 @@ int main() {
         std::cerr << "16-thread crash-safe writer SHA-256 test failed\n";
         return 2;
     }
-    if (!test_sqlite_migrations_and_segment_journal()) {
-        std::cerr << "SQLite migration / segment journal test failed\n";
+    if (!test_segment_scheduler()) {
+        std::cerr << "Segment scheduler test failed\n";
         return 3;
     }
-    std::cout << "core tests passed: URL/state, 100 MiB concurrent write SHA-256, SQLite migration and segment journal\n";
+    if (!test_sqlite_migrations_and_segment_journal()) {
+        std::cerr << "SQLite migration / segment journal test failed\n";
+        return 4;
+    }
+    std::cout << "core tests passed: URL/state, 100 MiB concurrent write SHA-256, segment scheduler, SQLite migration and segment journal\n";
     return 0;
 }
