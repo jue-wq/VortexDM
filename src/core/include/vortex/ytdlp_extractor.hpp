@@ -43,5 +43,10 @@ struct MediaMetadata {
     const std::string& executable,
     const std::string& url,
     const ProcessOptions& options = {});
+[[nodiscard]] Result<std::string> refresh_ytdlp_media_url(
+    const std::string& executable,
+    const std::string& webpage_url,
+    const std::string& format_id,
+    const ProcessOptions& options = {});
 
 } // namespace vortex

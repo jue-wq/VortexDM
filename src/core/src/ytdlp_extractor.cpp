@@ -115,4 +115,31 @@ Result<MediaMetadata> extract_ytdlp_metadata(
     return parse_ytdlp_metadata_json(process->output);
 }
 
+Result<std::string> refresh_ytdlp_media_url(
+    const std::string& executable,
+    const std::string& webpage_url,
+    const std::string& format_id,
+    const ProcessOptions& options) {
+    auto page = parse_http_url(webpage_url);
+    if (!page) return std::unexpected(page.error());
+    if (format_id.empty() || format_id.size() > 128U) {
+        return std::unexpected(make_error("ytdlp_format", "A valid format id is required to refresh a media URL"));
+    }
+    const auto process = run_process(executable,
+        {"--get-url", "--no-warnings", "--no-call-home", "--no-cache-dir", "--no-playlist", "-f", format_id, "--", webpage_url},
+        options);
+    if (!process) return std::unexpected(process.error());
+    if (process->exit_code != 0) {
+        return std::unexpected(make_error("ytdlp_refresh", "yt-dlp could not refresh the media URL: " + process->output));
+    }
+    if (process->output_truncated) {
+        return std::unexpected(make_error("ytdlp_output_limit", "Refreshed media URL output exceeded the configured limit"));
+    }
+    const auto newline = process->output.find_first_of("\\r\\n");
+    const auto refreshed = process->output.substr(0U, newline);
+    auto media_url = parse_http_url(refreshed);
+    if (!media_url) return std::unexpected(make_error("ytdlp_refresh_url", "yt-dlp did not return a valid HTTP(S) media URL"));
+    return refreshed;
+}
+
 } // namespace vortex
