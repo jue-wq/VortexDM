@@ -1,6 +1,12 @@
 #include "native_messaging_host.hpp"
 
+#include "vortex/filename_sanitizer.hpp"
+#include "vortex/url.hpp"
+
 #include <array>
+#include <cstdlib>
+#include <filesystem>
+#include <random>
 #include <limits>
 #include <string_view>
 
@@ -24,6 +30,81 @@ nlohmann::json error_response(const std::string& request_id, const std::string& 
         {"type","error"},{"payload",{{"code",code},{"message",message}}}
     };
 }
+}
+
+namespace {
+std::filesystem::path default_database_path() {
+#ifdef _WIN32
+    if (const char* root = std::getenv("LOCALAPPDATA")) return std::filesystem::path(root) / "VortexDM" / "vortexdm.sqlite3";
+#else
+    if (const char* root = std::getenv("XDG_DATA_HOME")) return std::filesystem::path(root) / "vortexdm" / "vortexdm.sqlite3";
+    if (const char* home = std::getenv("HOME")) return std::filesystem::path(home) / ".local" / "share" / "vortexdm" / "vortexdm.sqlite3";
+#endif
+    return std::filesystem::temp_directory_path() / "vortexdm.sqlite3";
+}
+
+std::string make_task_id() {
+    static std::atomic_uint64_t sequence{0};
+    std::random_device random;
+    const auto entropy = (static_cast<std::uint64_t>(random()) << 32U) ^ random();
+    return "vtx-" + std::to_string(entropy) + "-" + std::to_string(sequence.fetch_add(1U));
+}
+
+std::string suggested_filename(const std::string& url) {
+    const auto query = url.find_first_of("?#");
+    const auto clean = url.substr(0U, query);
+    const auto slash = clean.find_last_of('/');
+    const auto candidate = slash == std::string::npos ? std::string{} : clean.substr(slash + 1U);
+    return candidate.empty() ? "download" : candidate;
+}
+}
+
+NativeMessagingHost::NativeMessagingHost(std::filesystem::path database_path) {
+    if (database_path.empty()) database_path = default_database_path();
+    std::error_code error;
+    std::filesystem::create_directories(database_path.parent_path(), error);
+    if (error) { initialization_error_ = error.message(); return; }
+    repository_ = std::make_unique<SqliteRepository>(database_path);
+    auto initialized = repository_->initialize();
+    if (!initialized) {
+        initialization_error_ = initialized.error().message;
+        repository_.reset();
+    }
+}
+
+Result<std::string> NativeMessagingHost::enqueue_download(const nlohmann::json& payload) {
+    if (!repository_) return std::unexpected(make_error("database_unavailable", initialization_error_));
+    if (!payload.contains("url") || !payload["url"].is_string())
+        return std::unexpected(make_error("invalid_download", "add_download requires a URL"));
+    const auto url = payload["url"].get<std::string>();
+    auto parsed = parse_http_url(url);
+    if (!parsed) return std::unexpected(parsed.error());
+    const auto requested_name = payload.value("filename", std::string{});
+    const auto filename = sanitize_filename(requested_name.empty() ? suggested_filename(url) : requested_name);
+    DownloadRecord record;
+    record.id = make_task_id();
+    record.url = url;
+    record.filename = filename;
+    record.save_dir = payload.value("save_dir", std::string{});
+    record.status = "Queued";
+    // Cookie and authorization data are intentionally not persisted by the host.
+    record.headers_json = "{}";
+    auto saved = repository_->save_download(record);
+    if (!saved) return std::unexpected(saved.error());
+    return record.id;
+}
+
+Result<std::size_t> NativeMessagingHost::enqueue_batch(const nlohmann::json& payload) {
+    if (!payload.contains("items") || !payload["items"].is_array())
+        return std::unexpected(make_error("invalid_batch", "add_batch requires an items array"));
+    std::vector<std::string> inserted;
+    for (const auto& item : payload["items"]) {
+        if (!item.is_object()) continue;
+        auto result = enqueue_download(item);
+        if (!result) return std::unexpected(result.error());
+        inserted.push_back(*result);
+    }
+    return inserted.size();
 }
 
 Result<void> NativeMessagingHost::write_frame(std::ostream& output, const nlohmann::json& value) {
@@ -63,12 +144,11 @@ Result<nlohmann::json> NativeMessagingHost::dispatch(const nlohmann::json& reque
         };
     }
     if (type == "add_batch") {
-        if (!payload.contains("items") || !payload["items"].is_array()) {
-            return std::unexpected(make_error("invalid_batch", "add_batch requires an items array"));
-        }
+        const auto count = enqueue_batch(payload);
+        if (!count) return std::unexpected(count.error());
         return nlohmann::json{
             {"protocol_version",1},{"request_id",request_id},{"timestamp",timestamp},{"type","ack"},
-            {"payload",{{"accepted",true},{"count",payload["items"].size()}}}
+            {"payload",{{"accepted",true},{"count",*count}}}
         };
     }
     if (type == "add_batch_chunk") {
@@ -91,7 +171,9 @@ Result<nlohmann::json> NativeMessagingHost::dispatch(const nlohmann::json& reque
                 if (!full.is_object() || !full.contains("items") || !full["items"].is_array()) {
                     return std::unexpected(make_error("invalid_batch", "Reassembled batch JSON has no items array"));
                 }
-                count = full["items"].size();
+                auto queued = enqueue_batch(full);
+                if (!queued) return std::unexpected(queued.error());
+                count = *queued;
             } catch (const std::exception&) {
                 return std::unexpected(make_error("invalid_batch_json", "Reassembled batch is not valid JSON"));
             }
@@ -104,16 +186,11 @@ Result<nlohmann::json> NativeMessagingHost::dispatch(const nlohmann::json& reque
     }
 
     if (type == "add_download") {
-        if (!payload.contains("url") || !payload["url"].is_string()) {
-            return std::unexpected(make_error("invalid_download", "add_download requires a URL"));
-        }
-        const std::string url = payload["url"].get<std::string>();
-        if (!(url.starts_with("http://") || url.starts_with("https://"))) {
-            return std::unexpected(make_error("invalid_download", "Only HTTP and HTTPS URLs are allowed"));
-        }
+        const auto task_id = enqueue_download(payload);
+        if (!task_id) return std::unexpected(task_id.error());
         return nlohmann::json{
             {"protocol_version",1},{"request_id",request_id},{"timestamp",timestamp},{"type","ack"},
-            {"payload",{{"accepted",true},{"task_id","pending-core"}}}
+            {"payload",{{"accepted",true},{"task_id",*task_id}}}
         };
     }
     if (type == "task_control" || type == "extract_media") {
