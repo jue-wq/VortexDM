@@ -52,6 +52,9 @@ void DownloadQueueWorker::run(std::stop_token token) {
         options.cancel_requested = &cancel_requested_;
         auto last_persisted = std::make_shared<std::atomic_uint64_t>(0U);
         options.progress_callback = [this, id=task.id, last_persisted](std::uint64_t downloaded, std::uint64_t total) {
+            const auto current_status = repository_.get_download_status(id);
+            if (!current_status || *current_status != "Downloading")
+                cancel_requested_.store(true, std::memory_order_relaxed);
             const auto previous = last_persisted->load(std::memory_order_relaxed);
             if (downloaded == 0U || downloaded >= previous + 256U * 1024U ||
                 (total > 0U && downloaded >= total)) {
@@ -63,7 +66,13 @@ void DownloadQueueWorker::run(std::stop_token token) {
         if (result) {
             (void)repository_.update_download_status(task.id, "Completed");
         } else if (result.error().code == "download_cancelled" || token.stop_requested()) {
-            (void)repository_.update_download_status(task.id, "Queued", "Interrupted by application shutdown");
+            if (token.stop_requested()) {
+                (void)repository_.update_download_status(task.id, "Queued", "Interrupted by application shutdown");
+            } else {
+                const auto current_status = repository_.get_download_status(task.id);
+                if (current_status && *current_status == "Downloading")
+                    (void)repository_.update_download_status(task.id, "Queued", "Transfer interrupted");
+            }
         } else {
             (void)repository_.update_download_status(task.id, "Error", result.error().code + ": " + result.error().message);
         }
