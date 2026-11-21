@@ -77,9 +77,14 @@ validation, and end-to-end browser-to-desktop queue adapter are not implemented
 yet. A partial Native Messaging host now validates a pinned Firefox origin,
 requires protocol-v1 handshake before dispatch, stages single-download requests
 in a separate SQLite inbox with persistent request-ID de-duplication, and
-returns a negative ACK until the real application queue is connected. The
-bounded batch assembler exists but is not wired into dispatch. Process-level
-Native Messaging tests are committed but remain pending CI verification.
+returns a negative ACK until the real application queue is connected. A
+crash-replay-safe `NativeInboxImporter` now pages pending inbox records into a
+separate application SQLite database using stable request IDs, then marks
+source delivery; retries after a crash or concurrent delivery do not duplicate
+destination records. The importer is not yet called by a running desktop
+application/queue worker. The bounded batch assembler exists but is not wired
+into dispatch. Process-level host tests and inbox-import recovery tests are
+committed but remain pending CI verification.
 
 ## 7. Phase 1 implementation order
 
