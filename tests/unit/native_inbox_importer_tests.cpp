@@ -59,6 +59,8 @@ TEST_CASE("Native inbox importer transfers records once and marks source deliver
     const auto replay = vortex::NativeInboxImporter::import_pending(inbox, app, 100);
     REQUIRE(replay.has_value());
     CHECK(*replay == 0);
+    REQUIRE(inbox.mark_native_request_imported("browser-request-1").has_value());
+    REQUIRE(inbox.mark_native_request_imported("browser-request-1").has_value());
 
     app_records = app.list_downloads();
     REQUIRE(app_records.has_value());
