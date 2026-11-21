@@ -164,3 +164,42 @@ TEST_CASE("SQLite storage rejects invalid states and non-printable native reques
     REQUIRE(rows);
     CHECK(rows->empty());
 }
+
+
+TEST_CASE("SQLite state transitions enforce legal edges and optimistic concurrency") {
+    TemporaryDatabase temporary;
+    vortex::SqliteDatabase database;
+    REQUIRE(database.open(temporary.path()).has_value());
+    REQUIRE(database.migrate().has_value());
+
+    vortex::DownloadRecord record;
+    record.url = "https://example.test/transition.bin";
+    record.destination = "transition.bin";
+    record.created_at_unix = 1;
+    record.updated_at_unix = 1;
+    const auto id = database.insert_download(record);
+    REQUIRE(id);
+
+    REQUIRE(database.transition_download_state(
+        *id, vortex::DownloadState::queued, vortex::DownloadState::running, 2
+    ).has_value());
+    CHECK_FALSE(database.transition_download_state(
+        *id, vortex::DownloadState::queued, vortex::DownloadState::cancelled, 3
+    ).has_value()); // stale expected state
+    CHECK_FALSE(database.transition_download_state(
+        *id, vortex::DownloadState::running, vortex::DownloadState::completed, 3
+    ).has_value()); // no completion without a verified transfer result
+
+    REQUIRE(database.transition_download_state(
+        *id, vortex::DownloadState::running, vortex::DownloadState::paused, 4
+    ).has_value());
+    REQUIRE(database.transition_download_state(
+        *id, vortex::DownloadState::paused, vortex::DownloadState::running, 5
+    ).has_value());
+
+    const auto rows = database.list_downloads();
+    REQUIRE(rows);
+    REQUIRE(rows->size() == 1);
+    CHECK(rows->front().state == vortex::DownloadState::running);
+    CHECK(rows->front().updated_at_unix == 5);
+}
