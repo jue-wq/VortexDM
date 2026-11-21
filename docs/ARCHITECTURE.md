@@ -60,13 +60,18 @@ These rules are mandatory for all modules and contributors.
 - SHA-256 file hashing through OpenSSL EVP.
 - SQLite database with WAL, foreign-key enforcement, versioned migration
   metadata, download task CRUD/progress persistence, and per-segment checkpoint
-  metadata (byte range, optional SHA-256, and update time). Checkpoints are
-  metadata only: callers must flush and verify file bytes before recording them;
-  recovery reconciliation and a durable write/commit protocol remain pending.
+  metadata (byte range, SHA-256, and update time).
 - Synchronized offset writer with pre-sized partial files, strict bounds checks,
   and an explicit `flush_durable()` using `FlushFileBuffers` on Windows and
-  `fsync` on POSIX. Directory-entry durability, write/checkpoint ordering,
-  reconciliation, and fault-injection coverage are still pending.
+  `fsync` on POSIX.
+- Segment checkpoint manager that orders write -> OS-level durable file flush ->
+  on-disk SHA-256 verification -> SQLite checkpoint insert. Its recovery pass
+  re-hashes stored ranges and removes malformed or mismatched checkpoints while
+  retaining metadata on file I/O errors. This is a recoverable two-resource
+  protocol, not an atomic filesystem/database transaction. Directory-entry
+  durability, crash fault-injection, and end-to-end restart orchestration remain
+  pending. The manager requires the caller to supply the same path opened by
+  its offset writer.
 - Balanced inclusive HTTP byte-range planner with a configurable segment cap.
 - Bounded exponential retry policy for transient HTTP failures, including capped Retry-After handling.
 - Strict HTTP `Content-Range` parser and partial-response validator.
@@ -76,7 +81,7 @@ These rules are mandatory for all modules and contributors.
 - Unit tests for hashing, database persistence, offset writes, range
   partitioning, retry decisions, and `Content-Range` validation.
 
-The parallel segment scheduler, durable checkpoint/recovery protocol, Android JNI linkage to the shared storage/download modules, JSON schema validation, native host process, and end-to-end browser-to-desktop queue adapter are not implemented yet.
+The parallel segment scheduler, end-to-end restart orchestration around the checkpoint manager, Android JNI linkage to the shared storage/download modules, JSON schema validation, native host process, and end-to-end browser-to-desktop queue adapter are not implemented yet.
 
 ## 7. Phase 1 implementation order
 

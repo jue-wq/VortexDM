@@ -10,7 +10,8 @@ The repository is an actively developed foundation, not a feature-complete downl
 
 - [x] Phase 1: C++23 build foundation, SQLite WAL metadata store, synchronized offset writer, and unit tests
 - [x] Phase 1: explicit OS-level file flush primitive (Windows `FlushFileBuffers`, POSIX `fsync`)
-- [ ] Phase 1: directory-entry durability, ordered checkpoint commits, crash recovery, and fault-injection validation
+- [x] Phase 1: ordered write / durable flush / SHA-256 / SQLite checkpoint commits and corrupt-checkpoint pruning
+- [ ] Phase 1: directory-entry durability, full crash-restart orchestration, and fault-injection validation
 - [x] Android: Gradle / GeckoView browser bootstrap, navigation controls, and Android CI
 - [x] Android: Vortex Shield host-rule subset with EasyList/EasyPrivacy subscription caching
 - [x] Android: user-initiated official uBlock Origin add-on installation path (compatibility still requires validation)
