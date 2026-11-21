@@ -9,6 +9,7 @@
 #include "vortex/segment_checkpoint.hpp"
 #include "vortex/segment_recovery.hpp"
 #include "vortex/ytdlp_toolchain.hpp"
+#include "vortex/stream_manifest.hpp"
 #include "vortex/url.hpp"
 
 #include <openssl/sha.h>
@@ -73,6 +74,58 @@ std::vector<nlohmann::json> read_frames(const std::string& stream) {
     }
     if (offset != stream.size()) return {};
     return messages;
+}
+
+bool test_hls_and_dash_manifests() {
+    const std::string master = "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1280000,CODECS=\"avc1.4d401f,mp4a.40.2\",RESOLUTION=1280x720\n720/index.m3u8\n";
+    const auto parsed_master = vortex::parse_hls_playlist(master, "https://cdn.example/master.m3u8");
+    if (!parsed_master || !parsed_master->master_playlist || parsed_master->variants.size()!=1U) return false;
+    if (parsed_master->variants.front().uri != "https://cdn.example/720/index.m3u8") return false;
+
+    const std::string media = "#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI=\"keys/key.bin\"\n#EXT-X-MAP:URI=\"init.mp4\"\n#EXTINF:4.5,first\nseg-1.m4s\n#EXT-X-ENDLIST\n";
+    const auto parsed_media = vortex::parse_hls_playlist(media, "https://cdn.example/path/index.m3u8");
+    if (!parsed_media || parsed_media->live || !parsed_media->aes128_key_uri ||
+        *parsed_media->aes128_key_uri != "https://cdn.example/path/keys/key.bin" ||
+        !parsed_media->initialization_uri || parsed_media->segments.size()!=1U ||
+        parsed_media->segments.front().duration_seconds != 4.5) return false;
+    if (vortex::parse_hls_playlist("#EXTM3U\n#EXT-X-KEY:METHOD=SAMPLE-AES,URI=\"key\"\n", "https://cdn.example/a.m3u8")) return false;
+
+    const std::string mpd = R"XML(<?xml version="1.0"?>
+<MPD xmlns="urn:mpeg:dash:schema:mpd:2011" type="static">
+ <Period>
+  <AdaptationSet mimeType="video/mp4" codecs="avc1">
+   <Representation id="template" bandwidth="1000000" width="1280" height="720">
+    <BaseURL>https://cdn.example/template/</BaseURL>
+    <SegmentTemplate timescale="1000" duration="4000" startNumber="5" media="chunk-$Number$.m4s" initialization="init.mp4"/>
+   </Representation>
+  </AdaptationSet>
+  <AdaptationSet mimeType="audio/mp4">
+   <Representation id="list" bandwidth="128000">
+    <BaseURL>https://cdn.example/list/</BaseURL>
+    <SegmentList><Initialization sourceURL="init-audio.mp4"/><SegmentURL media="a1.m4s"/><SegmentURL media="a2.m4s"/></SegmentList>
+   </Representation>
+  </AdaptationSet>
+  <AdaptationSet mimeType="video/mp4">
+   <Representation id="base" bandwidth="500000">
+    <BaseURL>https://cdn.example/base/file.mp4</BaseURL>
+    <SegmentBase indexRange="100-200"><Initialization sourceURL="init.bin" range="0-99"/></SegmentBase>
+   </Representation>
+  </AdaptationSet>
+ </Period>
+</MPD>)XML";
+    const auto parsed_dash = vortex::parse_dash_mpd(mpd, "https://cdn.example/manifest.mpd");
+    if (!parsed_dash || parsed_dash->dynamic || parsed_dash->representations.size()!=3U) return false;
+    const auto& templ = parsed_dash->representations[0];
+    if (!templ.segment_template || templ.segment_template->start_number!=5U ||
+        templ.segment_template->duration!=4000U || templ.id!="template") return false;
+    const auto& list = parsed_dash->representations[1];
+    if (list.segment_urls.size()!=2U || !list.initialization_url ||
+        *list.initialization_url!="https://cdn.example/list/init-audio.mp4") return false;
+    const auto& base_rep = parsed_dash->representations[2];
+    if (base_rep.segment_base_index_range!="100-200" || !base_rep.segment_base_initialization_url ||
+        *base_rep.segment_base_initialization_url!="https://cdn.example/base/init.bin" ||
+        base_rep.segment_base_initialization_range!="0-99") return false;
+    return !vortex::parse_dash_mpd("<not-mpd>", "https://cdn.example/manifest.mpd");
 }
 
 bool test_ytdlp_toolchain_verification_and_rollback() {
@@ -465,6 +518,10 @@ bool test_sqlite_migrations_and_segment_journal() {
 }
 
 int main() {
+    if (!test_hls_and_dash_manifests()) {
+        std::cerr << "HLS/DASH manifest parser test failed\\n";
+        return 11;
+    }
     if (!test_ytdlp_toolchain_verification_and_rollback()) {
         std::cerr << "yt-dlp toolchain verification/rollback test failed\\n";
         return 10;
