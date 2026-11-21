@@ -172,9 +172,9 @@ Result<ProcessResult> run_process(
         const pid_t waited = ::waitpid(child, &status, WNOHANG);
         if (waited == child) finished = true;
         if (options.cancel_requested && options.cancel_requested->load(std::memory_order_relaxed)) {
-            result.cancelled = true; (void)::kill(child, SIGTERM);
+            result.cancelled = true; (void)::kill(child, SIGKILL);
         } else if (std::chrono::steady_clock::now() >= deadline) {
-            result.timed_out = true; (void)::kill(child, SIGTERM);
+            result.timed_out = true; (void)::kill(child, SIGKILL);
         }
         if (result.cancelled || result.timed_out) {
             (void)::waitpid(child, &status, 0);
