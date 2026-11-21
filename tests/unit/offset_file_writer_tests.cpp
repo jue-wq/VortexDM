@@ -42,6 +42,28 @@ TEST_CASE("Offset writer writes disjoint ranges at requested offsets") {
     std::filesystem::remove(path, cleanup_error);
 }
 
+TEST_CASE("Offset writer reopens an exactly sized partial file without truncating it") {
+    const auto path = unique_path();
+    {
+        std::ofstream output(path, std::ios::binary);
+        output << "abcdefgh";
+    }
+    vortex::OffsetFileWriter writer;
+    REQUIRE(writer.open_existing(path, 8).has_value());
+    const std::array patch{std::byte{'X'}, std::byte{'Y'}};
+    REQUIRE(writer.write_at(2, patch).has_value());
+    REQUIRE(writer.close().has_value());
+    {
+        std::ifstream input(path, std::ios::binary);
+        const std::string content((std::istreambuf_iterator<char>(input)), {});
+        CHECK(content == "abXYefgh");
+    }
+    vortex::OffsetFileWriter wrong_size;
+    CHECK_FALSE(wrong_size.open_existing(path, 9).has_value());
+    std::error_code cleanup_error;
+    std::filesystem::remove(path, cleanup_error);
+}
+
 TEST_CASE("Offset writer rejects writes outside preallocated bounds") {
     const auto path = unique_path();
     vortex::OffsetFileWriter writer;
