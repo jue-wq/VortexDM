@@ -63,6 +63,7 @@ if(WIN32)
         "${CMAKE_INSTALL_FULL_LIBDIR}/mozilla/native-messaging-hosts/com.vortexdm.native_host.json"
         _vortexdm_manifest_native_path
     )
+    string(REPLACE "'" "''" VORTEXDM_NATIVE_HOST_MANIFEST_PS_PATH "${_vortexdm_manifest_native_path}")
     configure_file(
         packaging/windows/register-firefox-native-host.ps1.in
         ${CMAKE_CURRENT_BINARY_DIR}/register-firefox-native-host.ps1
