@@ -248,3 +248,33 @@ TEST_CASE("SQLite queue claims queued downloads atomically in FIFO order") {
     CHECK(rows->at(0).state == vortex::DownloadState::running);
     CHECK(rows->at(1).state == vortex::DownloadState::running);
 }
+
+
+TEST_CASE("SQLite stores and validates strong HTTP resume ETags") {
+    TemporaryDatabase temporary;
+    vortex::SqliteDatabase database;
+    REQUIRE(database.open(temporary.path()).has_value());
+    REQUIRE(database.migrate().has_value());
+
+    vortex::DownloadRecord record;
+    record.url = "https://example.test/resume.bin";
+    record.destination = "resume.bin";
+    record.created_at_unix = 40;
+    record.updated_at_unix = 40;
+    const auto id = database.insert_download(record);
+    REQUIRE(id);
+
+    REQUIRE(database.update_download_validator(*id, "\"stable-v1\"").has_value());
+    CHECK_FALSE(database.update_download_validator(*id, "W/\"weak-v1\"").has_value());
+    CHECK_FALSE(database.update_download_validator(*id, "\"bad\r\nvalue\"").has_value());
+
+    const auto rows = database.list_downloads();
+    REQUIRE(rows);
+    REQUIRE(rows->size() == 1);
+    CHECK(rows->front().etag == "\"stable-v1\"");
+
+    REQUIRE(database.update_download_validator(*id, "").has_value());
+    const auto cleared = database.list_downloads();
+    REQUIRE(cleared);
+    CHECK(cleared->front().etag.empty());
+}
