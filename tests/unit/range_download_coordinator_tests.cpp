@@ -1,4 +1,5 @@
-#include "core/download/range_download_coordinator.hpp"\n#include "core/storage/sqlite_database.hpp"
+#include "core/download/range_download_coordinator.hpp"
+#include "core/storage/sqlite_database.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 
