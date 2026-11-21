@@ -239,6 +239,43 @@ Result<void> SqliteRepository::migrate() {
     return {};
 }
 
+Result<void> SqliteRepository::save_queue(const QueueRecord& record) {
+    if(db_==nullptr)return std::unexpected(make_error("sqlite_open",open_error_));
+    if(record.id.empty() || record.name.empty() || record.max_concurrent==0U || record.max_concurrent>64U)
+        return std::unexpected(make_error("invalid_queue","Queue id/name and concurrency 1..64 are required"));
+    Statement statement(db_,R"SQL(
+      INSERT INTO queues(id,name,max_concurrent,is_active) VALUES(?,?,?,?)
+      ON CONFLICT(id) DO UPDATE SET name=excluded.name,max_concurrent=excluded.max_concurrent,is_active=excluded.is_active;
+    )SQL");
+    if(!statement.valid())return std::unexpected(database_error(db_,"sqlite_prepare","Could not prepare queue upsert"));
+    auto id=bind_text(statement.get(),1,record.id);if(!id)return id;
+    auto name=bind_text(statement.get(),2,record.name);if(!name)return name;
+    if(sqlite3_bind_int64(statement.get(),3,static_cast<sqlite3_int64>(record.max_concurrent))!=SQLITE_OK ||
+       sqlite3_bind_int(statement.get(),4,record.is_active?1:0)!=SQLITE_OK)
+        return std::unexpected(database_error(db_,"sqlite_bind","Could not bind queue settings"));
+    if(sqlite3_step(statement.get())!=SQLITE_DONE)return std::unexpected(database_error(db_,"sqlite_write","Could not save queue"));
+    return {};
+}
+
+Result<std::vector<QueueRecord>> SqliteRepository::list_queues() {
+    if(db_==nullptr)return std::unexpected(make_error("sqlite_open",open_error_));
+    Statement statement(db_,"SELECT id,name,max_concurrent,is_active FROM queues ORDER BY name,id;");
+    if(!statement.valid())return std::unexpected(database_error(db_,"sqlite_prepare","Could not prepare queue query"));
+    std::vector<QueueRecord> records;
+    int rc=SQLITE_OK;
+    while((rc=sqlite3_step(statement.get()))==SQLITE_ROW){
+        const auto* id=reinterpret_cast<const char*>(sqlite3_column_text(statement.get(),0));
+        const auto* name=reinterpret_cast<const char*>(sqlite3_column_text(statement.get(),1));
+        QueueRecord record;
+        record.id=id?id:"";record.name=name?name:"";
+        record.max_concurrent=static_cast<std::uint64_t>(sqlite3_column_int64(statement.get(),2));
+        record.is_active=sqlite3_column_int(statement.get(),3)!=0;
+        records.push_back(std::move(record));
+    }
+    if(rc!=SQLITE_DONE)return std::unexpected(database_error(db_,"sqlite_read","Could not read queues"));
+    return records;
+}
+
 Result<void> SqliteRepository::save_download(const DownloadRecord& record) {
     if (db_ == nullptr) return std::unexpected(make_error("sqlite_open", open_error_));
     if (record.id.empty() || record.url.empty() || record.filename.empty()) {
