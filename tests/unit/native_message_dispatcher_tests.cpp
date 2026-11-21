@@ -34,6 +34,12 @@ TEST_CASE("Native dispatcher stages durably but never claims queue acceptance be
     REQUIRE(replay->has_value());
     CHECK(nlohmann::json::parse(**replay)["accepted"] == false);
 
+    const auto conflicting_replay = dispatcher.dispatch(
+        R"({"type":"add_download","request_id":"req-1","url":"https://attacker.example/other.zip","filename":"a.zip"})");
+    REQUIRE(conflicting_replay.has_value());
+    REQUIRE(conflicting_replay->has_value());
+    CHECK(nlohmann::json::parse(**conflicting_replay)["accepted"] == false);
+
     const auto downloads = database.list_downloads();
     REQUIRE(downloads.has_value());
     REQUIRE(downloads->size() == 1);
