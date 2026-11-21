@@ -5,13 +5,16 @@
 #include "core/common/crypto_utils.hpp"
 
 #include <algorithm>
+#include <atomic>
 #include <charconv>
 #include <condition_variable>
 #include <limits>
 #include <mutex>
+#include <stop_token>
 #include <string>
 #include <system_error>
 #include <thread>
+#include <unordered_set>
 #include <vector>
 
 namespace vortex {
@@ -62,30 +65,34 @@ Status RangeDownloadCoordinator::transfer(
         chunk_size == 0 || chunk_size > maximum_staged_bytes || !executor ||
         options.base_retry_delay.count() < 0 ||
         options.maximum_retry_delay.count() < 0 ||
+        options.maximum_concurrent_requests == 0 ||
+        options.maximum_concurrent_requests > 16 ||
         (checkpoint_manager != nullptr && download_id <= 0)) {
         return std::unexpected(VortexError::make(
             ErrorCode::invalid_argument, "Invalid ranged download parameters"));
     }
 
-    const auto& waiter = options.wait_before_retry;
-    std::vector<SegmentCheckpoint> existing_checkpoints;
+    const auto segment_count = (total_size - 1U) / chunk_size + 1U;
+    if (segment_count > static_cast<std::uint64_t>(
+            std::numeric_limits<std::int32_t>::max()) + 1U) {
+        return std::unexpected(VortexError::make(
+            ErrorCode::invalid_argument, "Download requires too many range segments"));
+    }
+
+    std::unordered_set<std::int32_t> completed_segments;
     if (checkpoint_manager != nullptr) {
         const auto pruned = checkpoint_manager->verify_and_prune(download_id);
         if (!pruned) return std::unexpected(pruned.error());
         const auto listed = checkpoint_manager->list_checkpoints(download_id);
         if (!listed) return std::unexpected(listed.error());
-        existing_checkpoints = *listed;
-        // Checkpoint indices are tied to the original deterministic chunk geometry.
-        // Refuse to append into a file if a caller resumes with different parameters.
-        for (const auto& checkpoint : existing_checkpoints) {
+        completed_segments.reserve(listed->size());
+        for (const auto& checkpoint : *listed) {
             if (checkpoint.segment_index < 0) {
                 return std::unexpected(VortexError::make(
                     ErrorCode::invalid_argument, "Stored checkpoint has a negative segment index"));
             }
             const auto index = static_cast<std::uint64_t>(checkpoint.segment_index);
-            // Bound the index before multiplication so corrupt persisted metadata
-            // cannot wrap the unsigned offset calculation.
-            if (index > (total_size - 1U) / chunk_size) {
+            if (index >= segment_count) {
                 return std::unexpected(VortexError::make(
                     ErrorCode::invalid_argument, "Stored checkpoint is outside the current download geometry"));
             }
@@ -96,38 +103,38 @@ Status RangeDownloadCoordinator::transfer(
                 return std::unexpected(VortexError::make(
                     ErrorCode::invalid_argument, "Stored checkpoint does not match the current chunk geometry"));
             }
+            completed_segments.insert(checkpoint.segment_index);
         }
     }
 
-    std::uint64_t offset = 0;
-    std::int32_t segment_index = 0;
-    while (offset < total_size) {
-        if (stop_token.stop_requested()) {
+    std::stop_source workers_stop;
+    std::stop_callback external_cancel(stop_token, [&workers_stop] {
+        workers_stop.request_stop();
+    });
+    const auto worker_token = workers_stop.get_token();
+    std::atomic<std::uint64_t> next_segment{0};
+    std::mutex error_mutex;
+    std::optional<VortexError> first_error;
+
+    const auto fail = [&](VortexError error) {
+        {
+            std::scoped_lock lock(error_mutex);
+            if (!first_error) first_error = std::move(error);
+        }
+        workers_stop.request_stop();
+    };
+
+    const auto process_segment = [&](const std::uint64_t index) -> Status {
+        if (worker_token.stop_requested()) {
             return std::unexpected(VortexError::make(
                 ErrorCode::cancelled, "Ranged download cancelled"));
         }
 
+        const auto offset = index * chunk_size;
         const auto length = std::min(chunk_size, total_size - offset);
-        if (checkpoint_manager != nullptr) {
-            const auto saved = std::find_if(
-                existing_checkpoints.begin(), existing_checkpoints.end(),
-                [segment_index, offset, length](const SegmentCheckpoint& checkpoint) {
-                    return checkpoint.segment_index == segment_index &&
-                        checkpoint.offset == static_cast<std::int64_t>(offset) &&
-                        checkpoint.length == static_cast<std::int64_t>(length);
-                });
-            if (saved != existing_checkpoints.end()) {
-                offset += length;
-                if (offset < total_size) {
-                    if (segment_index == std::numeric_limits<std::int32_t>::max()) {
-                        return std::unexpected(VortexError::make(
-                            ErrorCode::invalid_argument, "Too many checkpointed range segments"));
-                    }
-                    ++segment_index;
-                }
-                continue;
-            }
-        }
+        const auto segment_index = static_cast<std::int32_t>(index);
+        if (completed_segments.contains(segment_index)) return {};
+
         const ByteRange range{offset, offset + length - 1U};
         HttpRequest request;
         request.url = std::string(url);
@@ -139,6 +146,10 @@ Status RangeDownloadCoordinator::transfer(
         bool accepted = false;
 
         for (std::uint32_t attempt = 0;; ++attempt) {
+            if (worker_token.stop_requested()) {
+                return std::unexpected(VortexError::make(
+                    ErrorCode::cancelled, "Ranged download cancelled"));
+            }
             staged.clear();
             const auto response = executor(request,
                 [&staged, length](const std::span<const std::byte> bytes) {
@@ -148,7 +159,7 @@ Status RangeDownloadCoordinator::transfer(
                     }
                     staged.insert(staged.end(), bytes.begin(), bytes.end());
                     return true;
-                }, stop_token);
+                }, worker_token);
 
             RetryDecision decision{};
             if (!response) {
@@ -181,8 +192,9 @@ Status RangeDownloadCoordinator::transfer(
                 }
             }
 
-            const auto wait = waiter ? waiter : RetryWaiter{default_wait};
-            if (stop_token.stop_requested() || !wait(decision.delay, stop_token)) {
+            const auto wait = options.wait_before_retry
+                ? options.wait_before_retry : RetryWaiter{default_wait};
+            if (worker_token.stop_requested() || !wait(decision.delay, worker_token)) {
                 return std::unexpected(VortexError::make(
                     ErrorCode::cancelled, "Ranged download cancelled during retry backoff"));
             }
@@ -205,10 +217,6 @@ Status RangeDownloadCoordinator::transfer(
         }
 
         if (checkpoint_manager != nullptr) {
-            if (segment_index == std::numeric_limits<std::int32_t>::max()) {
-                return std::unexpected(VortexError::make(
-                    ErrorCode::invalid_argument, "Too many checkpointed range segments"));
-            }
             const auto digest = CryptoUtils::sha256_bytes(staged);
             if (!digest) return std::unexpected(digest.error());
             const auto committed = checkpoint_manager->commit_segment(
@@ -218,16 +226,41 @@ Status RangeDownloadCoordinator::transfer(
             const auto written = writer.write_at(offset, staged);
             if (!written) return written;
         }
-        offset += length;
-        if (offset < total_size) {
-            if (segment_index == std::numeric_limits<std::int32_t>::max()) {
-                return std::unexpected(VortexError::make(
-                    ErrorCode::invalid_argument, "Too many checkpointed range segments"));
+        return {};
+    };
+
+    const auto worker_count = static_cast<std::size_t>(
+        std::min<std::uint64_t>(options.maximum_concurrent_requests, segment_count));
+    std::vector<std::jthread> workers;
+    workers.reserve(worker_count);
+    for (std::size_t worker = 0; worker < worker_count; ++worker) {
+        workers.emplace_back([&] {
+            while (!worker_token.stop_requested()) {
+                const auto index = next_segment.fetch_add(1, std::memory_order_relaxed);
+                if (index >= segment_count) return;
+                const auto status = process_segment(index);
+                if (!status) {
+                    if (status.error().code != ErrorCode::cancelled ||
+                        !worker_token.stop_requested()) {
+                        fail(status.error());
+                    }
+                    return;
+                }
             }
-            ++segment_index;
-        }
+        });
+    }
+    for (auto& worker : workers) {
+        if (worker.joinable()) worker.join();
     }
 
+    {
+        std::scoped_lock lock(error_mutex);
+        if (first_error) return std::unexpected(*first_error);
+    }
+    if (stop_token.stop_requested()) {
+        return std::unexpected(VortexError::make(
+            ErrorCode::cancelled, "Ranged download cancelled"));
+    }
     return writer.flush();
 }
 

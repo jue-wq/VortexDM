@@ -20,8 +20,11 @@ using RetryWaiter = std::function<bool(std::chrono::milliseconds, std::stop_toke
 
 struct RangeTransferOptions final {
     std::uint32_t maximum_retries{3};
+    // Defaults to one for compatibility; values above one enable bounded parallel requests.
+    std::uint32_t maximum_concurrent_requests{1};
     std::chrono::milliseconds base_retry_delay{500};
     std::chrono::milliseconds maximum_retry_delay{30'000};
+    // When concurrency is enabled, the waiter must be safe for concurrent calls.
     // Return false to abort (normally because cancellation was requested).
     RetryWaiter wait_before_retry;
 };
@@ -30,9 +33,10 @@ class RangeDownloadCoordinator final {
 public:
     static constexpr std::uint64_t maximum_staged_bytes = 4U * 1024U * 1024U;
 
-    // Downloads sequential bounded ranges into an already-open, pre-sized writer.
-    // Each response is fully validated in memory before any bytes from that range
-    // are committed to the destination file. The executor may be injected in tests.
+    // Downloads bounded ranges into an already-open, pre-sized writer.
+    // Each response is validated in a per-worker staging buffer before commit.
+    // If concurrency is enabled, executor calls may overlap and the executor must
+    // support concurrent invocation. The built-in HttpClient executor does.
     [[nodiscard]] static Status transfer(
         std::string_view url, std::uint64_t total_size,
         std::uint64_t chunk_size, OffsetFileWriter& writer,
