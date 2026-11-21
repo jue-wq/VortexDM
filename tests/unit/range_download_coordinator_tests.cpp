@@ -551,7 +551,7 @@ TEST_CASE("Range coordinator bounds concurrent range requests") {
             std::vector<std::byte> body;
             body.reserve(static_cast<std::size_t>(range.size()));
             for (std::uint64_t offset = range.first; offset <= range.last; ++offset) {
-                body.push_back(static_cast<std::byte>('a' + offset));
+                body.push_back(static_cast<std::byte>(static_cast<unsigned char>('a' + offset)));
             }
             if (!sink(body)) {
                 return vortex::Result<vortex::HttpResponse>{std::unexpected(
