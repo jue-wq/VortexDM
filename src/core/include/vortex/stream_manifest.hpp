@@ -35,4 +35,36 @@ struct HlsManifest {
     const std::string& text,
     const std::string& playlist_url);
 
+struct DashSegmentTemplate {
+    std::string media;
+    std::string initialization;
+    std::uint64_t timescale{1};
+    std::uint64_t duration{0};
+    std::uint64_t start_number{1};
+};
+
+struct DashRepresentation {
+    std::string id;
+    std::string mime_type;
+    std::string codecs;
+    std::uint64_t bandwidth{0};
+    std::uint64_t width{0};
+    std::uint64_t height{0};
+    std::string base_url;
+    std::optional<DashSegmentTemplate> segment_template;
+    std::vector<std::string> segment_urls;
+    std::optional<std::string> initialization_url;
+    std::string segment_base_index_range;
+    bool has_content_protection{false};
+};
+
+struct DashManifest {
+    bool dynamic{false};
+    std::vector<DashRepresentation> representations;
+};
+
+[[nodiscard]] Result<DashManifest> parse_dash_mpd(
+    const std::string& xml_text,
+    const std::string& manifest_url);
+
 } // namespace vortex

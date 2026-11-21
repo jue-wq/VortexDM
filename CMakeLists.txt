@@ -28,6 +28,7 @@ endif()
 find_package(CURL REQUIRED)
 find_package(SQLite3 REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
+find_package(tinyxml2 CONFIG REQUIRED)
 find_package(OpenSSL REQUIRED COMPONENTS Crypto)
 find_package(Threads REQUIRED)
 
@@ -49,7 +50,7 @@ add_library(vortex_core
   src/core/src/stream_manifest.cpp
 )
 target_include_directories(vortex_core PUBLIC src/core/include)
-target_link_libraries(vortex_core PUBLIC CURL::libcurl SQLite::SQLite3 nlohmann_json::nlohmann_json OpenSSL::Crypto Threads::Threads)
+target_link_libraries(vortex_core PUBLIC CURL::libcurl SQLite::SQLite3 nlohmann_json::nlohmann_json OpenSSL::Crypto Threads::Threads tinyxml2::tinyxml2)
 target_compile_features(vortex_core PUBLIC cxx_std_23)
 if(MSVC)
   target_compile_options(vortex_core PRIVATE /W4 /permissive-)

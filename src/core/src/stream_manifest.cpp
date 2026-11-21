@@ -3,6 +3,7 @@
 #include "vortex/url.hpp"
 
 #include <curl/curl.h>
+#include <tinyxml2.h>
 
 #include <charconv>
 #include <cctype>
@@ -129,6 +130,120 @@ Result<HlsManifest> parse_hls_playlist(const std::string& text, const std::strin
         return std::unexpected(make_error("hls_truncated", "Playlist ended before a referenced variant or segment URI"));
     }
     if (manifest.master_playlist && manifest.variants.empty()) return std::unexpected(make_error("hls_master_empty", "HLS master playlist contains no variants"));
+    return manifest;
+}
+
+namespace {
+std::uint64_t xml_uint(const tinyxml2::XMLElement* element, const char* name, std::uint64_t fallback = 0U) {
+    if (!element) return fallback;
+    std::uint64_t value = fallback;
+    if (element->QueryUnsigned64Attribute(name, &value) != tinyxml2::XML_SUCCESS) return fallback;
+    return value;
+}
+
+std::string xml_attr(const tinyxml2::XMLElement* element, const char* name) {
+    if (!element) return {};
+    const auto* value = element->Attribute(name);
+    return value ? value : "";
+}
+
+Result<std::string> resolve_base(const std::string& current, const tinyxml2::XMLElement* parent) {
+    const auto* base = parent ? parent->FirstChildElement("BaseURL") : nullptr;
+    if (!base || !base->GetText()) return current;
+    return resolve_uri(current, trim_line(base->GetText()));
+}
+
+std::optional<DashSegmentTemplate> parse_template(
+    const tinyxml2::XMLElement* adaptation,
+    const tinyxml2::XMLElement* representation) {
+    const auto* source = representation ? representation->FirstChildElement("SegmentTemplate") : nullptr;
+    if (!source && adaptation) source = adaptation->FirstChildElement("SegmentTemplate");
+    if (!source) return std::nullopt;
+    DashSegmentTemplate result;
+    result.media = xml_attr(source, "media");
+    result.initialization = xml_attr(source, "initialization");
+    result.timescale = xml_uint(source, "timescale", 1U);
+    result.duration = xml_uint(source, "duration", 0U);
+    result.start_number = xml_uint(source, "startNumber", 1U);
+    return result;
+}
+}
+
+Result<DashManifest> parse_dash_mpd(const std::string& xml_text, const std::string& manifest_url) {
+    auto base = parse_http_url(manifest_url);
+    if (!base) return std::unexpected(base.error());
+    if (xml_text.size() > 8U * 1024U * 1024U) return std::unexpected(make_error("manifest_size", "DASH MPD exceeds 8 MiB"));
+    tinyxml2::XMLDocument document;
+    if (document.Parse(xml_text.data(), xml_text.size()) != tinyxml2::XML_SUCCESS) {
+        return std::unexpected(make_error("dash_xml", "DASH MPD XML is malformed"));
+    }
+    const auto* mpd = document.FirstChildElement("MPD");
+    if (!mpd) return std::unexpected(make_error("dash_root", "DASH document must have an MPD root element"));
+    DashManifest manifest;
+    manifest.dynamic = xml_attr(mpd, "type") == "dynamic";
+    auto mpd_base = resolve_base(manifest_url, mpd);
+    if (!mpd_base) return std::unexpected(mpd_base.error());
+    const auto* period = mpd->FirstChildElement("Period");
+    if (!period) return std::unexpected(make_error("dash_period", "DASH MPD has no Period"));
+    auto period_base = resolve_base(*mpd_base, period);
+    if (!period_base) return std::unexpected(period_base.error());
+    for (auto* adaptation = period->FirstChildElement("AdaptationSet"); adaptation;
+         adaptation = adaptation->NextSiblingElement("AdaptationSet")) {
+        auto adaptation_base = resolve_base(*period_base, adaptation);
+        if (!adaptation_base) return std::unexpected(adaptation_base.error());
+        const bool adaptation_protected = adaptation->FirstChildElement("ContentProtection") != nullptr;
+        for (auto* representation = adaptation->FirstChildElement("Representation"); representation;
+             representation = representation->NextSiblingElement("Representation")) {
+            DashRepresentation item;
+            item.id = xml_attr(representation, "id");
+            item.mime_type = xml_attr(representation, "mimeType");
+            if (item.mime_type.empty()) item.mime_type = xml_attr(adaptation, "mimeType");
+            item.codecs = xml_attr(representation, "codecs");
+            if (item.codecs.empty()) item.codecs = xml_attr(adaptation, "codecs");
+            item.bandwidth = xml_uint(representation, "bandwidth");
+            item.width = xml_uint(representation, "width");
+            item.height = xml_uint(representation, "height");
+            auto representation_base = resolve_base(*adaptation_base, representation);
+            if (!representation_base) return std::unexpected(representation_base.error());
+            item.base_url = *representation_base;
+            item.has_content_protection = adaptation_protected || representation->FirstChildElement("ContentProtection") != nullptr;
+            item.segment_template = parse_template(adaptation, representation);
+            const auto* segment_list = representation->FirstChildElement("SegmentList");
+            if (!segment_list) segment_list = adaptation->FirstChildElement("SegmentList");
+            if (segment_list) {
+                if (const auto* initialization = segment_list->FirstChildElement("Initialization")) {
+                    const auto source_url = xml_attr(initialization, "sourceURL");
+                    if (!source_url.empty()) {
+                        auto resolved = resolve_uri(item.base_url, source_url);
+                        if (!resolved) return std::unexpected(resolved.error());
+                        item.initialization_url = *resolved;
+                    }
+                }
+                for (auto* segment = segment_list->FirstChildElement("SegmentURL"); segment;
+                     segment = segment->NextSiblingElement("SegmentURL")) {
+                    const auto media = xml_attr(segment, "media");
+                    if (media.empty()) continue;
+                    auto resolved = resolve_uri(item.base_url, media);
+                    if (!resolved) return std::unexpected(resolved.error());
+                    item.segment_urls.push_back(*resolved);
+                }
+            }
+            const auto* segment_base = representation->FirstChildElement("SegmentBase");
+            if (!segment_base) segment_base = adaptation->FirstChildElement("SegmentBase");
+            if (segment_base) {
+                item.segment_base_index_range = xml_attr(segment_base, "indexRange");
+                if (const auto* initialization = segment_base->FirstChildElement("Initialization")) {
+                    item.segment_base_index_range = xml_attr(segment_base, "indexRange");
+                    const auto range = xml_attr(initialization, "range");
+                    if (!range.empty()) item.segment_base_index_range = range;
+                }
+            }
+            if (item.segment_template || !item.segment_urls.empty() || !item.segment_base_index_range.empty() || !item.base_url.empty()) {
+                manifest.representations.push_back(std::move(item));
+            }
+        }
+    }
+    if (manifest.representations.empty()) return std::unexpected(make_error("dash_representations", "DASH MPD contains no usable representations"));
     return manifest;
 }
 
