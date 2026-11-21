@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <charconv>
+#include <chrono>
 #include <cctype>
 #include <cstdio>
 #include <limits>
@@ -17,6 +18,7 @@
 #include <string_view>
 #include <unordered_map>
 #include <utility>
+#include <thread>
 #include <vector>
 
 namespace vortex {
@@ -386,16 +388,49 @@ Result<RemoteFileInfo> probe_url(const std::string& url) {
     return probe_url_impl(url);
 }
 
+namespace {
+bool retryable_transfer_error(const Error& error) {
+    if (error.code == "network_error" || error.code == "probe_failed" ||
+        error.code == "range_download" || error.code == "curl_multi_init" ||
+        error.code == "curl_multi_add") return true;
+    if (error.code != "http_error") return false;
+    return error.message.find("HTTP 5") != std::string::npos ||
+        error.message.find("HTTP 408") != std::string::npos ||
+        error.message.find("HTTP 429") != std::string::npos;
+}
+}
+
 Result<void> download_file(
     const std::string& url,
     const std::filesystem::path& destination,
     const DownloadOptions& options) {
-    auto info = probe_url(url);
-    if (!info) return std::unexpected(info.error());
-    if (info->size_known && info->supports_ranges && options.max_connections > 1U && info->total_bytes > 0U) {
-        return download_ranges(info->effective_url, destination, *info, options);
+    const std::size_t attempts = std::min<std::size_t>(options.max_retries, 10U) + 1U;
+    Error last_error = make_error("download_failed", "Download did not start");
+    for (std::size_t attempt = 0; attempt < attempts; ++attempt) {
+        auto info = probe_url(url);
+        if (!info) {
+            last_error = info.error();
+        } else {
+            Result<void> transfer;
+            if (info->size_known && info->supports_ranges && options.max_connections > 1U && info->total_bytes > 0U) {
+                transfer = download_ranges(info->effective_url, destination, *info, options);
+            } else {
+                transfer = download_sequential(info->effective_url, destination, options);
+            }
+            if (transfer) return {};
+            last_error = transfer.error();
+        }
+        if (attempt + 1U >= attempts || !retryable_transfer_error(last_error)) {
+            return std::unexpected(last_error);
+        }
+        std::error_code ignored;
+        std::filesystem::remove(destination, ignored);
+        const auto exponent = std::min<std::size_t>(attempt, 6U);
+        const std::uint64_t multiplier = std::uint64_t{1} << exponent;
+        const std::uint64_t delay = std::min<std::uint64_t>(options.retry_backoff_ms * multiplier, 30000U);
+        std::this_thread::sleep_for(std::chrono::milliseconds(delay));
     }
-    return download_sequential(info->effective_url, destination, options);
+    return std::unexpected(last_error);
 }
 
 } // namespace vortex

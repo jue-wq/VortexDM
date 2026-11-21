@@ -25,6 +25,8 @@ struct DownloadOptions {
     std::uint64_t minimum_segment_bytes{2U * 1024U * 1024U};
     long connect_timeout_ms{10000};
     long transfer_timeout_ms{0};
+    std::size_t max_retries{3};
+    std::uint64_t retry_backoff_ms{500};
 };
 
 [[nodiscard]] Result<RemoteFileInfo> probe_url(const std::string& url);
