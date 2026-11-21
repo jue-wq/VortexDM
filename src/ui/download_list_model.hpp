@@ -4,6 +4,7 @@
 
 #include <QAbstractListModel>
 #include <QTimer>
+#include <QVariantList>
 
 class DownloadListModel final : public QAbstractListModel {
     Q_OBJECT
