@@ -516,6 +516,18 @@ Result<std::optional<DownloadRecord>> SqliteRepository::claim_next_queued_downlo
     return std::optional<DownloadRecord>{std::move(record)};
 }
 
+Result<std::string> SqliteRepository::get_download_status(const std::string& id) {
+    if(db_==nullptr)return std::unexpected(make_error("sqlite_open",open_error_));
+    Statement statement(db_,"SELECT status FROM downloads WHERE id=?;");
+    if(!statement.valid())return std::unexpected(database_error(db_,"sqlite_prepare","Could not prepare download status query"));
+    auto bound=bind_text(statement.get(),1,id);if(!bound)return std::unexpected(bound.error());
+    const int rc=sqlite3_step(statement.get());
+    if(rc==SQLITE_DONE)return std::unexpected(make_error("download_not_found","Download task does not exist"));
+    if(rc!=SQLITE_ROW)return std::unexpected(database_error(db_,"sqlite_read","Could not read download status"));
+    const auto* value=reinterpret_cast<const char*>(sqlite3_column_text(statement.get(),0));
+    return value?std::string(value):std::string{};
+}
+
 Result<void> SqliteRepository::update_download_progress(
     const std::string& id, std::uint64_t downloaded, std::uint64_t total) {
     if(db_==nullptr)return std::unexpected(make_error("sqlite_open",open_error_));

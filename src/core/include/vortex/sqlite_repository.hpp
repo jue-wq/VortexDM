@@ -86,6 +86,7 @@ public:
     [[nodiscard]] Result<std::vector<DownloadRecord>> list_downloads();
     [[nodiscard]] Result<std::optional<DownloadRecord>> claim_next_queued_download();
     [[nodiscard]] Result<void> update_download_status(const std::string& id, const std::string& status, const std::string& error_message = {});
+    [[nodiscard]] Result<std::string> get_download_status(const std::string& id);
     [[nodiscard]] Result<void> update_download_progress(const std::string& id, std::uint64_t downloaded, std::uint64_t total);
     [[nodiscard]] Result<std::uint64_t> schema_version();
 
