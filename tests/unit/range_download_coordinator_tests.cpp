@@ -317,3 +317,48 @@ TEST_CASE("Range coordinator rejects checkpoint geometry changes before requesti
     std::filesystem::remove(database_path + "-wal", ignored);
     std::filesystem::remove(database_path + "-shm", ignored);
 }
+
+
+TEST_CASE("Range coordinator completes without network requests when all checkpoints verify") {
+    const auto path = temporary_path();
+    const auto database_path = path.string() + ".sqlite";
+    vortex::SqliteDatabase database;
+    REQUIRE(database.open(database_path).has_value());
+    REQUIRE(database.migrate().has_value());
+    vortex::DownloadRecord record;
+    record.url = "https://example.test/already-complete.bin";
+    record.destination = path.string();
+    record.total_bytes = 6;
+    const auto id = database.insert_download(record);
+    REQUIRE(id);
+    vortex::OffsetFileWriter writer;
+    REQUIRE(writer.open(path, 6).has_value());
+    vortex::SegmentCheckpointManager manager(writer, database, path);
+    const std::array first{std::byte{'a'}, std::byte{'b'}, std::byte{'c'}};
+    const std::array second{std::byte{'d'}, std::byte{'e'}, std::byte{'f'}};
+    const std::string first_sha =
+        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+    const std::string second_sha =
+        "cb8379ac2098aa165029e3938a51da0bcecfc008fd6795f401178647f96c5b34";
+    REQUIRE(manager.commit_segment(*id, 0, 0, first, first_sha, 10).has_value());
+    REQUIRE(manager.commit_segment(*id, 1, 3, second, second_sha, 11).has_value());
+
+    std::size_t requests = 0;
+    const vortex::RangeRequestExecutor executor =
+        [&requests](const vortex::HttpRequest&, const vortex::HttpBodySink&, std::stop_token) {
+            ++requests;
+            return vortex::Result<vortex::HttpResponse>{std::unexpected(
+                vortex::VortexError::make(vortex::ErrorCode::network_error, "unexpected request"))};
+        };
+    REQUIRE(vortex::RangeDownloadCoordinator::transfer(
+        "https://example.test/already-complete.bin", 6, 3, writer, executor, {}, {},
+        &manager, *id, 12).has_value());
+    CHECK(requests == 0);
+    REQUIRE(writer.close());
+    REQUIRE(database.close().has_value());
+    std::error_code ignored;
+    std::filesystem::remove(path, ignored);
+    std::filesystem::remove(database_path, ignored);
+    std::filesystem::remove(database_path + "-wal", ignored);
+    std::filesystem::remove(database_path + "-shm", ignored);
+}
