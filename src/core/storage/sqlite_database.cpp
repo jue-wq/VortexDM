@@ -520,6 +520,29 @@ Status SqliteDatabase::transition_download_state(
     return {};
 }
 
+Status SqliteDatabase::update_download_validator(
+    const std::int64_t id, const std::string_view etag
+) {
+    std::scoped_lock lock(mutex_);
+    if (!db_) return std::unexpected(VortexError::make(
+        ErrorCode::database_error, "Database is not open"));
+    if (id <= 0 || (!etag.empty() && !is_strong_etag(etag))) {
+        return std::unexpected(VortexError::make(
+            ErrorCode::invalid_argument, "Validator must be an empty value or a strong ETag"));
+    }
+    Statement statement(db_, "UPDATE downloads SET etag=? WHERE id=?;");
+    if (statement.result() != SQLITE_OK) return std::unexpected(
+        database_error("Prepare download validator update"));
+    sqlite3_bind_text(statement.get(), 1, etag.data(),
+                      static_cast<int>(etag.size()), SQLITE_TRANSIENT);
+    sqlite3_bind_int64(statement.get(), 2, id);
+    if (sqlite3_step(statement.get()) != SQLITE_DONE) return std::unexpected(
+        database_error("Update download validator"));
+    if (sqlite3_changes(db_) == 0) return std::unexpected(VortexError::make(
+        ErrorCode::invalid_argument, "Download does not exist"));
+    return {};
+}
+
 Status SqliteDatabase::update_download_progress(
     const std::int64_t id, const std::int64_t downloaded_bytes,
     const DownloadState state, const std::int64_t updated_at_unix
