@@ -2,6 +2,7 @@
 
 #include "core/common/result.hpp"
 #include "download_record.hpp"
+#include "core/download/http_response_headers.hpp"
 
 #include <cstddef>
 #include <filesystem>
@@ -44,6 +45,8 @@ public:
         std::int64_t id, DownloadState expected_from, DownloadState to,
         std::int64_t updated_at_unix
     );
+    // Stores only a strong ETag; an empty value clears the resume validator.
+    [[nodiscard]] Status update_download_validator(std::int64_t id, std::string_view etag);
     [[nodiscard]] Status update_download_progress(
         std::int64_t id, std::int64_t downloaded_bytes, DownloadState state,
         std::int64_t updated_at_unix
