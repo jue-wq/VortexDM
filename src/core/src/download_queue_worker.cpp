@@ -24,11 +24,13 @@ DownloadQueueWorker::~DownloadQueueWorker() { stop(); }
 
 void DownloadQueueWorker::start() {
     if (thread_.joinable()) return;
+    cancel_requested_.store(false, std::memory_order_relaxed);
     thread_ = std::jthread([this](std::stop_token token) { run(token); });
 }
 
 void DownloadQueueWorker::stop() {
     if (!thread_.joinable()) return;
+    cancel_requested_.store(true, std::memory_order_relaxed);
     thread_.request_stop();
     thread_.join();
 }
@@ -56,9 +58,12 @@ void DownloadQueueWorker::run(std::stop_token token) {
         DownloadOptions options;
         options.max_connections = 8U;
         options.transfer_timeout_ms = 30L * 60L * 1000L;
+        options.cancel_requested = &cancel_requested_;
         const auto result = download_file(task.url, directory / task.filename, options);
         if (result) {
             (void)repository_.update_download_status(task.id, "Completed");
+        } else if (result.error().code == "download_cancelled" || token.stop_requested()) {
+            (void)repository_.update_download_status(task.id, "Queued", "Interrupted by application shutdown");
         } else {
             (void)repository_.update_download_status(task.id, "Error", result.error().code + ": " + result.error().message);
         }

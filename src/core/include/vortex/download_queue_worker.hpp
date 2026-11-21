@@ -3,6 +3,7 @@
 #include "vortex/sqlite_repository.hpp"
 
 #include <thread>
+#include <atomic>
 
 namespace vortex {
 
@@ -20,6 +21,7 @@ private:
     void run(std::stop_token token);
     SqliteRepository& repository_;
     std::jthread thread_;
+    std::atomic_bool cancel_requested_{false};
 };
 
 } // namespace vortex
