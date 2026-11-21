@@ -7,6 +7,7 @@
 #include "vortex/process_runner.hpp"
 #include "vortex/ytdlp_extractor.hpp"
 #include "vortex/segment_checkpoint.hpp"
+#include "vortex/segment_recovery.hpp"
 #include "vortex/url.hpp"
 
 #include <openssl/sha.h>
@@ -278,6 +279,72 @@ bool test_native_host_batch_chunk_integration() {
         last["payload"].value("count", std::size_t{0}) == 1U;
 }
 
+bool test_segment_recovery_coordinator() {
+    const auto db_path = std::filesystem::temp_directory_path() / "vortexdm-recovery-test.db";
+    const auto partial_path = std::filesystem::temp_directory_path() / "vortexdm-recovery-test.part";
+    std::error_code ignored;
+    std::filesystem::remove(db_path, ignored);
+    std::filesystem::remove(db_path.string() + "-wal", ignored);
+    std::filesystem::remove(db_path.string() + "-shm", ignored);
+    std::filesystem::remove(partial_path, ignored);
+
+    vortex::SqliteRepository repository(db_path);
+    if (!repository.initialize()) return false;
+    vortex::DownloadRecord download;
+    download.id = "recovery-download";
+    download.url = "https://example.com/recovery.bin";
+    download.filename = "recovery.bin";
+    download.save_dir = "test";
+    if (!repository.save_download(download)) return false;
+    vortex::StreamRecord stream;
+    stream.id = "recovery-stream";
+    stream.download_id = download.id;
+    stream.url = download.url;
+    stream.temp_path = partial_path.string();
+    stream.total_bytes = 100U;
+    if (!repository.save_stream(stream)) return false;
+
+    {
+        vortex::CrashSafeFileWriter initial(partial_path);
+        if (!initial.open(100U)) return false;
+        std::vector<std::byte> first(50U, std::byte{0x11});
+        if (!initial.write(0U, first) || !initial.flush()) return false;
+        vortex::SegmentRecord checkpoint;
+        checkpoint.stream_id = stream.id;
+        checkpoint.segment_index = 0U;
+        checkpoint.start_offset = 0U;
+        checkpoint.end_offset = 49U;
+        checkpoint.downloaded_bytes = 50U;
+        checkpoint.status = "Completed";
+        if (!repository.save_segment_checkpoint(checkpoint)) return false;
+    }
+
+    const auto recovered = vortex::recover_download_segments(
+        partial_path, 100U, stream.id, repository,
+        [](vortex::CrashSafeFileWriter& writer, const vortex::ByteRange& range) -> vortex::Result<std::uint64_t> {
+            std::vector<std::byte> bytes(static_cast<std::size_t>(range.size()), std::byte{0x22});
+            auto written = writer.write(range.start, bytes);
+            if (!written) return std::unexpected(written.error());
+            return static_cast<std::uint64_t>(bytes.size());
+        });
+    if (!recovered) return false;
+
+    std::vector<std::byte> actual(100U);
+    std::ifstream input(partial_path, std::ios::binary);
+    if (!input) return false;
+    input.read(reinterpret_cast<char*>(actual.data()), static_cast<std::streamsize>(actual.size()));
+    if (input.gcount() != static_cast<std::streamsize>(actual.size())) return false;
+    if (!std::all_of(actual.begin(), actual.begin()+50, [](std::byte b){return b==std::byte{0x11};})) return false;
+    if (!std::all_of(actual.begin()+50, actual.end(), [](std::byte b){return b==std::byte{0x22};})) return false;
+    const auto journal = repository.list_segments(stream.id);
+    if (!journal || journal->size()!=2U || journal->back().status!="Completed") return false;
+    std::filesystem::remove(partial_path, ignored);
+    std::filesystem::remove(db_path, ignored);
+    std::filesystem::remove(db_path.string()+"-wal", ignored);
+    std::filesystem::remove(db_path.string()+"-shm", ignored);
+    return true;
+}
+
 bool test_sqlite_migrations_and_segment_journal() {
     const auto path = std::filesystem::temp_directory_path() / "vortexdm-repository-test.db";
     std::error_code ignored;
@@ -342,6 +409,10 @@ bool test_sqlite_migrations_and_segment_journal() {
 }
 
 int main() {
+    if (!test_segment_recovery_coordinator()) {
+        std::cerr << "Segment recovery coordinator test failed\\n";
+        return 9;
+    }
     if (!test_ytdlp_metadata_parser()) {
         std::cerr << "yt-dlp metadata parser test failed\\n";
         return 8;
