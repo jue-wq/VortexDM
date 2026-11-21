@@ -53,19 +53,7 @@ Result<std::filesystem::path> run_media_extract_task(
     options.timeout = std::chrono::hours(3);
     options.max_output_bytes = 2U * 1024U * 1024U;
     options.cancel_requested = &cancel_flag;
-    std::jthread status_monitor([&repository, id=task.id, &cancel_flag](std::stop_token stop) {
-        while (!stop.stop_requested() && !cancel_flag.load(std::memory_order_relaxed)) {
-            const auto status = repository.get_download_status(id);
-            if (!status || *status != "Downloading") {
-                cancel_flag.store(true, std::memory_order_relaxed);
-                break;
-            }
-            std::this_thread::sleep_for(std::chrono::milliseconds(250));
-        }
-    });
     const auto process = run_process(executable, arguments, options);
-    status_monitor.request_stop();
-    status_monitor.join();
     if (!process) return std::unexpected(process.error());
     if (process->exit_code != 0)
         return std::unexpected(make_error("ytdlp_failed", "yt-dlp exited with code " + std::to_string(process->exit_code) + ": " + process->output));
@@ -148,6 +136,17 @@ void DownloadQueueWorker::run(std::stop_token token) {
                 (void)repository_.update_download_progress(id, downloaded, total);
             }
         };
+        std::jthread task_monitor([this, id=task.id, &token](std::stop_token monitor_stop) {
+            while (!monitor_stop.stop_requested() && !token.stop_requested() &&
+                   !cancel_requested_.load(std::memory_order_relaxed)) {
+                const auto status = repository_.get_download_status(id);
+                if (!status || *status != "Downloading") {
+                    cancel_requested_.store(true, std::memory_order_relaxed);
+                    break;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(250));
+            }
+        });
         const auto output_path = directory / task.filename;
         std::filesystem::path completed_path = output_path;
         Result<void> result;
@@ -165,16 +164,6 @@ void DownloadQueueWorker::run(std::stop_token token) {
                 std::error_code file_error;
                 const auto existing_size = std::filesystem::file_size(stream.temp_path, file_error);
                 if (!file_error && existing_size == stream.total_bytes) {
-                    std::jthread recovery_monitor([this, id=task.id](std::stop_token monitor_stop) {
-                        while (!monitor_stop.stop_requested() && !cancel_requested_.load(std::memory_order_relaxed)) {
-                            const auto status = repository_.get_download_status(id);
-                            if (!status || *status != "Downloading") {
-                                cancel_requested_.store(true, std::memory_order_relaxed);
-                                break;
-                            }
-                            std::this_thread::sleep_for(std::chrono::milliseconds(250));
-                        }
-                    });
                     const auto resumed = recover_download_segments(
                         stream.temp_path, stream.total_bytes, stream.id, repository_,
                         [this, &task, &options, total_bytes=stream.total_bytes](CrashSafeFileWriter& writer, const ByteRange& range) -> Result<std::uint64_t> {
@@ -185,8 +174,6 @@ void DownloadQueueWorker::run(std::stop_token token) {
                             }
                             return download_range_to_writer(task.url, range, total_bytes, writer, options);
                         });
-                    recovery_monitor.request_stop();
-                    recovery_monitor.join();
                     if (resumed) {
                         const auto status = repository_.get_download_status(task.id);
                         if (status && *status == "Downloading") {
@@ -200,6 +187,12 @@ void DownloadQueueWorker::run(std::stop_token token) {
                         result = std::unexpected(resumed.error());
                         stop_for_control = true;
                     }
+                }
+            }
+            if (!recovered && !stop_for_control) {
+                if (token.stop_requested() || cancel_requested_.load(std::memory_order_relaxed)) {
+                    result = std::unexpected(make_error("download_cancelled", "Task was interrupted"));
+                    stop_for_control = true;
                 }
             }
             if (!recovered && !stop_for_control) {
@@ -242,6 +235,8 @@ void DownloadQueueWorker::run(std::stop_token token) {
                 }
             }
         }
+        task_monitor.request_stop();
+        task_monitor.join();
         if (result) {
             std::error_code size_error;
             const auto final_size = std::filesystem::file_size(completed_path, size_error);
