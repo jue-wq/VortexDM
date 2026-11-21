@@ -95,6 +95,13 @@ if(VORTEXDM_BUILD_TESTS)
             Catch2::Catch2WithMain
     )
     include(CTest)
+    find_package(Python3 COMPONENTS Interpreter REQUIRED)
+    add_test(NAME native_host_protocol_e2e
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests/integration/native_host_protocol_e2e.py
+            $<TARGET_FILE:vortexdm_native_host>
+            ${CMAKE_CURRENT_BINARY_DIR}/native-host-e2e.sqlite
+    )
     add_test(NAME native_host_rejects_untrusted_origin
         COMMAND ${CMAKE_COMMAND}
             -DHOST_EXECUTABLE=$<TARGET_FILE:vortexdm_native_host>
