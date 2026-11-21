@@ -1,6 +1,7 @@
 #include "vortex/sqlite_repository.hpp"
 
 #include <limits>
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <utility>
@@ -461,6 +462,78 @@ Result<std::vector<SegmentRecord>> SqliteRepository::list_segments(const std::st
     }
     if (rc != SQLITE_DONE) return std::unexpected(database_error(db_, "sqlite_read", "Could not read segment recovery journal"));
     return records;
+}
+
+Result<std::optional<DownloadRecord>> SqliteRepository::claim_next_queued_download() {
+    if (db_ == nullptr) return std::unexpected(make_error("sqlite_open", open_error_));
+    auto begin = execute("BEGIN IMMEDIATE;");
+    if (!begin) return std::unexpected(begin.error());
+    Statement statement(db_, R"SQL(
+      SELECT id, task_type, url, filename, save_dir, queue_id, status, total_bytes, downloaded_bytes,
+             etag, last_modified, headers_json, extractor_origin_url, video_format_id, audio_format_id
+      FROM downloads WHERE status='Queued' ORDER BY created_at, id LIMIT 1;
+    )SQL");
+    if (!statement.valid()) {
+        (void)execute("ROLLBACK;");
+        return std::unexpected(database_error(db_, "sqlite_prepare", "Could not prepare queued download claim"));
+    }
+    const int rc = sqlite3_step(statement.get());
+    if (rc == SQLITE_DONE) {
+        auto committed = execute("COMMIT;");
+        if (!committed) return std::unexpected(committed.error());
+        return std::optional<DownloadRecord>{};
+    }
+    if (rc != SQLITE_ROW) {
+        (void)execute("ROLLBACK;");
+        return std::unexpected(database_error(db_, "sqlite_read", "Could not read next queued download"));
+    }
+    const auto text_column = [statement_ptr = statement.get()](int index) {
+        const auto* value = reinterpret_cast<const char*>(sqlite3_column_text(statement_ptr, index));
+        return value != nullptr ? std::string(value) : std::string{};
+    };
+    DownloadRecord record;
+    record.id=text_column(0);record.task_type=text_column(1);record.url=text_column(2);
+    record.filename=text_column(3);record.save_dir=text_column(4);record.queue_id=text_column(5);
+    record.status="Downloading";
+    record.total_bytes=static_cast<std::uint64_t>(sqlite3_column_int64(statement.get(),7));
+    record.downloaded_bytes=static_cast<std::uint64_t>(sqlite3_column_int64(statement.get(),8));
+    record.etag=text_column(9);record.last_modified=text_column(10);record.headers_json=text_column(11);
+    record.extractor_origin_url=text_column(12);record.video_format_id=text_column(13);record.audio_format_id=text_column(14);
+    Statement claim(db_, "UPDATE downloads SET status='Downloading' WHERE id=? AND status='Queued';");
+    if (!claim.valid()) {
+        (void)execute("ROLLBACK;");
+        return std::unexpected(database_error(db_, "sqlite_prepare", "Could not prepare queued download claim update"));
+    }
+    auto bound=bind_text(claim.get(),1,record.id);
+    if(!bound){(void)execute("ROLLBACK;");return std::unexpected(bound.error());}
+    if(sqlite3_step(claim.get())!=SQLITE_DONE || sqlite3_changes(db_)!=1){
+        (void)execute("ROLLBACK;");
+        return std::unexpected(database_error(db_,"sqlite_claim","Could not atomically claim queued download"));
+    }
+    auto committed=execute("COMMIT;");
+    if(!committed){(void)execute("ROLLBACK;");return std::unexpected(committed.error());}
+    return std::optional<DownloadRecord>{std::move(record)};
+}
+
+Result<void> SqliteRepository::update_download_status(
+    const std::string& id, const std::string& status, const std::string& error_message) {
+    if(db_==nullptr)return std::unexpected(make_error("sqlite_open",open_error_));
+    if(id.empty())return std::unexpected(make_error("invalid_download","Download id is required"));
+    static const std::vector<std::string> allowed={"Added","Queued","Probing","Downloading","Paused","Verifying","Completed","Error","Cancelled"};
+    if(std::find(allowed.begin(),allowed.end(),status)==allowed.end())
+        return std::unexpected(make_error("invalid_status","Unknown download status"));
+    Statement statement(db_,R"SQL(
+      UPDATE downloads SET status=?, error_message=?, completed_at=CASE WHEN ?='Completed' THEN CURRENT_TIMESTAMP ELSE completed_at END
+      WHERE id=?;
+    )SQL");
+    if(!statement.valid())return std::unexpected(database_error(db_,"sqlite_prepare","Could not prepare download status update"));
+    auto s=bind_text(statement.get(),1,status);if(!s)return s;
+    auto e=bind_text(statement.get(),2,error_message);if(!e)return e;
+    auto status_again=bind_text(statement.get(),3,status);if(!status_again)return status_again;
+    auto id_bound=bind_text(statement.get(),4,id);if(!id_bound)return id_bound;
+    if(sqlite3_step(statement.get())!=SQLITE_DONE)return std::unexpected(database_error(db_,"sqlite_write","Could not update download status"));
+    if(sqlite3_changes(db_)!=1)return std::unexpected(make_error("download_not_found","Download task does not exist"));
+    return {};
 }
 
 Result<std::vector<DownloadRecord>> SqliteRepository::list_downloads() {
