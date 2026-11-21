@@ -31,7 +31,8 @@ public:
 
     // Removes only checkpoints whose stored digest is malformed or no longer matches disk.
     // File I/O/hash failures are returned without deleting metadata.
-    [[nodiscard]] Result<std::size_t> verify_and_prune(std::int64_t download_id);\n    [[nodiscard]] Result<std::vector<SegmentCheckpoint>> list_checkpoints(std::int64_t download_id);
+    [[nodiscard]] Result<std::size_t> verify_and_prune(std::int64_t download_id);
+    [[nodiscard]] Result<std::vector<SegmentCheckpoint>> list_checkpoints(std::int64_t download_id);
 
 private:
     OffsetFileWriter& writer_;
