@@ -22,16 +22,50 @@ using Json = nlohmann::json;
 }
 
 [[nodiscard]] bool valid_http_url(const std::string& url) {
-    if (!(url.starts_with("https://") || url.starts_with("http://"))) return false;
+    if (url.size() > 8192U ||
+        !(url.starts_with("https://") || url.starts_with("http://"))) return false;
     const auto start = url.find("://") + 3U;
     const auto end = url.find_first_of("/?#", start);
     const auto authority = url.substr(start, end == std::string::npos ? std::string::npos : end - start);
-    if (authority.empty() || authority.find('@') != std::string::npos) return false;
+    if (authority.empty() || authority.find('@') != std::string::npos ||
+        authority.find('\\\\') != std::string::npos) return false;
     for (const char raw : url) {
         const auto ch = static_cast<unsigned char>(raw);
         if (ch <= 0x20U || ch == 0x7fU) return false;
     }
-    return true;
+    // Defense-in-depth authority checks. IPv6 literals require a shared URL parser.
+    const auto colon = authority.rfind(':');
+    std::string_view host = authority;
+    if (colon != std::string::npos) {
+        if (authority.find(':') != colon) return false;
+        host = std::string_view(authority).substr(0, colon);
+        const auto port = std::string_view(authority).substr(colon + 1U);
+        if (port.empty()) return false;
+        unsigned int port_number = 0;
+        for (const char digit : port) {
+            if (digit < '0' || digit > '9') return false;
+            port_number = port_number * 10U + static_cast<unsigned int>(digit - '0');
+            if (port_number > 65535U) return false;
+        }
+    }
+    if (host.empty() || host.size() > 253U || host.front() == '.' || host.back() == '-') return false;
+    bool previous_dot = false;
+    std::size_t label_length = 0;
+    for (const char raw : host) {
+        const auto ch = static_cast<unsigned char>(raw);
+        if (ch == '.') {
+            if (previous_dot || label_length == 0U || label_length > 63U) return false;
+            previous_dot = true;
+            label_length = 0;
+        } else {
+            const bool allowed = (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
+                                 (ch >= '0' && ch <= '9') || ch == '-';
+            if (!allowed || (label_length == 0U && ch == '-')) return false;
+            previous_dot = false;
+            ++label_length;
+        }
+    }
+    return label_length > 0U && label_length <= 63U;
 }
 
 [[nodiscard]] std::string safe_filename(const std::string& url) {
@@ -42,6 +76,25 @@ using Json = nlohmann::json;
     auto name = url.substr(slash + 1U, path_end - slash - 1U);
     if (name == "." || name == "..") return "download";
     return name;
+}
+
+[[nodiscard]] std::string sanitize_filename(std::string filename) {
+    const auto separator = filename.find_last_of("/\\\\");
+    if (separator != std::string::npos) filename.erase(0, separator + 1U);
+    for (char& raw : filename) {
+        const auto ch = static_cast<unsigned char>(raw);
+        if (ch < 0x20U || ch == 0x7fU || raw == '<' || raw == '>' ||
+            raw == ':' || raw == '"' || raw == '|' || raw == '?' || raw == '*') raw = '_';
+    }
+    while (!filename.empty() && (filename.back() == ' ' || filename.back() == '.')) filename.pop_back();
+    if (filename.empty() || filename == "." || filename == "..") return "download";
+    auto stem = filename.substr(0, filename.find('.'));
+    for (char& raw : stem) if (raw >= 'a' && raw <= 'z') raw = static_cast<char>(raw - 'a' + 'A');
+    if (stem == "CON" || stem == "PRN" || stem == "AUX" || stem == "NUL" ||
+        (stem.size() == 4U && (stem.starts_with("COM") || stem.starts_with("LPT")) &&
+         stem[3] >= '1' && stem[3] <= '9')) filename.insert(filename.begin(), '_');
+    if (filename.size() > 240U) filename.resize(240U);
+    return filename;
 }
 
 [[nodiscard]] std::string make_ack(const std::string& request_id, bool accepted,
@@ -94,13 +147,11 @@ Result<std::optional<std::string>> NativeMessageDispatcher::dispatch(const std::
                 return std::optional<std::string>{make_ack(request_id, false, "Only safe HTTP(S) URLs are accepted")};
             }
             std::string filename = message.value("filename", safe_filename(url));
-            if (filename.empty() || filename.size() > 1024U) {
+            if (filename.size() > 1024U) {
                 return std::optional<std::string>{make_ack(request_id, false, "Invalid filename")};
             }
-            // Never accept a path from the browser: only retain a basename.
-            const auto separator = filename.find_last_of("/\\");
-            if (separator != std::string::npos) filename.erase(0, separator + 1U);
-            if (filename.empty() || filename == "." || filename == "..") filename = "download";
+            // Strip paths and reject platform-reserved or unsafe destination characters.
+            filename = sanitize_filename(std::move(filename));
 
             const auto now = unix_now();
             DownloadRecord record;
