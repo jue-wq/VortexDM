@@ -87,6 +87,7 @@ Result<std::string> NativeMessagingHost::enqueue_download(const nlohmann::json& 
     record.url = url;
     record.filename = filename;
     record.save_dir = payload.value("save_dir", std::string{});
+    record.queue_id = payload.value("queue_id", std::string{});
     record.status = "Queued";
     // Cookie and authorization data are intentionally not persisted by the host.
     record.headers_json = "{}";

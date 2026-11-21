@@ -249,13 +249,13 @@ Result<void> SqliteRepository::save_download(const DownloadRecord& record) {
     if (!downloaded) return std::unexpected(downloaded.error());
 
     Statement statement(db_, R"SQL(
-      INSERT INTO downloads(id, task_type, url, filename, save_dir, total_bytes, downloaded_bytes,
+      INSERT INTO downloads(id, task_type, url, filename, save_dir, queue_id, total_bytes, downloaded_bytes,
                             status, etag, last_modified, headers_json, extractor_origin_url,
                             video_format_id, audio_format_id)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       ON CONFLICT(id) DO UPDATE SET
         task_type=excluded.task_type, url=excluded.url, filename=excluded.filename,
-        save_dir=excluded.save_dir, total_bytes=excluded.total_bytes,
+        save_dir=excluded.save_dir, queue_id=excluded.queue_id, total_bytes=excluded.total_bytes,
         downloaded_bytes=excluded.downloaded_bytes, status=excluded.status,
         etag=excluded.etag, last_modified=excluded.last_modified,
         headers_json=excluded.headers_json, extractor_origin_url=excluded.extractor_origin_url,
@@ -264,14 +264,14 @@ Result<void> SqliteRepository::save_download(const DownloadRecord& record) {
     if (!statement.valid()) return std::unexpected(database_error(db_, "sqlite_prepare", "Could not prepare download upsert"));
 
     const std::string* values[] = {
-        &record.id, &record.task_type, &record.url, &record.filename, &record.save_dir
+        &record.id, &record.task_type, &record.url, &record.filename, &record.save_dir, &record.queue_id
     };
-    for (int index = 0; index < 5; ++index) {
+    for (int index = 0; index < 6; ++index) {
         auto result = bind_text(statement.get(), index + 1, *values[index]);
         if (!result) return result;
     }
-    if (sqlite3_bind_int64(statement.get(), 6, *total) != SQLITE_OK ||
-        sqlite3_bind_int64(statement.get(), 7, *downloaded) != SQLITE_OK) {
+    if (sqlite3_bind_int64(statement.get(), 7, *total) != SQLITE_OK ||
+        sqlite3_bind_int64(statement.get(), 8, *downloaded) != SQLITE_OK) {
         return std::unexpected(database_error(db_, "sqlite_bind", "Could not bind download byte counts"));
     }
     const std::string* trailing[] = {
@@ -279,7 +279,7 @@ Result<void> SqliteRepository::save_download(const DownloadRecord& record) {
         &record.extractor_origin_url, &record.video_format_id, &record.audio_format_id
     };
     for (int index = 0; index < 7; ++index) {
-        auto result = bind_text(statement.get(), index + 8, *trailing[index]);
+        auto result = bind_text(statement.get(), index + 9, *trailing[index]);
         if (!result) return result;
     }
     if (sqlite3_step(statement.get()) != SQLITE_DONE) {
@@ -466,7 +466,7 @@ Result<std::vector<SegmentRecord>> SqliteRepository::list_segments(const std::st
 Result<std::vector<DownloadRecord>> SqliteRepository::list_downloads() {
     if (db_ == nullptr) return std::unexpected(make_error("sqlite_open", open_error_));
     Statement statement(db_, R"SQL(
-      SELECT id, task_type, url, filename, save_dir, status, total_bytes, downloaded_bytes,
+      SELECT id, task_type, url, filename, save_dir, queue_id, status, total_bytes, downloaded_bytes,
              etag, last_modified, headers_json, extractor_origin_url, video_format_id, audio_format_id
       FROM downloads ORDER BY created_at, id;
     )SQL");
@@ -485,15 +485,16 @@ Result<std::vector<DownloadRecord>> SqliteRepository::list_downloads() {
         record.url = text_column(2);
         record.filename = text_column(3);
         record.save_dir = text_column(4);
-        record.status = text_column(5);
-        record.total_bytes = static_cast<std::uint64_t>(sqlite3_column_int64(statement.get(), 6));
-        record.downloaded_bytes = static_cast<std::uint64_t>(sqlite3_column_int64(statement.get(), 7));
-        record.etag = text_column(8);
-        record.last_modified = text_column(9);
-        record.headers_json = text_column(10);
-        record.extractor_origin_url = text_column(11);
-        record.video_format_id = text_column(12);
-        record.audio_format_id = text_column(13);
+        record.queue_id = text_column(5);
+        record.status = text_column(6);
+        record.total_bytes = static_cast<std::uint64_t>(sqlite3_column_int64(statement.get(), 7));
+        record.downloaded_bytes = static_cast<std::uint64_t>(sqlite3_column_int64(statement.get(), 8));
+        record.etag = text_column(9);
+        record.last_modified = text_column(10);
+        record.headers_json = text_column(11);
+        record.extractor_origin_url = text_column(12);
+        record.video_format_id = text_column(13);
+        record.audio_format_id = text_column(14);
         records.push_back(std::move(record));
     }
     if (rc != SQLITE_DONE) return std::unexpected(database_error(db_, "sqlite_read", "Could not read downloads"));

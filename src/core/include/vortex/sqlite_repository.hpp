@@ -17,6 +17,7 @@ struct DownloadRecord {
     std::string url;
     std::string filename;
     std::string save_dir;
+    std::string queue_id;
     std::string status{"Added"};
     std::uint64_t total_bytes{0};
     std::uint64_t downloaded_bytes{0};
