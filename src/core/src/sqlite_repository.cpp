@@ -450,17 +450,21 @@ Result<void> SqliteRepository::save_ytdlp_profile(const YtDlpProfileRecord& reco
         &record.custom_api_url,&record.asset_regex,&record.pinned_tag};
     for (int index=0; index<7; ++index) {
         auto bound=bind_text(statement.get(),index+1,*values[index]);
-        if(!bound)return bound;
+        if(!bound){(void)execute("ROLLBACK;");return bound;}
     }
-    if(sqlite3_bind_int(statement.get(),8,record.include_prereleases?1:0)!=SQLITE_OK)
+    if(sqlite3_bind_int(statement.get(),8,record.include_prereleases?1:0)!=SQLITE_OK) {
+        (void)execute("ROLLBACK;");
         return std::unexpected(database_error(db_,"sqlite_bind","Could not bind profile prerelease flag"));
+    }
     const std::string* trailing[]={&record.local_binary_path,&record.python_path,&record.installed_version,&record.last_etag};
     for(int index=0;index<4;++index){
         auto bound=bind_text(statement.get(),index+9,*trailing[index]);
-        if(!bound)return bound;
+        if(!bound){(void)execute("ROLLBACK;");return bound;}
     }
-    if(sqlite3_bind_int(statement.get(),13,record.is_active?1:0)!=SQLITE_OK)
+    if(sqlite3_bind_int(statement.get(),13,record.is_active?1:0)!=SQLITE_OK) {
+        (void)execute("ROLLBACK;");
         return std::unexpected(database_error(db_,"sqlite_bind","Could not bind profile active flag"));
+    }
     if(sqlite3_step(statement.get())!=SQLITE_DONE) {
         (void)execute("ROLLBACK;");
         return std::unexpected(database_error(db_,"sqlite_write","Could not save yt-dlp profile"));
