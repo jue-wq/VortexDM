@@ -18,10 +18,12 @@ The repository is an actively developed foundation, not a feature-complete downl
 - [ ] Android: full ABP/uBlock filter compatibility, cosmetic filters, site controls, tabs, downloads, and background transfer lifecycle
 - [x] Phase 2: inclusive HTTP byte-range planner, streaming TLS transport, strict partial-response validation, bounded range staging, and retry orchestration
 - [x] Phase 2: sequential range transfer with durable SHA-256 checkpoints and verified-range resume
-- [ ] Phase 2: parallel segment scheduler, CLI, and end-to-end transfer tests
+- [x] Phase 2: bounded parallel segment scheduler with cancellation and worker-join guarantees
+- [ ] Phase 2: CLI and end-to-end transfer tests
 - [ ] Phase 3: toolchain manager
 - [ ] Phase 4: media extraction and streaming integration
-- [x] Phase 5: Native Messaging v1 frame codec and protocol draft
+- [x] Phase 5: Native Messaging v1 frame codec, UTF-8 validation, and bounded JSON syntax validation
+- [ ] Phase 5: typed message schemas, correlation IDs, and request/response lifecycle
 - [ ] Phase 5: JSON schema validation, production native-host process, ACK de-duplication, batch assembler, and queue adapter
 - [ ] Phase 6: Qt 6 / QML desktop UI and production Android download UI
 
