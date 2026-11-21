@@ -1,5 +1,6 @@
 #include "sqlite_database.hpp"
 #include "core/download/download_state_machine.hpp"
+#include "core/download/http_response_headers.hpp"
 
 #include <sqlite3.h>
 
@@ -119,6 +120,7 @@ Status SqliteDatabase::migrate() {
         "checksum_sha256 TEXT NOT NULL DEFAULT '',"
         "created_at INTEGER NOT NULL,"
         "updated_at INTEGER NOT NULL,"
+        "etag TEXT NOT NULL DEFAULT '',"
         "CHECK(total_bytes = -1 OR downloaded_bytes <= total_bytes));"
         "CREATE INDEX IF NOT EXISTS idx_downloads_state_updated "
         "ON downloads(state, updated_at DESC);"
@@ -134,6 +136,39 @@ Status SqliteDatabase::migrate() {
         "INSERT OR IGNORE INTO schema_migrations(version, applied_at) "
         "VALUES(2, unixepoch());"
     );
+    if (!status) {
+        (void)execute("ROLLBACK;");
+        return status;
+    }
+    bool has_etag_column = false;
+    {
+        Statement columns(db_, "PRAGMA table_info(downloads);");
+        if (columns.result() != SQLITE_OK) {
+            (void)execute("ROLLBACK;");
+            return std::unexpected(database_error("Inspect downloads schema"));
+        }
+        for (;;) {
+            const int rc = sqlite3_step(columns.get());
+            if (rc == SQLITE_DONE) break;
+            if (rc != SQLITE_ROW) {
+                auto error = database_error("Read downloads schema");
+                (void)execute("ROLLBACK;");
+                return std::unexpected(std::move(error));
+            }
+            const auto* name = sqlite3_column_text(columns.get(), 1);
+            if (name && std::string_view(reinterpret_cast<const char*>(name)) == "etag") {
+                has_etag_column = true;
+            }
+        }
+    }
+    if (!has_etag_column) {
+        status = execute("ALTER TABLE downloads ADD COLUMN etag TEXT NOT NULL DEFAULT ''; ");
+        if (!status) {
+            (void)execute("ROLLBACK;");
+            return status;
+        }
+    }
+    status = execute("INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES(3, unixepoch());");
     if (!status) {
         (void)execute("ROLLBACK;");
         return status;
