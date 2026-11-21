@@ -72,7 +72,7 @@ TEST_CASE("Only valid strong entity tags are accepted for safe range resumption"
     CHECK_FALSE(vortex::is_strong_etag("W/\"weak-v1\""));
     CHECK_FALSE(vortex::is_strong_etag("stable-v1"));
     CHECK_FALSE(vortex::is_strong_etag("\"unterminated"));
-    CHECK_FALSE(vortex::is_strong_etag("\"bad\\rvalue\""));
-    CHECK_FALSE(vortex::is_strong_etag("\"bad\\nvalue\""));
+    CHECK_FALSE(vortex::is_strong_etag("\"bad\rvalue\""));
+    CHECK_FALSE(vortex::is_strong_etag("\"bad\nvalue\""));
     CHECK_FALSE(vortex::is_strong_etag(""));
 }
