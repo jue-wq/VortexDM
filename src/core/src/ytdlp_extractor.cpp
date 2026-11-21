@@ -135,7 +135,7 @@ Result<std::string> refresh_ytdlp_media_url(
     if (process->output_truncated) {
         return std::unexpected(make_error("ytdlp_output_limit", "Refreshed media URL output exceeded the configured limit"));
     }
-    const auto newline = process->output.find_first_of("\\r\\n");
+    const auto newline = process->output.find_first_of("\r\n");
     const auto refreshed = process->output.substr(0U, newline);
     auto media_url = parse_http_url(refreshed);
     if (!media_url) return std::unexpected(make_error("ytdlp_refresh_url", "yt-dlp did not return a valid HTTP(S) media URL"));
