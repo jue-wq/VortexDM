@@ -75,6 +75,25 @@ Status RangeDownloadCoordinator::transfer(
         const auto listed = checkpoint_manager->list_checkpoints(download_id);
         if (!listed) return std::unexpected(listed.error());
         existing_checkpoints = *listed;
+        // Checkpoint indices are tied to the original deterministic chunk geometry.
+        // Refuse to append into a file if a caller resumes with different parameters.
+        for (const auto& checkpoint : existing_checkpoints) {
+            if (checkpoint.segment_index < 0) {
+                return std::unexpected(VortexError::make(
+                    ErrorCode::invalid_argument, "Stored checkpoint has a negative segment index"));
+            }
+            const auto expected_offset = static_cast<std::uint64_t>(checkpoint.segment_index) * chunk_size;
+            if (expected_offset >= total_size) {
+                return std::unexpected(VortexError::make(
+                    ErrorCode::invalid_argument, "Stored checkpoint is outside the current download geometry"));
+            }
+            const auto expected_length = std::min(chunk_size, total_size - expected_offset);
+            if (checkpoint.offset != static_cast<std::int64_t>(expected_offset) ||
+                checkpoint.length != static_cast<std::int64_t>(expected_length)) {
+                return std::unexpected(VortexError::make(
+                    ErrorCode::invalid_argument, "Stored checkpoint does not match the current chunk geometry"));
+            }
+        }
     }
 
     std::uint64_t offset = 0;

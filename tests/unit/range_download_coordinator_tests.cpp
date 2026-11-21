@@ -276,3 +276,44 @@ TEST_CASE("Range coordinator resumes by skipping verified checkpointed ranges") 
     std::filesystem::remove(database_path + "-wal", ignored);
     std::filesystem::remove(database_path + "-shm", ignored);
 }
+
+TEST_CASE("Range coordinator rejects checkpoint geometry changes before requesting bytes") {
+    const auto path = temporary_path();
+    const auto database_path = path.string() + ".sqlite";
+    vortex::SqliteDatabase database;
+    REQUIRE(database.open(database_path).has_value());
+    REQUIRE(database.migrate().has_value());
+    vortex::DownloadRecord record;
+    record.url = "https://example.test/geometry.bin";
+    record.destination = path.string();
+    record.total_bytes = 6;
+    const auto id = database.insert_download(record);
+    REQUIRE(id);
+    vortex::OffsetFileWriter writer;
+    REQUIRE(writer.open(path, 6).has_value());
+    vortex::SegmentCheckpointManager manager(writer, database, path);
+    const std::array first{std::byte{'a'}, std::byte{'b'}, std::byte{'c'}};
+    const std::string first_sha =
+        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+    REQUIRE(manager.commit_segment(*id, 0, 0, first, first_sha, 10).has_value());
+
+    std::size_t requests = 0;
+    const vortex::RangeRequestExecutor executor =
+        [&requests](const vortex::HttpRequest&, const vortex::HttpBodySink&, std::stop_token) {
+            ++requests;
+            return vortex::Result<vortex::HttpResponse>{std::unexpected(
+                vortex::VortexError::make(vortex::ErrorCode::network_error, "must not be called"))};
+        };
+    const auto result = vortex::RangeDownloadCoordinator::transfer(
+        "https://example.test/geometry.bin", 6, 2, writer, executor, {}, {},
+        &manager, *id, 11);
+    CHECK_FALSE(result.has_value());
+    CHECK(requests == 0);
+    REQUIRE(writer.close());
+    REQUIRE(database.close().has_value());
+    std::error_code ignored;
+    std::filesystem::remove(path, ignored);
+    std::filesystem::remove(database_path, ignored);
+    std::filesystem::remove(database_path + "-wal", ignored);
+    std::filesystem::remove(database_path + "-shm", ignored);
+}
