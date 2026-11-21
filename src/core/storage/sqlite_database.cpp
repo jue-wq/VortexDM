@@ -188,7 +188,9 @@ Result<std::int64_t> SqliteDatabase::enqueue_download_once(
     auto status = execute("BEGIN IMMEDIATE;");
     if (!status) return std::unexpected(status.error());
 
-    Statement existing(db_, "SELECT download_id FROM native_request_dedup WHERE request_id=?;");
+    Statement existing(db_,
+        "SELECT d.id,d.url,d.destination FROM native_request_dedup r "
+        "JOIN downloads d ON d.id=r.download_id WHERE r.request_id=?;");
     if (existing.result() != SQLITE_OK) {
         (void)execute("ROLLBACK;");
         return std::unexpected(database_error("Prepare native request lookup"));
@@ -198,6 +200,19 @@ Result<std::int64_t> SqliteDatabase::enqueue_download_once(
     const int lookup_rc = sqlite3_step(existing.get());
     if (lookup_rc == SQLITE_ROW) {
         const auto id = sqlite3_column_int64(existing.get(), 0);
+        const auto* stored_url = sqlite3_column_text(existing.get(), 1);
+        const auto* stored_destination = sqlite3_column_text(existing.get(), 2);
+        const std::string existing_url = stored_url
+            ? reinterpret_cast<const char*>(stored_url) : "";
+        const std::string existing_destination = stored_destination
+            ? reinterpret_cast<const char*>(stored_destination) : "";
+        if (existing_url != record.url || existing_destination != record.destination) {
+            (void)execute("ROLLBACK;");
+            return std::unexpected(VortexError::make(
+                ErrorCode::invalid_argument,
+                "Request ID was already used for a different download payload"
+            ));
+        }
         status = execute("COMMIT;");
         if (!status) {
             (void)execute("ROLLBACK;");
