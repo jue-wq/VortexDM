@@ -93,12 +93,13 @@ ApplicationWindow {
                                 }
                             }
                         }
-                        Label {
-                            anchors.centerIn: parent
-                            visible: downloadsModel.count === 0
-                            text: "No downloads yet"
-                            color: "#8B97AD"
-                        }
+                    }
+                    Label {
+                        visible: downloadsModel.count === 0
+                        Layout.fillWidth: true
+                        horizontalAlignment: Text.AlignHCenter
+                        text: "No downloads yet"
+                        color: "#8B97AD"
                     }
                     Loader {
                         active: Qt.platform.os === "android"
