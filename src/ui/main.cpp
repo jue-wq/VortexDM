@@ -19,6 +19,9 @@
 
 int main(int argc, char* argv[]) {
     QGuiApplication app(argc, argv);
+#ifdef Q_OS_ANDROID
+    app.setQuitOnLastWindowClosed(false);
+#endif
     app.setWindowIcon(QIcon(QStringLiteral(":/assets/vortexdm-32.png")));
 
 #ifdef Q_OS_ANDROID
