@@ -8,6 +8,7 @@
 #include <QStandardPaths>
 #include <QTcpSocket>
 #include <QTimer>
+#include <QUuid>
 
 #include <nlohmann/json.hpp>
 
