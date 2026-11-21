@@ -63,7 +63,7 @@ private:
     void skip_whitespace() {
         while (position_ < input_.size()) {
             const char ch = input_[position_];
-            if (ch != ' ' && ch != '\\t' && ch != '\\n' && ch != '\\r') break;
+            if (ch != ' ' && ch != '\t' && ch != '\n' && ch != '\r') break;
             ++position_;
         }
     }
@@ -123,10 +123,10 @@ private:
             const auto ch = static_cast<unsigned char>(input_[position_++]);
             if (ch == '"') return true;
             if (ch < 0x20U) return false;
-            if (ch != '\\\\') continue;
+            if (ch != '\\') continue;
             if (position_ >= input_.size()) return false;
             const char escaped = input_[position_++];
-            if (escaped == '"' || escaped == '\\\\' || escaped == '/' ||
+            if (escaped == '"' || escaped == '\\' || escaped == '/' ||
                 escaped == 'b' || escaped == 'f' || escaped == 'n' ||
                 escaped == 'r' || escaped == 't') continue;
             if (escaped != 'u' || input_.size() - position_ < 4U) return false;
