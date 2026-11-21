@@ -2,15 +2,73 @@
 
 #include "vortex/download_engine.hpp"
 #include "vortex/application_paths.hpp"
+#include "vortex/process_runner.hpp"
 
 #include <chrono>
 #include <atomic>
 #include <cstdlib>
 #include <filesystem>
 #include <memory>
+#include <algorithm>
 #include <thread>
 
 namespace vortex {
+namespace {
+Result<void> run_media_extract_task(
+    SqliteRepository& repository,
+    const DownloadRecord& task,
+    const std::filesystem::path& output_path,
+    const std::atomic_bool& cancel_flag) {
+    const auto profiles = repository.list_ytdlp_profiles();
+    if (!profiles) return std::unexpected(profiles.error());
+    const auto profile = std::find_if(profiles->begin(), profiles->end(), [](const auto& value) {
+        return value.is_active && (!value.local_binary_path.empty() || !value.python_path.empty());
+    });
+    if (profile == profiles->end())
+        return std::unexpected(make_error("ytdlp_not_configured", "No active yt-dlp executable profile is configured"));
+    std::filesystem::path executable;
+    std::vector<std::string> arguments;
+    if (!profile->local_binary_path.empty()) {
+        executable = profile->local_binary_path;
+    } else {
+        executable = profile->python_path;
+        arguments = {"-m", "yt_dlp"};
+    }
+    if (!executable.is_absolute())
+        return std::unexpected(make_error("ytdlp_path", "Configured yt-dlp executable/Python path must be absolute"));
+    arguments.insert(arguments.end(), {
+        "--no-warnings", "--no-call-home", "--no-cache-dir", "--no-playlist", "--newline",
+        "--format", "bestvideo*+bestaudio/best", "--merge-output-format", "mkv",
+        "--output", output_path.string(), "--", task.url
+    });
+    ProcessOptions options;
+    options.timeout = std::chrono::hours(3);
+    options.max_output_bytes = 2U * 1024U * 1024U;
+    options.cancel_requested = &cancel_flag;
+    std::jthread status_monitor([&repository, id=task.id, &cancel_flag](std::stop_token stop) {
+        while (!stop.stop_requested() && !cancel_flag.load(std::memory_order_relaxed)) {
+            const auto status = repository.get_download_status(id);
+            if (!status || *status != "Downloading") {
+                const_cast<std::atomic_bool&>(cancel_flag).store(true, std::memory_order_relaxed);
+                break;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(250));
+        }
+    });
+    const auto process = run_process(executable, arguments, options);
+    status_monitor.request_stop();
+    status_monitor.join();
+    if (!process) return std::unexpected(process.error());
+    if (process->exit_code != 0)
+        return std::unexpected(make_error("ytdlp_failed", "yt-dlp exited with code " + std::to_string(process->exit_code) + ": " + process->output));
+    std::error_code error;
+    const auto size = std::filesystem::file_size(output_path, error);
+    if (error || size == 0U)
+        return std::unexpected(make_error("ytdlp_output_missing", "yt-dlp exited successfully but no output file was found"));
+    return {};
+}
+}
+
 DownloadQueueWorker::DownloadQueueWorker(SqliteRepository& repository) : repository_(repository) {}
 DownloadQueueWorker::~DownloadQueueWorker() { stop(); }
 
@@ -65,13 +123,16 @@ void DownloadQueueWorker::run(std::stop_token token) {
                 (void)repository_.update_download_progress(id, downloaded, total);
             }
         };
-        const auto result = download_file(task.url, directory / task.filename, options);
+        const auto output_path = directory / task.filename;
+        const auto result = task.task_type == "media_extract"
+            ? run_media_extract_task(repository_, task, output_path, cancel_requested_)
+            : download_file(task.url, output_path, options);
         if (result) {
             std::error_code size_error;
-            const auto final_size = std::filesystem::file_size(directory / task.filename, size_error);
+            const auto final_size = std::filesystem::file_size(output_path, size_error);
             if (!size_error) (void)repository_.update_download_progress(task.id, final_size, final_size);
             (void)repository_.update_download_status(task.id, "Completed");
-        } else if (result.error().code == "download_cancelled" || token.stop_requested()) {
+        } else if (result.error().code == "download_cancelled" || result.error().code == "process_cancelled" || token.stop_requested()) {
             if (token.stop_requested()) {
                 (void)repository_.update_download_status(task.id, "Queued", "Interrupted by application shutdown");
             } else {
