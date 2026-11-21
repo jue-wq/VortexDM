@@ -371,6 +371,70 @@ Result<void> SqliteRepository::save_segment_checkpoint(const SegmentRecord& reco
     return {};
 }
 
+Result<void> SqliteRepository::save_ytdlp_profile(const YtDlpProfileRecord& record) {
+    if (db_ == nullptr) return std::unexpected(make_error("sqlite_open", open_error_));
+    if (record.id.empty() || record.name.empty() || record.source_type.empty()) {
+        return std::unexpected(make_error("invalid_ytdlp_profile", "Profile id, name and source type are required"));
+    }
+    Statement statement(db_, R"SQL(
+      INSERT INTO ytdlp_profiles(id,name,source_type,repo_slug,custom_api_url,asset_regex,pinned_tag,
+        include_prereleases,local_binary_path,python_path,installed_version,last_etag,is_active)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
+      ON CONFLICT(id) DO UPDATE SET name=excluded.name,source_type=excluded.source_type,
+        repo_slug=excluded.repo_slug,custom_api_url=excluded.custom_api_url,asset_regex=excluded.asset_regex,
+        pinned_tag=excluded.pinned_tag,include_prereleases=excluded.include_prereleases,
+        local_binary_path=excluded.local_binary_path,python_path=excluded.python_path,
+        installed_version=excluded.installed_version,last_etag=excluded.last_etag,is_active=excluded.is_active;
+    )SQL");
+    if (!statement.valid()) return std::unexpected(database_error(db_, "sqlite_prepare", "Could not prepare yt-dlp profile upsert"));
+    const std::string* values[] = {&record.id,&record.name,&record.source_type,&record.repo_slug,
+        &record.custom_api_url,&record.asset_regex,&record.pinned_tag};
+    for (int index=0; index<7; ++index) {
+        auto bound=bind_text(statement.get(),index+1,*values[index]);
+        if(!bound)return bound;
+    }
+    if(sqlite3_bind_int(statement.get(),8,record.include_prereleases?1:0)!=SQLITE_OK)
+        return std::unexpected(database_error(db_,"sqlite_bind","Could not bind profile prerelease flag"));
+    const std::string* trailing[]={&record.local_binary_path,&record.python_path,&record.installed_version,&record.last_etag};
+    for(int index=0;index<4;++index){
+        auto bound=bind_text(statement.get(),index+9,*trailing[index]);
+        if(!bound)return bound;
+    }
+    if(sqlite3_bind_int(statement.get(),13,record.is_active?1:0)!=SQLITE_OK)
+        return std::unexpected(database_error(db_,"sqlite_bind","Could not bind profile active flag"));
+    if(sqlite3_step(statement.get())!=SQLITE_DONE)
+        return std::unexpected(database_error(db_,"sqlite_write","Could not save yt-dlp profile"));
+    return {};
+}
+
+Result<std::vector<YtDlpProfileRecord>> SqliteRepository::list_ytdlp_profiles() {
+    if(db_==nullptr)return std::unexpected(make_error("sqlite_open",open_error_));
+    Statement statement(db_,R"SQL(
+      SELECT id,name,source_type,repo_slug,custom_api_url,asset_regex,pinned_tag,include_prereleases,
+             local_binary_path,python_path,installed_version,last_etag,is_active
+      FROM ytdlp_profiles ORDER BY name,id;
+    )SQL");
+    if(!statement.valid())return std::unexpected(database_error(db_,"sqlite_prepare","Could not prepare yt-dlp profile query"));
+    std::vector<YtDlpProfileRecord> records;
+    int rc=SQLITE_OK;
+    while((rc=sqlite3_step(statement.get()))==SQLITE_ROW){
+        const auto text_column=[statement_ptr=statement.get()](int index){
+            const auto* value=reinterpret_cast<const char*>(sqlite3_column_text(statement_ptr,index));
+            return value?std::string(value):std::string{};
+        };
+        YtDlpProfileRecord record;
+        record.id=text_column(0);record.name=text_column(1);record.source_type=text_column(2);
+        record.repo_slug=text_column(3);record.custom_api_url=text_column(4);record.asset_regex=text_column(5);
+        record.pinned_tag=text_column(6);record.include_prereleases=sqlite3_column_int(statement.get(),7)!=0;
+        record.local_binary_path=text_column(8);record.python_path=text_column(9);
+        record.installed_version=text_column(10);record.last_etag=text_column(11);
+        record.is_active=sqlite3_column_int(statement.get(),12)!=0;
+        records.push_back(std::move(record));
+    }
+    if(rc!=SQLITE_DONE)return std::unexpected(database_error(db_,"sqlite_read","Could not read yt-dlp profiles"));
+    return records;
+}
+
 Result<std::vector<SegmentRecord>> SqliteRepository::list_segments(const std::string& stream_id) {
     if (db_ == nullptr) return std::unexpected(make_error("sqlite_open", open_error_));
     if (stream_id.empty()) return std::unexpected(make_error("invalid_stream", "Stream id is required"));

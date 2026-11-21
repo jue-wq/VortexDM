@@ -51,6 +51,22 @@ struct SegmentRecord {
     std::string status{"Pending"};
 };
 
+struct YtDlpProfileRecord {
+    std::string id;
+    std::string name;
+    std::string source_type;
+    std::string repo_slug;
+    std::string custom_api_url;
+    std::string asset_regex;
+    std::string pinned_tag;
+    bool include_prereleases{false};
+    std::string local_binary_path;
+    std::string python_path;
+    std::string installed_version;
+    std::string last_etag;
+    bool is_active{false};
+};
+
 class SqliteRepository {
 public:
     explicit SqliteRepository(const std::filesystem::path& path);
@@ -63,6 +79,8 @@ public:
     [[nodiscard]] Result<void> save_download(const DownloadRecord& record);
     [[nodiscard]] Result<void> save_stream(const StreamRecord& record);
     [[nodiscard]] Result<void> save_segment_checkpoint(const SegmentRecord& record);
+    [[nodiscard]] Result<void> save_ytdlp_profile(const YtDlpProfileRecord& record);
+    [[nodiscard]] Result<std::vector<YtDlpProfileRecord>> list_ytdlp_profiles();
     [[nodiscard]] Result<std::vector<SegmentRecord>> list_segments(const std::string& stream_id);
     [[nodiscard]] Result<std::vector<DownloadRecord>> list_downloads();
     [[nodiscard]] Result<std::uint64_t> schema_version();
