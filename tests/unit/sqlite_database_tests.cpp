@@ -274,6 +274,43 @@ TEST_CASE("Download task controller persists lifecycle and signals cancellation"
 }
 
 
+TEST_CASE("SQLite retries only failed downloads atomically and preserves progress") {
+    TemporaryDatabase temporary;
+    vortex::SqliteDatabase database;
+    REQUIRE(database.open(temporary.path()).has_value());
+    REQUIRE(database.migrate().has_value());
+
+    vortex::DownloadRecord record;
+    record.url = "https://example.test/atomic-retry.bin";
+    record.destination = "atomic-retry.bin";
+    record.total_bytes = 200;
+    const auto id = database.insert_download(record);
+    REQUIRE(id);
+
+    REQUIRE(database.update_download_progress(
+        *id, 64, vortex::DownloadState::running, 10
+    ).has_value());
+    REQUIRE(database.update_download_progress(
+        *id, 64, vortex::DownloadState::failed, 11
+    ).has_value());
+
+    REQUIRE(database.retry_failed_download(*id, 12).has_value());
+    const auto retried = database.list_downloads();
+    REQUIRE(retried);
+    REQUIRE(retried->size() == 1);
+    CHECK(retried->front().state == vortex::DownloadState::running);
+    CHECK(retried->front().downloaded_bytes == 64);
+    CHECK(retried->front().updated_at_unix == 12);
+
+    CHECK_FALSE(database.retry_failed_download(*id, 13).has_value());
+    const auto unchanged = database.list_downloads();
+    REQUIRE(unchanged);
+    REQUIRE(unchanged->size() == 1);
+    CHECK(unchanged->front().state == vortex::DownloadState::running);
+    CHECK(unchanged->front().downloaded_bytes == 64);
+    CHECK(unchanged->front().updated_at_unix == 12);
+}
+
 TEST_CASE("Download task controller retries failed tasks with a fresh stop source") {
     TemporaryDatabase temporary;
     vortex::SqliteDatabase database;
