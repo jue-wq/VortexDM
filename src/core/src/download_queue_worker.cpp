@@ -119,6 +119,10 @@ void DownloadQueueWorker::run(std::stop_token token) {
             continue;
         }
         const auto& task = **claimed;
+        if (token.stop_requested()) {
+            (void)repository_.update_download_status(task.id, "Queued", "Interrupted before worker start");
+            break;
+        }
         std::filesystem::path directory = task.save_dir.empty()
             ? vortex::default_download_directory() : std::filesystem::path(task.save_dir);
         std::error_code filesystem_error;
@@ -173,13 +177,13 @@ void DownloadQueueWorker::run(std::stop_token token) {
                     });
                     const auto resumed = recover_download_segments(
                         stream.temp_path, stream.total_bytes, stream.id, repository_,
-                        [this, &task, &options](CrashSafeFileWriter& writer, const ByteRange& range) -> Result<std::uint64_t> {
+                        [this, &task, &options, total_bytes=stream.total_bytes](CrashSafeFileWriter& writer, const ByteRange& range) -> Result<std::uint64_t> {
                             const auto status = repository_.get_download_status(task.id);
                             if (!status || *status != "Downloading") {
                                 cancel_requested_.store(true, std::memory_order_relaxed);
                                 return std::unexpected(make_error("download_cancelled", "Task was paused or cancelled"));
                             }
-                            return download_range_to_writer(task.url, range, stream.total_bytes, writer, options);
+                            return download_range_to_writer(task.url, range, total_bytes, writer, options);
                         });
                     recovery_monitor.request_stop();
                     recovery_monitor.join();
@@ -196,6 +200,13 @@ void DownloadQueueWorker::run(std::stop_token token) {
                         result = std::unexpected(resumed.error());
                         stop_for_control = true;
                     }
+                }
+            }
+            if (!recovered && !stop_for_control) {
+                const auto current_status = repository_.get_download_status(task.id);
+                if (!current_status || *current_status != "Downloading") {
+                    result = std::unexpected(make_error("download_cancelled", "Task was paused or cancelled"));
+                    stop_for_control = true;
                 }
             }
             if (!recovered && !stop_for_control) {
