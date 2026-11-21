@@ -51,6 +51,17 @@ bool set_consistent(std::optional<std::string>& target,
 
 } // namespace
 
+bool is_strong_etag(const std::string_view value) noexcept {
+    if (value.size() < 2U || value.front() != '"' || value.back() != '"') return false;
+    for (std::size_t i = 1; i + 1 < value.size(); ++i) {
+        const auto byte = static_cast<unsigned char>(value[i]);
+        // RFC 9110 etagc: %x21 / %x23-7E / obs-text; DQUOTE is excluded.
+        if (byte == 0x21U || (byte >= 0x23U && byte <= 0x7eU) || byte >= 0x80U) continue;
+        return false;
+    }
+    return true;
+}
+
 std::optional<HttpResponseHeaders> HttpResponseHeaders::parse(
     const std::span<const std::string_view> lines
 ) {
