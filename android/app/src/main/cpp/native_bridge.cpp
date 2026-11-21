@@ -3,6 +3,7 @@
 #include <jni.h>
 
 #include <string>
+#include <string_view>
 
 namespace {
 
@@ -30,7 +31,13 @@ Java_com_vortexdm_app_NativeBridge_isSupportedUrl(
         return JNI_FALSE;
     }
 
-    const bool supported = vortex::HttpRequestPolicy::is_supported_url(chars);
+    // Use the explicit JNI byte length so an embedded NUL cannot truncate the
+    // URL before the shared policy sees the complete input.
+    const jsize length = env->GetStringUTFLength(url);
+    const bool supported = length >= 0 &&
+        vortex::HttpRequestPolicy::is_supported_url(
+            std::string_view(chars, static_cast<std::size_t>(length))
+        );
     env->ReleaseStringUTFChars(url, chars);
     return supported ? JNI_TRUE : JNI_FALSE;
 }
