@@ -46,6 +46,145 @@ namespace {
     }
     return true;
 }
+class JsonValidator final {
+public:
+    explicit JsonValidator(const std::string_view input) : input_(input) {}
+
+    [[nodiscard]] bool validate() {
+        skip_whitespace();
+        if (!parse_value(0U)) return false;
+        skip_whitespace();
+        return position_ == input_.size();
+    }
+
+private:
+    static constexpr std::size_t maximum_depth = 128U;
+
+    void skip_whitespace() {
+        while (position_ < input_.size()) {
+            const char ch = input_[position_];
+            if (ch != ' ' && ch != '\\t' && ch != '\\n' && ch != '\\r') break;
+            ++position_;
+        }
+    }
+
+    bool consume(const char expected) {
+        if (position_ >= input_.size() || input_[position_] != expected) return false;
+        ++position_;
+        return true;
+    }
+
+    bool parse_value(const std::size_t depth) {
+        if (depth > maximum_depth || position_ >= input_.size()) return false;
+        switch (input_[position_]) {
+        case '{': return parse_object(depth + 1U);
+        case '[': return parse_array(depth + 1U);
+        case '"': return parse_string();
+        case 't': return parse_literal("true");
+        case 'f': return parse_literal("false");
+        case 'n': return parse_literal("null");
+        default: return parse_number();
+        }
+    }
+
+    bool parse_object(const std::size_t depth) {
+        ++position_;
+        skip_whitespace();
+        if (consume('}')) return true;
+        for (;;) {
+            if (!parse_string()) return false;
+            skip_whitespace();
+            if (!consume(':')) return false;
+            skip_whitespace();
+            if (!parse_value(depth)) return false;
+            skip_whitespace();
+            if (consume('}')) return true;
+            if (!consume(',')) return false;
+            skip_whitespace();
+        }
+    }
+
+    bool parse_array(const std::size_t depth) {
+        ++position_;
+        skip_whitespace();
+        if (consume(']')) return true;
+        for (;;) {
+            if (!parse_value(depth)) return false;
+            skip_whitespace();
+            if (consume(']')) return true;
+            if (!consume(',')) return false;
+            skip_whitespace();
+        }
+    }
+
+    bool parse_string() {
+        if (!consume('"')) return false;
+        while (position_ < input_.size()) {
+            const auto ch = static_cast<unsigned char>(input_[position_++]);
+            if (ch == '"') return true;
+            if (ch < 0x20U) return false;
+            if (ch != '\\\\') continue;
+            if (position_ >= input_.size()) return false;
+            const char escaped = input_[position_++];
+            if (escaped == '"' || escaped == '\\\\' || escaped == '/' ||
+                escaped == 'b' || escaped == 'f' || escaped == 'n' ||
+                escaped == 'r' || escaped == 't') continue;
+            if (escaped != 'u' || input_.size() - position_ < 4U) return false;
+            for (unsigned int i = 0; i < 4U; ++i) {
+                const auto digit = static_cast<unsigned char>(input_[position_++]);
+                if (!((digit >= '0' && digit <= '9') ||
+                      (digit >= 'a' && digit <= 'f') ||
+                      (digit >= 'A' && digit <= 'F'))) return false;
+            }
+        }
+        return false;
+    }
+
+    bool parse_literal(const std::string_view literal) {
+        if (input_.substr(position_, literal.size()) != literal) return false;
+        position_ += literal.size();
+        return true;
+    }
+
+    bool parse_number() {
+        const auto start = position_;
+        (void)consume('-');
+        if (consume('0')) {
+            if (position_ < input_.size() && input_[position_] >= '0' &&
+                input_[position_] <= '9') return false;
+        } else {
+            if (position_ >= input_.size() || input_[position_] < '1' ||
+                input_[position_] > '9') return false;
+            while (position_ < input_.size() && input_[position_] >= '0' &&
+                   input_[position_] <= '9') ++position_;
+        }
+        if (consume('.')) {
+            const auto fraction_start = position_;
+            while (position_ < input_.size() && input_[position_] >= '0' &&
+                   input_[position_] <= '9') ++position_;
+            if (position_ == fraction_start) return false;
+        }
+        if (position_ < input_.size() &&
+            (input_[position_] == 'e' || input_[position_] == 'E')) {
+            ++position_;
+            if (position_ < input_.size() &&
+                (input_[position_] == '+' || input_[position_] == '-')) ++position_;
+            const auto exponent_start = position_;
+            while (position_ < input_.size() && input_[position_] >= '0' &&
+                   input_[position_] <= '9') ++position_;
+            if (position_ == exponent_start) return false;
+        }
+        return position_ > start;
+    }
+
+    std::string_view input_;
+    std::size_t position_{};
+};
+
+[[nodiscard]] bool valid_json(const std::string_view text) {
+    return JsonValidator(text).validate();
+}
+
 } // namespace
 
 Result<std::vector<std::byte>> NativeMessagingFrame::encode(
@@ -53,7 +192,7 @@ Result<std::vector<std::byte>> NativeMessagingFrame::encode(
 ) {
     if (json_payload.empty() || json_payload.size() > maximum_payload_bytes ||
         json_payload.size() > std::numeric_limits<std::uint32_t>::max() ||
-        !valid_utf8(json_payload)) {
+        !valid_utf8(json_payload) || !valid_json(json_payload)) {
         return std::unexpected(VortexError::make(
             ErrorCode::invalid_argument, "Native messaging payload size is invalid"
         ));
@@ -97,8 +236,8 @@ Result<std::string> NativeMessagingFrame::decode(const std::span<const std::byte
     for (std::size_t index = 4U; index < frame.size(); ++index) {
         payload.push_back(static_cast<char>(std::to_integer<unsigned char>(frame[index])));
     }
-    if (!valid_utf8(payload)) return std::unexpected(VortexError::make(
-        ErrorCode::parse_error, "Native messaging payload is not valid UTF-8"
+    if (!valid_utf8(payload) || !valid_json(payload)) return std::unexpected(VortexError::make(
+        ErrorCode::parse_error, "Native messaging payload is not valid UTF-8 JSON"
     ));
     return payload;
 }
