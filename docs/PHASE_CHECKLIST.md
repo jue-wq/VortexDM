@@ -39,11 +39,12 @@ A checked item describes an implemented/reviewed artifact; a phase is complete o
 - [ ] Optional embedded GeckoView + unmodified upstream uBO compatibility proof-of-concept and GPL-3.0 review
 - [x] Desktop Native Messaging frame reader baseline
 - [ ] Local-user-only Windows/Linux host registration
-- [ ] Android opt-in loopback IPC server (127.0.0.1 + random API key)
+- [x] Android opt-in loopback IPC server bound to 127.0.0.1 with 256-bit per-launch API key, CORS preflight, size caps and SQLite task persistence
 - [ ] Android foreground service, scoped storage and process-death recovery
 - [ ] Queue/category scheduler and typed application services
 - [x] Native host persists acknowledged add_download/add_batch/add_batch_chunk tasks into SQLite with queue IDs
-- [ ] Full bidirectional IPC v1, task-control dispatch and batch chunk assembler status push
+- [x] Android loopback handshake, add_download, add_batch and chunk assembly/persistence
+- [ ] Task-control dispatch, app-to-extension status push and foreground service
 
 ## Phase 6 — Responsive Qt UI and release
 - [x] User-approved VortexDM icon asset added to Qt resource bundle and application window icon

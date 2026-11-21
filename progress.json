@@ -95,19 +95,22 @@
       "checks": {
         "desktop_host_framing": true,
         "desktop_registration": false,
-        "android_loopback_api": false,
+        "android_loopback_api": true,
         "android_foreground_service": false,
         "ipc_dispatch": false,
         "chunk_assembler": false,
         "queues": false,
         "android_ublock_architecture": true,
         "geckoview_ublock_poc": false,
-        "download_persistence": true
+        "download_persistence": true,
+        "android_chunk_assembler": true,
+        "android_task_persistence": true
       },
       "evidence": [
         "Desktop Native Messaging frame reader baseline exists; Android loopback API and foreground service remain future requirements.",
         "Android ad-blocking requirement clarified: original Raymond Hill uBlock Origin via official Firefox for Android add-on; embedded GeckoView remains an unverified optional path.",
-        "Commits 648e46a, 338dc2f and 3409aaf make Native Messaging add_download/add_batch/chunk completion persist queued SQLite records and selected queue IDs before positive ACK. Acceptance fixture in 745dcbf."
+        "Commits 648e46a, 338dc2f and 3409aaf make Native Messaging add_download/add_batch/chunk completion persist queued SQLite records and selected queue IDs before positive ACK. Acceptance fixture in 745dcbf.",
+        "Android-only Qt Network loopback server now binds 127.0.0.1 on an ephemeral port, authenticates with a per-launch 256-bit key, handles preflight/health/IPC, and persists add_download/add_batch/chunk-complete requests to the app SQLite database. UI exposes port/key for Firefox Bridge setup. Foreground service, task-control/status push and on-device E2E remain pending."
       ]
     },
     {
