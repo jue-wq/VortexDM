@@ -66,6 +66,9 @@ void DownloadQueueWorker::run(std::stop_token token) {
         };
         const auto result = download_file(task.url, directory / task.filename, options);
         if (result) {
+            std::error_code size_error;
+            const auto final_size = std::filesystem::file_size(directory / task.filename, size_error);
+            if (!size_error) (void)repository_.update_download_progress(task.id, final_size, final_size);
             (void)repository_.update_download_status(task.id, "Completed");
         } else if (result.error().code == "download_cancelled" || token.stop_requested()) {
             if (token.stop_requested()) {
@@ -76,6 +79,7 @@ void DownloadQueueWorker::run(std::stop_token token) {
                     (void)repository_.update_download_status(task.id, "Queued", "Transfer interrupted");
             }
         } else {
+            (void)repository_.update_download_progress(task.id, 0U, 0U);
             (void)repository_.update_download_status(task.id, "Error", result.error().code + ": " + result.error().message);
         }
     }
