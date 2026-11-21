@@ -1,0 +1,9 @@
+$ErrorActionPreference = "Stop"
+$manifestPath = '@VORTEXDM_NATIVE_HOST_MANIFEST_PS_PATH@'
+if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
+    throw "VortexDM Native Messaging manifest was not found: $manifestPath"
+}
+$keyPath = 'HKCU:\Software\Mozilla\NativeMessagingHosts\com.vortexdm.native_host'
+New-Item -Path $keyPath -Force | Out-Null
+Set-Item -Path $keyPath -Value $manifestPath
+Write-Host "Registered VortexDM Native Messaging host for the current Windows user."
