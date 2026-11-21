@@ -34,6 +34,8 @@ A checked item describes an implemented/reviewed artifact; a phase is complete o
 - [ ] Composite task integration tests
 
 ## Phase 5 — App services, queues and cross-platform IPC
+- [x] Android ad-blocking architecture decision: original uBlock Origin in Firefox for Android; Browser Bridge handles download handoff only
+- [ ] Optional embedded GeckoView + unmodified upstream uBO compatibility proof-of-concept and GPL-3.0 review
 - [x] Desktop Native Messaging frame reader baseline
 - [ ] Local-user-only Windows/Linux host registration
 - [ ] Android opt-in loopback IPC server (127.0.0.1 + random API key)

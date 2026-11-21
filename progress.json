@@ -87,10 +87,13 @@
         "android_foreground_service": false,
         "ipc_dispatch": false,
         "chunk_assembler": false,
-        "queues": false
+        "queues": false,
+        "android_ublock_architecture": true,
+        "geckoview_ublock_poc": false
       },
       "evidence": [
-        "Desktop Native Messaging frame reader baseline exists; Android loopback API and foreground service remain future requirements."
+        "Desktop Native Messaging frame reader baseline exists; Android loopback API and foreground service remain future requirements.",
+        "Android ad-blocking requirement clarified: original Raymond Hill uBlock Origin via official Firefox for Android add-on; embedded GeckoView remains an unverified optional path."
       ]
     },
     {

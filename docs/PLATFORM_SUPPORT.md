@@ -17,7 +17,7 @@ The Android application reuses the C++23 core and a responsive Qt Quick UI. The 
 - Downloads must cooperate with Android process suspension, battery restrictions and scoped storage. Long-running transfers need an Android foreground-service integration before release.
 - Do not build `vortex-native-host` on Android. Firefox for Android does not expose `runtime.connectNative()`; use the opt-in loopback bridge below.
 - Browser-to-app handoff on one device uses a random API key and an HTTP endpoint bound only to `127.0.0.1`. The endpoint is disabled by default, requires explicit enablement, validates protocol v1, and must never bind to `0.0.0.0`.
-- The Android extension can still run local ad/tracker filtering without VortexDM running.
+- Android ad/tracker filtering is provided by the original uBlock Origin extension in Firefox for Android, not by the VortexDM download manager or a VortexDM-written filter clone. See docs/ANDROID_UBO_INTEGRATION.md.
 
 ## Build prerequisites
 Install Android SDK platform 35, Android NDK 27.2.12479018, CMake/Ninja and a vcpkg checkout matching `builtin-baseline` in `vcpkg.json`.

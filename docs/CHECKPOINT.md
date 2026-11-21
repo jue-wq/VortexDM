@@ -2,6 +2,7 @@
 
 - Current phase: 2 of 6 (IN_PROGRESS)
 - Platform scope: Windows + Linux + Android arm64; macOS excluded.
+- Android uBlock decision: use original Raymond Hill uBlock Origin via official Mozilla Add-ons in Firefox for Android. VortexDM remains the downloader; Browser Bridge performs handoff, not a uBO clone. Embedded GeckoView + upstream uBO is experimental until API/device/GPL checks pass. See docs/ANDROID_UBO_INTEGRATION.md.
 - Phase 1 baseline includes CrashSafeFileWriter (POSIX pwrite / Windows OVERLAPPED), preallocation, durable flush and 16-thread/100 MiB SHA-256 test. CI run 44954098299 passed Windows, Linux, Android arm64, ASan/UBSan and TSan.
 - Phase 2 now includes SQLite WAL schema migration v1, downloads/streams/segments/queues/categories/toolchain/settings tables, typed record structs, upsert operations and a migration/segment persistence unit test.
 - Phase 2 also includes HTTP HEAD with Range 0-0 fallback, parallel byte-range downloads and a bounded segment scheduler with tail work stealing. Remaining: adaptive retry wired into transfers, segment journal recovery after forced termination, and writer/SQLite commit ordering E2E.

@@ -9,6 +9,11 @@ Windows 10/11, Linux (X11/Wayland), and Android 9+ arm64-v8a. macOS is explicitl
 ## Current implementation boundary
 The initial baseline provides HTTP(S) URL validation, a libcurl single-stream transfer, a task state machine, SQLite WAL initialization, CLI entry point and desktop 4-byte little-endian Native Messaging frame handling. Parallel range scheduling, crash-safe segment journals, HLS/DASH, signed extractor URL refresh, queue scheduler, Android foreground-service lifecycle, Android loopback API and production installers remain incomplete; see `PHASE_CHECKLIST.md`.
 
+## Android browser and ad-blocking integration
+- The original uBlock Origin by Raymond Hill is the preferred Android web-content blocker. The supported route is its official Mozilla Add-ons distribution in Firefox for Android.
+- Vortex Browser Bridge handles download handoff; it must not present its own Android filter engine as uBO or run a duplicate blocker in the same Firefox profile.
+- An embedded GeckoView browser with unmodified upstream uBO is experimental only. It requires API compatibility and GPL-3.0 release gates documented in docs/ANDROID_UBO_INTEGRATION.md.
+
 ## Android-specific invariants
 - Download state and temporary files live in app-private storage.
 - Long-running downloads require a foreground-service implementation and process-death recovery before production.
