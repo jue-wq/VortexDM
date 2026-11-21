@@ -22,6 +22,9 @@ public:
     OffsetFileWriter& operator=(const OffsetFileWriter&) = delete;
 
     [[nodiscard]] Status open(const std::filesystem::path& path, std::uint64_t size);
+    // Reopens an existing, exactly-sized partial file without truncating it.
+    // Caller must validate the remote representation before resuming writes.
+    [[nodiscard]] Status open_existing(const std::filesystem::path& path, std::uint64_t size);
     [[nodiscard]] Status write_at(std::uint64_t offset, std::span<const std::byte> data);
     [[nodiscard]] Status flush();
     [[nodiscard]] Status close();
