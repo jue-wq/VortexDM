@@ -541,6 +541,11 @@ bool test_sqlite_migrations_and_segment_journal() {
     if (!repository.save_download(download)) return false;
     const auto claimed = repository.claim_next_queued_download();
     if (!claimed || !*claimed || (**claimed).status != "Downloading") return false;
+    if (!repository.reset_interrupted_downloads()) return false;
+    const auto recovered_status = repository.get_download_status(download.id);
+    if (!recovered_status || *recovered_status != "Queued") return false;
+    const auto reclaimed = repository.claim_next_queued_download();
+    if (!reclaimed || !*reclaimed) return false;
     if (!repository.update_download_progress(download.id, 256U, 1024U)) return false;
     if (!repository.update_download_status(download.id, "Paused")) return false;
     const auto paused = repository.get_download_status(download.id);
