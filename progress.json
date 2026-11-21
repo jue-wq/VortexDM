@@ -1,10 +1,10 @@
 {
-  "schema_version":1,"project":"VortexDM","current_phase":1,
+  "schema_version":1,"project":"VortexDM","current_phase":2,
   "platforms":["windows-x64","linux-x64","android-arm64-v8a"],
   "excluded_platforms":["macos"],
   "phases":[
-    {"id":1,"name":"Foundation and platform build matrix","status":"IN_PROGRESS","checks":{"layout":true,"protocol":true,"baseline_tests":true,"crash_safe_writer":true,"parallel_sha256_test":true,"windows_ci":false,"linux_ci":true,"android_arm64_ci":true,"asan_ubsan_ci":false,"tsan_ci":false},"evidence":["CrashSafeFileWriter and 16-thread/100 MiB SHA-256 acceptance test added. CI run 44953047590 passed Linux and Android; Windows still pending. Sanitizer workflow added, results pending."]},
-    {"id":2,"name":"Persistence and reliable HTTP engine","status":"IN_PROGRESS","checks":{"sqlite_wal":true,"single_stream_http":true,"migrations":false,"segmented_scheduler":false,"crash_recovery":false},"evidence":["SQLite WAL initialization and libcurl single-stream baseline implemented."]},
+    {"id":1,"name":"Foundation and platform build matrix","status":"IN_PROGRESS","checks":{"layout":true,"protocol":true,"baseline_tests":true,"crash_safe_writer":true,"parallel_sha256_test":true,"windows_ci":false,"linux_ci":true,"android_arm64_ci":true,"asan_ubsan_ci":false,"tsan_ci":false},"evidence":["CrashSafeFileWriter and 16-thread/100 MiB SHA-256 test implemented. Previous CI run 44953047590 passed Linux and Android; Windows and sanitizer verification for latest commit pending."]},
+    {"id":2,"name":"Persistence and reliable HTTP engine","status":"IN_PROGRESS","checks":{"sqlite_wal":true,"schema_migration_v1":true,"download_stream_segment_tables":true,"repository_upserts":true,"migration_segment_tests":true,"range_probe":false,"segmented_scheduler":false,"adaptive_retry":false,"crash_recovery":false},"evidence":["SQLite WAL schema v1, migration runner, record upserts and segment checkpoint test added; CI test evidence pending."]},
     {"id":3,"name":"yt-dlp extraction and toolchain","status":"TODO","checks":{"process_runner":false,"json_extractor":false,"profiles":false,"checksum_rollback":false,"url_refresh":false},"evidence":[]},
     {"id":4,"name":"HLS DASH and muxing","status":"TODO","checks":{"hls":false,"dash":false,"decrypt":false,"muxing":false,"integration_tests":false},"evidence":[]},
     {"id":5,"name":"Application services and browser host","status":"IN_PROGRESS","checks":{"desktop_host_framing":true,"desktop_registration":false,"android_loopback_api":false,"android_foreground_service":false,"ipc_dispatch":false,"chunk_assembler":false,"queues":false},"evidence":["Desktop Native Messaging frame reader baseline exists; Android loopback API and foreground service remain future requirements."]},

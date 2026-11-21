@@ -1,11 +1,10 @@
 # Durable checkpoint
 
-- Current phase: 1 of 6 (IN_PROGRESS)
-- Platform scope: Windows + Linux + Android arm64; macOS is excluded.
-- New phase-1 code: CrashSafeFileWriter uses positional pwrite on POSIX/Android and Windows OVERLAPPED writes, preallocates file size, and exposes explicit durable flush.
-- New acceptance test: 16 threads write 100 distinct 1 MiB segments (100 MiB total) in shuffled order; final file is verified with SHA-256.
-- CI before this change: run 44953047590 passed checkpoint, Linux desktop and Android arm64 builds; Windows desktop is pending.
-- Sanitizer CI matrix now runs ASan/UBSan and TSan separately; results pending.
+- Current phase: 2 of 6 (IN_PROGRESS)
+- Platform scope: Windows + Linux + Android arm64; macOS excluded.
+- Phase 1 baseline includes CrashSafeFileWriter (POSIX pwrite / Windows OVERLAPPED), preallocation, durable flush and 16-thread/100 MiB SHA-256 test. Linux and Android builds passed in a previous CI run; Windows and sanitizer results for the latest writer commit are pending.
+- Phase 2 now includes SQLite WAL schema migration v1, downloads/streams/segments/queues/categories/toolchain/settings tables, typed record structs, upsert operations and a migration/segment persistence unit test.
+- Not yet implemented: HTTP Range probing, segmented scheduler, work stealing, adaptive retry and process-kill recovery.
 - No phase is marked DONE.
-- Resume: run python tools/check_progress.py; run Windows/Linux/Android matrix; inspect 100 MiB SHA-256 test; resolve sanitizer failures before transition.
-- Next task: complete matrix and sanitizer runs, then implement transactional SQLite migrations and segment journal.
+- Resume: run python tools/check_progress.py; run CMake build + ctest; fix Windows and sanitizer failures; add Range probe/scheduler only after this baseline test is green.
+- Next task: confirm CI for migration tests, then implement Range probing and segment scheduling.

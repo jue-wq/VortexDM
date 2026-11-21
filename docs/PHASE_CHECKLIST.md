@@ -13,11 +13,13 @@ A checked item describes an implemented/reviewed artifact; a phase is complete o
 - [ ] ASan/UBSan and TSan CI runs green
 
 ## Phase 2 — Persistence and reliable HTTP engine
-- [x] SQLite WAL repository bootstrap
-- [x] HTTP(S) libcurl single-stream transfer baseline
-- [ ] Transactional task/segment journal and migrations
-- [ ] Range probing, adaptive segmented scheduler and retries
-- [ ] Crash restart recovery tests tied to SQLite segment commits
+- [x] SQLite WAL bootstrap and schema version migration v1
+- [x] Downloads, download_streams, segments, queues, categories, ytdlp_profiles and settings tables
+- [x] Download/stream/segment upsert APIs and segment checkpoint persistence
+- [x] Repository migration and checkpoint unit test baseline
+- [ ] Range probing, adaptive segmented scheduler and retry policy
+- [ ] Segment journal recovery after forced process termination
+- [ ] Crash-safe writer + SQLite commit ordering end-to-end test
 
 ## Phase 3 — yt-dlp extraction and toolchain
 - [ ] Shell-free process runner with timeout/cancellation
