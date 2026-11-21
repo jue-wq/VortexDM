@@ -23,7 +23,7 @@ struct HttpResponseHeaders final {
     // Retry-After delta-seconds is supported; HTTP-date form is ignored.
     [[nodiscard]] static std::optional<HttpResponseHeaders> parse(
         std::span<const std::string_view> lines
-    ) noexcept;
+    );
 };
 
 } // namespace vortex
