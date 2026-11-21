@@ -26,7 +26,7 @@ int main(int argc, char* argv[]) {
 
 #ifdef Q_OS_ANDROID
     const auto data_directory = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-    QDir().mkpath(data_directory);
+    QDir().mkpath(data_directory + QStringLiteral("/Downloads"));
     const std::filesystem::path database_path = (data_directory + QStringLiteral("/vortexdm.sqlite3")).toStdString();
 #else
     const std::filesystem::path database_path = vortex::application_database_path();

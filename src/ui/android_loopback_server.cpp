@@ -267,7 +267,7 @@ vortex::Result<std::string> AndroidLoopbackServer::enqueueDownload(const json& p
     record.id = "android-" + QUuid::createUuid().toString(QUuid::WithoutBraces).toStdString();
     record.url = url;
     record.filename = vortex::sanitize_filename(requested.empty() ? suggested_name(url) : requested);
-    record.save_dir = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation).toStdString();
+    record.save_dir = (QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + QStringLiteral("/Downloads")).toStdString();
     record.queue_id = payload.value("queue_id", std::string("default"));
     record.status = "Queued";
     record.headers_json = "{}";

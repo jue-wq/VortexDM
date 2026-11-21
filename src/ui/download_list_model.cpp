@@ -7,6 +7,7 @@
 #include <QFileInfo>
 #include <QUuid>
 #include <QVariantMap>
+#include <QStandardPaths>
 
 DownloadListModel::DownloadListModel(vortex::SqliteRepository* repository, QObject* parent)
     : QAbstractListModel(parent), repository_(repository) {
@@ -95,7 +96,11 @@ bool DownloadListModel::addDownload(const QString& input, const QString& queueId
     record.id = "ui-" + QUuid::createUuid().toString(QUuid::WithoutBraces).toStdString();
     record.url = url;
     record.filename = vortex::sanitize_filename(name.empty() ? "download" : name);
+#ifdef Q_OS_ANDROID
+    record.save_dir = (QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + QStringLiteral("/Downloads")).toStdString();
+#else
     record.save_dir = vortex::default_download_directory().string();
+#endif
     record.queue_id = queueId.isEmpty() ? "default" : queueId.toStdString();
     record.status = "Queued";
     auto saved = repository_->save_download(record);
