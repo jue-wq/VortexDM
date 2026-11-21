@@ -35,6 +35,8 @@ public:
     [[nodiscard]] Status record_segment_checkpoint(const SegmentCheckpoint& checkpoint);
     [[nodiscard]] Result<std::vector<SegmentCheckpoint>> list_segment_checkpoints(std::int64_t download_id);
     [[nodiscard]] Status clear_segment_checkpoints(std::int64_t download_id);
+    // Removes one checkpoint so recovery can re-fetch only a corrupt segment.
+    [[nodiscard]] Status erase_segment_checkpoint(std::int64_t download_id, std::int32_t segment_index);
 
 private:
     [[nodiscard]] Status execute(const char* sql);

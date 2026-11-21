@@ -382,4 +382,35 @@ Status SqliteDatabase::clear_segment_checkpoints(const std::int64_t download_id)
     return {};
 }
 
+
+Status SqliteDatabase::erase_segment_checkpoint(
+    const std::int64_t download_id, const std::int32_t segment_index
+) {
+    std::scoped_lock lock(mutex_);
+    if (!db_) return std::unexpected(VortexError::make(
+        ErrorCode::database_error, "Database is not open"
+    ));
+    if (download_id <= 0 || segment_index < 0) {
+        return std::unexpected(VortexError::make(
+            ErrorCode::invalid_argument, "Invalid segment checkpoint identity"
+        ));
+    }
+    Statement statement(db_,
+        "DELETE FROM download_segments WHERE download_id=? AND segment_index=?;");
+    if (statement.result() != SQLITE_OK) {
+        return std::unexpected(database_error("Prepare segment checkpoint erase"));
+    }
+    sqlite3_bind_int64(statement.get(), 1, download_id);
+    sqlite3_bind_int(statement.get(), 2, segment_index);
+    if (sqlite3_step(statement.get()) != SQLITE_DONE) {
+        return std::unexpected(database_error("Erase segment checkpoint"));
+    }
+    if (sqlite3_changes(db_) == 0) {
+        return std::unexpected(VortexError::make(
+            ErrorCode::invalid_argument, "Segment checkpoint does not exist"
+        ));
+    }
+    return {};
+}
+
 } // namespace vortex

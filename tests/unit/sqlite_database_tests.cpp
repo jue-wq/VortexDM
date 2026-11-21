@@ -177,6 +177,13 @@ TEST_CASE("SQLite persists bounded segment checkpoints across reopen") {
         CHECK(checkpoints->at(0).segment_index == 0);
         CHECK(checkpoints->at(0).checksum_sha256 == "sha256-first");
         CHECK(checkpoints->at(1).offset == 4096);
+        REQUIRE(database.erase_segment_checkpoint(download_id, 0).has_value());
+        const auto remaining = database.list_segment_checkpoints(download_id);
+        REQUIRE(remaining);
+        REQUIRE(remaining->size() == 1);
+        CHECK(remaining->front().segment_index == 1);
+        CHECK_FALSE(database.erase_segment_checkpoint(download_id, 0).has_value());
+        CHECK_FALSE(database.erase_segment_checkpoint(download_id, -1).has_value());
         REQUIRE(database.clear_segment_checkpoints(download_id).has_value());
         const auto empty = database.list_segment_checkpoints(download_id);
         REQUIRE(empty);
