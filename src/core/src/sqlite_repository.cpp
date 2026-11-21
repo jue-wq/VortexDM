@@ -516,6 +516,13 @@ Result<std::vector<SegmentRecord>> SqliteRepository::list_segments(const std::st
     return records;
 }
 
+Result<void> SqliteRepository::reset_interrupted_downloads() {
+    if(db_==nullptr)return std::unexpected(make_error("sqlite_open",open_error_));
+    auto result=execute("UPDATE downloads SET status='Queued', error_message='Recovered after application restart' WHERE status IN ('Probing','Downloading','Verifying');");
+    if(!result)return result;
+    return {};
+}
+
 Result<std::optional<DownloadRecord>> SqliteRepository::claim_next_queued_download() {
     if (db_ == nullptr) return std::unexpected(make_error("sqlite_open", open_error_));
     auto begin = execute("BEGIN IMMEDIATE;");

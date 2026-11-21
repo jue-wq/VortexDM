@@ -16,6 +16,7 @@ DownloadQueueWorker::~DownloadQueueWorker() { stop(); }
 
 void DownloadQueueWorker::start() {
     if (thread_.joinable()) return;
+    (void)repository_.reset_interrupted_downloads();
     cancel_requested_.store(false, std::memory_order_relaxed);
     thread_ = std::jthread([this](std::stop_token token) { run(token); });
 }
