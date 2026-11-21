@@ -105,7 +105,9 @@ Result<std::string> NativeMessagingHost::enqueue_media_extract(const nlohmann::j
         ? payload["page_title"].get<std::string>() : suggested_filename(url);
     DownloadRecord record;
     record.id = make_task_id();
-    record.task_type = "media_extract";
+    const auto playlist_mode = payload.contains("playlist_mode") && payload["playlist_mode"].is_string()
+        ? payload["playlist_mode"].get<std::string>() : std::string("single");
+    record.task_type = playlist_mode == "single" ? "media_extract" : "media_extract_playlist";
     record.url = url;
     record.filename = sanitize_filename(title.empty() ? "media" : title) + ".mkv";
     record.save_dir = default_download_directory().string();
