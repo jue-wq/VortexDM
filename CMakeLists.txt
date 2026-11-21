@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.25)
 project(VortexDM VERSION 0.1.0 LANGUAGES CXX)
 
+if(APPLE)
+  message(FATAL_ERROR "VortexDM does not support macOS; supported targets are Windows, Linux and Android.")
+endif()
+
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)

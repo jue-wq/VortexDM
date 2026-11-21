@@ -3,6 +3,7 @@
 #include <limits>
 #include <algorithm>
 #include <memory>
+#include <system_error>
 #include <string>
 #include <utility>
 
@@ -53,6 +54,12 @@ private:
 } // namespace
 
 SqliteRepository::SqliteRepository(const std::filesystem::path& path) {
+    std::error_code directory_error;
+    if (!path.parent_path().empty()) std::filesystem::create_directories(path.parent_path(), directory_error);
+    if (directory_error) {
+        open_error_ = directory_error.message();
+        return;
+    }
     const int rc = sqlite3_open_v2(path.string().c_str(), &db_,
         SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX, nullptr);
     if (rc != SQLITE_OK) {
@@ -112,6 +119,7 @@ Result<void> SqliteRepository::migrate() {
         return std::unexpected(database_error(db_, "sqlite_migration", "Could not read schema version"));
     }
     const auto current_version = sqlite3_column_int64(version_query.get(), 0);
+    (void)sqlite3_reset(version_query.get());
 
     if (current_version < 1) {
         const char* migration_1 = R"SQL(
