@@ -149,7 +149,12 @@ ApplicationWindow {
                             ColumnLayout {
                                 TextField { id: ytDlpBinary; Layout.fillWidth: true; placeholderText: "Absolute yt-dlp executable path" }
                                 TextField { id: ytDlpPython; Layout.fillWidth: true; placeholderText: "Optional Python path (with yt_dlp installed)" }
-                                Button { Layout.fillWidth: true; text: "Save profile"; onClicked: downloadsModel.configureYtDlp(ytDlpBinary.text, ytDlpPython.text) }
+                                Button {
+                                    Layout.fillWidth: true
+                                    text: "Save profile"
+                                    onClicked: profileStatus.text = downloadsModel.configureYtDlp(ytDlpBinary.text, ytDlpPython.text) ? "yt-dlp profile saved" : "Check the absolute executable/Python path"
+                                }
+                                Label { id: profileStatus; color: "#8B97AD"; text: "" }
                             }
                         }
                     }
