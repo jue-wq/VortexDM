@@ -203,3 +203,48 @@ TEST_CASE("SQLite state transitions enforce legal edges and optimistic concurren
     CHECK(rows->front().state == vortex::DownloadState::running);
     CHECK(rows->front().updated_at_unix == 5);
 }
+
+
+TEST_CASE("SQLite queue claims queued downloads atomically in FIFO order") {
+    TemporaryDatabase temporary;
+    vortex::SqliteDatabase database;
+    REQUIRE(database.open(temporary.path()).has_value());
+    REQUIRE(database.migrate().has_value());
+
+    vortex::DownloadRecord first;
+    first.url = "https://example.test/first.bin";
+    first.destination = "first.bin";
+    first.created_at_unix = 10;
+    first.updated_at_unix = 10;
+    const auto first_id = database.insert_download(first);
+    REQUIRE(first_id);
+
+    vortex::DownloadRecord second;
+    second.url = "https://example.test/second.bin";
+    second.destination = "second.bin";
+    second.created_at_unix = 11;
+    second.updated_at_unix = 11;
+    const auto second_id = database.insert_download(second);
+    REQUIRE(second_id);
+
+    const auto claim_one = database.claim_next_queued_download(20);
+    REQUIRE(claim_one);
+    REQUIRE(claim_one->has_value());
+    CHECK((**claim_one).id == *first_id);
+    CHECK((**claim_one).state == vortex::DownloadState::running);
+
+    const auto claim_two = database.claim_next_queued_download(21);
+    REQUIRE(claim_two);
+    REQUIRE(claim_two->has_value());
+    CHECK((**claim_two).id == *second_id);
+
+    const auto empty = database.claim_next_queued_download(22);
+    REQUIRE(empty);
+    CHECK_FALSE(empty->has_value());
+
+    const auto rows = database.list_downloads();
+    REQUIRE(rows);
+    REQUIRE(rows->size() == 2);
+    CHECK(rows->at(0).state == vortex::DownloadState::running);
+    CHECK(rows->at(1).state == vortex::DownloadState::running);
+}
