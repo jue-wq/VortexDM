@@ -180,6 +180,10 @@ class MainActivity : Activity() {
             input.contains('.') -> "https://$input"
             else -> "https://www.google.com/search?q=" + java.net.URLEncoder.encode(input, Charsets.UTF_8.name())
         }
+        if (!NativeBridge.isSupportedUrl(uri)) {
+            pageStatusOrLog("Blocked unsupported or malformed URL")
+            return
+        }
         addressBar.setText(uri)
         session.loadUri(uri)
     }
