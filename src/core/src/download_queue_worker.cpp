@@ -179,7 +179,7 @@ void DownloadQueueWorker::run(std::stop_token token) {
                                 cancel_requested_.store(true, std::memory_order_relaxed);
                                 return std::unexpected(make_error("download_cancelled", "Task was paused or cancelled"));
                             }
-                            return download_range_to_writer(task.url, range, writer, options);
+                            return download_range_to_writer(task.url, range, stream.total_bytes, writer, options);
                         });
                     recovery_monitor.request_stop();
                     recovery_monitor.join();
