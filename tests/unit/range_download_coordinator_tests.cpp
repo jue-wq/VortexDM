@@ -352,8 +352,6 @@ TEST_CASE("Range coordinator redownloads a checkpoint whose on-disk bytes change
 
     std::size_t requests = 0;
     const std::array replacement{std::byte{'o'}, std::byte{'k'}, std::byte{'!'}};
-    const std::string replacement_sha =
-        "5c1a7f3b5e5c9a8c0d8f4f3f7e9b5d7c";
     const vortex::RangeRequestExecutor executor =
         [&requests, &replacement](const vortex::HttpRequest& request,
                                   const vortex::HttpBodySink& sink, std::stop_token) {
