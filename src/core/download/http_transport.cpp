@@ -1,4 +1,5 @@
 #include "http_transport.hpp"
+#include "core/download/content_range.hpp"
 
 #include <curl/curl.h>
 
@@ -34,7 +35,30 @@ struct TransferContext final {
     const char* callback_error{};
     std::size_t body_bytes{};
     bool sink_failed{};
+    std::optional<ByteRange> requested_range;
+    std::optional<std::uint64_t> expected_total_size;
+    bool range_headers_validated{};
+    bool range_validation_failed{};
 };
+
+bool validate_range_headers(TransferContext& context) {
+    if (!context.requested_range) return true;
+    std::vector<std::string_view> views;
+    views.reserve(context.header_lines.size());
+    for (const auto& line : context.header_lines) views.emplace_back(line);
+    const auto headers = HttpResponseHeaders::parse(views);
+    if (!headers || !headers->content_range || !headers->content_length ||
+        !context.expected_total_size ||
+        !ContentRangeParser::validate_partial_response(
+            headers->status_code, *headers->content_range, *headers->content_length,
+            *context.requested_range, *context.expected_total_size)) {
+        context.range_validation_failed = true;
+        context.callback_error = "HTTP range response did not match the requested byte interval";
+        return false;
+    }
+    context.range_headers_validated = true;
+    return true;
+}
 
 size_t receive_body(char* data, const size_t size, const size_t count, void* opaque) noexcept {
     auto* context = static_cast<TransferContext*>(opaque);
@@ -88,7 +112,7 @@ Result<HttpTransferResponse> HttpTransport::get(
 ) const {
     if (url.empty() || !sink || options.connect_timeout_seconds <= 0 ||
         options.total_timeout_seconds < 0 || options.maximum_redirects < 0 ||
-        options.user_agent.empty() ||
+        options.user_agent.empty() ||\n        (options.range.has_value() != options.expected_total_size.has_value()) ||\n        (options.expected_total_size && *options.expected_total_size == 0) ||\n        (options.range && options.range->last >= *options.expected_total_size) ||
         (options.range && (options.range->first > options.range->last ||
                            options.range->last == UINT64_MAX)) ||
         (options.if_range && (options.if_range->empty() ||
@@ -110,7 +134,7 @@ Result<HttpTransferResponse> HttpTransport::get(
     }
 
     TransferContext context{};
-    context.sink = &sink;
+    context.sink = &sink;\n    context.requested_range = options.range;\n    context.expected_total_size = options.expected_total_size;
     const std::string url_copy(url);
     const auto set = [&](const CURLoption option, const auto value) {
         return curl_easy_setopt(handle.get(), option, value) == CURLE_OK;
@@ -166,7 +190,7 @@ Result<HttpTransferResponse> HttpTransport::get(
             ? std::string(curl_easy_strerror(result))
             : std::string(context.callback_error);
         return std::unexpected(VortexError::make(
-            context.sink_failed ? ErrorCode::io_error : ErrorCode::network_error,
+            context.sink_failed ? ErrorCode::io_error :\n                (context.range_validation_failed ? ErrorCode::parse_error : ErrorCode::network_error),
             "HTTP transfer failed: " + message));
     }
 
