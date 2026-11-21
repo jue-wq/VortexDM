@@ -58,6 +58,13 @@ Status SegmentCheckpointManager::commit_segment(
     });
 }
 
+Result<std::vector<SegmentCheckpoint>> SegmentCheckpointManager::list_checkpoints(
+    const std::int64_t download_id
+) {
+    std::scoped_lock lock(mutex_);
+    return database_.list_segment_checkpoints(download_id);
+}
+
 Result<std::size_t> SegmentCheckpointManager::verify_and_prune(
     const std::int64_t download_id
 ) {
