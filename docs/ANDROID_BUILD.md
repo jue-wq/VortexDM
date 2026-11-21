@@ -24,7 +24,7 @@ The Android package declares INTERNET and dataSync foreground-service permission
 4. Use the Bridge popup's queue selector to choose a VortexDM queue.
 5. Confirm the app accepts a test link and shows it in the queue.
 
-The server binds only to 127.0.0.1, chooses an ephemeral port, requires a per-launch 256-bit API key, caps request/header sizes, and exposes a health endpoint plus IPC v1. The key changes each app launch; re-enter it in Bridge settings after restarting VortexDM.
+The server binds only to 127.0.0.1, chooses an ephemeral port, requires a per-launch 256-bit API key, caps request/header sizes, and exposes a health endpoint plus IPC v1. Android downloads are currently stored in VortexDM's app-private Downloads directory; public Downloads/SAF export is not implemented yet. The key changes each app launch; re-enter it in Bridge settings after restarting VortexDM.
 
 ## Android ad blocking
 Use the original Raymond Hill uBlock Origin extension distributed by Mozilla for Firefox for Android:
@@ -36,5 +36,5 @@ Vortex Browser Bridge disables its own network and cosmetic filtering on Firefox
 - Build and install the arm64 APK on API 28, API 34 and current Android API devices
 - Verify foreground-service notification and process survival with screen off
 - Verify loopback CORS preflight, API-key rejection, large-batch chunks and app restart behavior on a physical device
-- Verify Android download permission/scoped-storage behavior and destination access
+- Verify app-private Downloads directory behavior; implement/test SAF or MediaStore export to the public Downloads collection
 - Run full core tests on desktop CI and Android instrumentation/device acceptance
