@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "project": "VortexDM",
-  "current_phase": 5,
+  "current_phase": 6,
   "platforms": [
     "windows-x64",
     "linux-x64",
@@ -104,13 +104,19 @@
         "geckoview_ublock_poc": false,
         "download_persistence": true,
         "android_chunk_assembler": true,
-        "android_task_persistence": true
+        "android_task_persistence": true,
+        "download_worker": true,
+        "download_progress": true,
+        "task_control": true,
+        "queue_management": true,
+        "native_host_persistence": true
       },
       "evidence": [
         "Desktop Native Messaging frame reader baseline exists; Android loopback API and foreground service remain future requirements.",
         "Android ad-blocking requirement clarified: original Raymond Hill uBlock Origin via official Firefox for Android add-on; embedded GeckoView remains an unverified optional path.",
         "Commits 648e46a, 338dc2f and 3409aaf make Native Messaging add_download/add_batch/chunk completion persist queued SQLite records and selected queue IDs before positive ACK. Acceptance fixture in 745dcbf.",
-        "Android-only Qt Network loopback server now binds 127.0.0.1 on an ephemeral port, authenticates with a per-launch 256-bit key, handles preflight/health/IPC, and persists add_download/add_batch/chunk-complete requests to the app SQLite database. UI exposes port/key for Firefox Bridge setup. Foreground service, task-control/status push and on-device E2E remain pending."
+        "Android-only Qt Network loopback server now binds 127.0.0.1 on an ephemeral port, authenticates with a per-launch 256-bit key, handles preflight/health/IPC, and persists add_download/add_batch/chunk-complete requests to the app SQLite database. UI exposes port/key for Firefox Bridge setup. Foreground service, task-control/status push and on-device E2E remain pending.",
+        "Commits 650334f/06ed117 add a background task worker with cancellation; f75eb79/b18ba69 expose progress callbacks; 4de4d17/070e44d persist throttled byte progress; 1ba47d9/7a02f8f implement pause/resume/cancel dispatch; 6b28592/981eed0 add queue CRUD/default queue migration; 34e1a01/5158035/6c60a8e add queue/task UI."
       ]
     },
     {
@@ -125,11 +131,14 @@
         "installers": false,
         "android_apk": false,
         "slo_benchmarks": false,
-        "app_icon": true
+        "app_icon": true,
+        "android_manifest": true,
+        "android_foreground_service_scaffold": true
       },
       "evidence": [
         "Optional Qt QML shell added; responsive mobile UI and release artifacts remain pending.",
-        "User-supplied VortexDM artwork added as Qt application icon resource; commit fd96c2f."
+        "User-supplied VortexDM artwork added as Qt application icon resource; commit fd96c2f.",
+        "Commits a1666c1 and 18826ee add an Android package manifest, dataSync foreground-service Java class and JNI startup hook. Device/API-level acceptance and signed APK build are still pending."
       ]
     }
   ]
