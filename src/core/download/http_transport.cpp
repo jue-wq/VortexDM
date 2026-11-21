@@ -29,11 +29,14 @@ CurlGlobal& curl_global() {
     return instance;
 }
 
+constexpr std::size_t kMaximumResponseHeaderBytes = 256U * 1024U;
+
 struct TransferContext final {
     const HttpBodySink* sink{};
     std::vector<std::string> header_lines;
     const char* callback_error{};
     std::size_t body_bytes{};
+    std::size_t header_bytes{};
     bool sink_failed{};
     std::optional<ByteRange> requested_range;
     std::optional<std::uint64_t> expected_total_size;
@@ -96,8 +99,16 @@ size_t receive_header(char* data, const size_t size, const size_t count,
     const auto bytes = size * count;
     try {
         std::string line(data, bytes);
-        if (line.starts_with("HTTP/")) context->header_lines.clear();
+        if (line.starts_with("HTTP/")) {
+            context->header_lines.clear();
+            context->header_bytes = 0;
+        }
+        if (bytes > kMaximumResponseHeaderBytes - context->header_bytes) {
+            context->callback_error = "HTTP response headers exceeded the 256 KiB limit";
+            return 0;
+        }
         context->header_lines.emplace_back(std::move(line));
+        context->header_bytes += bytes;
         return bytes;
     } catch (...) {
         context->callback_error = "Unable to collect HTTP response headers";
