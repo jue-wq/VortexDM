@@ -28,6 +28,7 @@ add_library(vortex_core STATIC
     src/core/ipc/native_messaging_stream.cpp
     src/core/ipc/native_batch_assembler.cpp
     src/core/ipc/native_message_dispatcher.cpp
+    src/core/ipc/native_inbox_importer.cpp
 )
 add_library(VortexDM::Core ALIAS vortex_core)
 
@@ -119,6 +120,7 @@ if(VORTEXDM_BUILD_TESTS)
         tests/unit/native_messaging_frame_tests.cpp
         tests/unit/native_batch_assembler_tests.cpp
         tests/unit/native_message_dispatcher_tests.cpp
+        tests/unit/native_inbox_importer_tests.cpp
     )
     target_link_libraries(vortex_unit_tests
         PRIVATE
