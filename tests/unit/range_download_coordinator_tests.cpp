@@ -4,12 +4,14 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace {
@@ -514,4 +516,71 @@ TEST_CASE("Range coordinator completes without network requests when all checkpo
     std::filesystem::remove(database_path, ignored);
     std::filesystem::remove(database_path + "-wal", ignored);
     std::filesystem::remove(database_path + "-shm", ignored);
+}
+
+
+TEST_CASE("Range coordinator bounds concurrent range requests") {
+    const auto path = temporary_path();
+    constexpr std::uint64_t total = 12;
+    vortex::OffsetFileWriter writer;
+    REQUIRE(writer.open(path, total));
+
+    std::atomic<int> active{0};
+    std::atomic<int> maximum_active{0};
+    std::atomic<int> requests{0};
+    const vortex::RangeRequestExecutor executor =
+        [&active, &maximum_active, &requests, total](
+            const vortex::HttpRequest& request, const vortex::HttpBodySink& sink,
+            std::stop_token stop_token) {
+            const int now_active = active.fetch_add(1) + 1;
+            int observed = maximum_active.load();
+            while (observed < now_active &&
+                   !maximum_active.compare_exchange_weak(observed, now_active)) {}
+            struct ActiveGuard final {
+                std::atomic<int>& active;
+                ~ActiveGuard() { active.fetch_sub(1); }
+            } guard{active};
+            ++requests;
+            std::this_thread::sleep_for(std::chrono::milliseconds{30});
+            if (stop_token.stop_requested()) {
+                return vortex::Result<vortex::HttpResponse>{std::unexpected(
+                    vortex::VortexError::make(vortex::ErrorCode::cancelled, "cancelled"))};
+            }
+
+            const auto range = *request.range;
+            std::vector<std::byte> body;
+            body.reserve(static_cast<std::size_t>(range.size()));
+            for (std::uint64_t offset = range.first; offset <= range.last; ++offset) {
+                body.push_back(static_cast<std::byte>('a' + offset));
+            }
+            if (!sink(body)) {
+                return vortex::Result<vortex::HttpResponse>{std::unexpected(
+                    vortex::VortexError::make(vortex::ErrorCode::network_error, "sink rejected body"))};
+            }
+            vortex::HttpResponse response;
+            response.status_code = 206;
+            response.headers["content-range"] = "bytes " +
+                std::to_string(range.first) + "-" + std::to_string(range.last) + "/" +
+                std::to_string(total);
+            response.headers["content-length"] = std::to_string(range.size());
+            response.bytes_received = range.size();
+            return vortex::Result<vortex::HttpResponse>{std::move(response)};
+        };
+
+    vortex::RangeTransferOptions options;
+    options.maximum_concurrent_requests = 3;
+    REQUIRE(vortex::RangeDownloadCoordinator::transfer(
+        "https://example.test/parallel.bin", total, 3, writer, executor, options));
+    CHECK(requests.load() == 4);
+    CHECK(maximum_active.load() >= 2);
+    CHECK(maximum_active.load() <= 3);
+    REQUIRE(writer.close());
+
+    std::ifstream input(path, std::ios::binary);
+    REQUIRE(input.good());
+    std::array<char, 12> actual{};
+    input.read(actual.data(), static_cast<std::streamsize>(actual.size()));
+    CHECK(std::string(actual.data(), actual.size()) == "abcdefghijkl");
+    input.close();
+    std::filesystem::remove(path);
 }
