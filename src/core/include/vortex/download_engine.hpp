@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <atomic>
+#include <functional>
 #include <filesystem>
 #include <string>
 
@@ -29,6 +30,7 @@ struct DownloadOptions {
     std::size_t max_retries{3};
     std::uint64_t retry_backoff_ms{500};
     const std::atomic_bool* cancel_requested{nullptr};
+    std::function<void(std::uint64_t, std::uint64_t)> progress_callback;
 };
 
 [[nodiscard]] Result<RemoteFileInfo> probe_url(const std::string& url);

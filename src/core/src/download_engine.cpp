@@ -215,16 +215,23 @@ Result<RemoteFileInfo> probe_url_impl(const std::string& url) {
 
 struct SequentialOutput {
     std::FILE* file{nullptr};
+    std::uint64_t written{0};
+    std::uint64_t total{0};
+    const std::function<void(std::uint64_t, std::uint64_t)>* progress{nullptr};
 };
 
 size_t write_sequential(char* data, size_t size, size_t count, void* context) {
     auto* output = static_cast<SequentialOutput*>(context);
-    return std::fwrite(data, size, count, output->file);
+    const auto written = std::fwrite(data, size, count, output->file);
+    output->written += static_cast<std::uint64_t>(written);
+    if (output->progress && *output->progress) (*output->progress)(output->written, output->total);
+    return written;
 }
 
 Result<void> download_sequential(const std::string& url, const std::filesystem::path& destination, const DownloadOptions& options) {
     const auto native = destination.string();
     SequentialOutput output;
+    output.progress = &options.progress_callback;
 #ifdef _WIN32
     output.file = _wfopen(destination.c_str(), L"wb");
 #else
@@ -261,6 +268,9 @@ struct SegmentTransfer {
     CrashSafeFileWriter* writer{nullptr};
     ByteRange range;
     std::uint64_t received{0};
+    std::shared_ptr<std::atomic_uint64_t> aggregate_progress;
+    const std::function<void(std::uint64_t, std::uint64_t)>* progress{nullptr};
+    std::uint64_t total_bytes{0};
     bool write_failed{false};
 };
 
@@ -279,6 +289,10 @@ size_t write_segment(char* data, size_t size, size_t count, void* context) {
         return 0;
     }
     transfer->received += static_cast<std::uint64_t>(bytes);
+    if (transfer->aggregate_progress) {
+        const auto current = transfer->aggregate_progress->fetch_add(static_cast<std::uint64_t>(bytes), std::memory_order_relaxed) + static_cast<std::uint64_t>(bytes);
+        if (transfer->progress && *transfer->progress) (*transfer->progress)(current, transfer->total_bytes);
+    }
     return bytes;
 }
 
@@ -301,6 +315,7 @@ Result<void> download_ranges(
         return std::unexpected(make_error("curl_multi_init", "Could not initialize libcurl multi handle"));
     }
 
+    auto aggregate_progress = std::make_shared<std::atomic_uint64_t>(0U);
     std::unordered_map<CURL*, std::unique_ptr<SegmentTransfer>> transfers;
     for (const auto& range : *ranges) {
         auto handle = curl_easy_init();
@@ -316,6 +331,9 @@ Result<void> download_ranges(
         auto state = std::make_unique<SegmentTransfer>();
         state->writer = &writer;
         state->range = range;
+        state->aggregate_progress = aggregate_progress;
+        state->progress = &options.progress_callback;
+        state->total_bytes = info.total_bytes;
         const std::string range_header = std::to_string(range.start) + "-" + std::to_string(range.end);
         configure_common(handle, url, options.connect_timeout_ms, options.transfer_timeout_ms, options.cancel_requested);
         curl_easy_setopt(handle, CURLOPT_RANGE, range_header.c_str());
@@ -381,12 +399,14 @@ Result<void> download_ranges(
         writer.close();
         std::error_code ignored;
         std::filesystem::remove(destination, ignored);
+        if (options.progress_callback) options.progress_callback(0U, info.total_bytes);
         return download_sequential(url, destination, options);
     }
     if (!failure.empty()) {
         writer.close();
         std::error_code ignored;
         std::filesystem::remove(destination, ignored);
+        if (options.progress_callback) options.progress_callback(0U, info.total_bytes);
         return std::unexpected(make_error(options.cancel_requested && options.cancel_requested->load(std::memory_order_relaxed) ? "download_cancelled" : "range_download", failure));
     }
     return writer.flush();
@@ -423,6 +443,7 @@ Result<void> download_file(
         if (!info) {
             last_error = info.error();
         } else {
+            if (options.progress_callback) options.progress_callback(0U, info->total_bytes);
             Result<void> transfer;
             if (info->size_known && info->supports_ranges && options.max_connections > 1U && info->total_bytes > 0U) {
                 transfer = download_ranges(info->effective_url, destination, *info, options);
@@ -438,6 +459,7 @@ Result<void> download_file(
         }
         std::error_code ignored;
         std::filesystem::remove(destination, ignored);
+        if (options.progress_callback) options.progress_callback(0U, 0U);
         const auto exponent = std::min<std::size_t>(attempt, 6U);
         const std::uint64_t multiplier = std::uint64_t{1} << exponent;
         const std::uint64_t delay = std::min<std::uint64_t>(options.retry_backoff_ms * multiplier, 30000U);
