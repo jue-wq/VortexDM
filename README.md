@@ -17,7 +17,8 @@ The repository is an actively developed foundation, not a feature-complete downl
 - [x] Android: user-initiated official uBlock Origin add-on installation path (compatibility still requires validation)
 - [ ] Android: full ABP/uBlock filter compatibility, cosmetic filters, site controls, tabs, downloads, and background transfer lifecycle
 - [x] Phase 2: inclusive HTTP byte-range planner, streaming TLS transport, strict partial-response validation, bounded range staging, and retry orchestration
-- [ ] Phase 2: parallel segment scheduler, durable resume/checkpoint protocol, CLI, and end-to-end transfer tests
+- [x] Phase 2: sequential range transfer with durable SHA-256 checkpoints and verified-range resume
+- [ ] Phase 2: parallel segment scheduler, CLI, and end-to-end transfer tests
 - [ ] Phase 3: toolchain manager
 - [ ] Phase 4: media extraction and streaming integration
 - [x] Phase 5: Native Messaging v1 frame codec and protocol draft

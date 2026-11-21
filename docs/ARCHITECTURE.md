@@ -76,12 +76,12 @@ These rules are mandatory for all modules and contributors.
 - Bounded exponential retry policy for transient HTTP failures, including capped Retry-After handling.
 - Strict HTTP `Content-Range` parser and partial-response validator.
 - libcurl-based streaming HTTP client with TLS peer/host verification, bounded connect timeout, cooperative cancellation, header capture, and redirects disabled for explicit policy validation.
-- Bounded range coordinator that stages at most 4 MiB per request, validates status 206, exact requested byte bounds, resource size, `Content-Length`, and received body size before writing. Transient network failures and HTTP 408/429/5xx use capped exponential backoff and numeric `Retry-After` handling.
+- Bounded range coordinator that stages at most 4 MiB per request, validates status 206, exact requested byte bounds, resource size, `Content-Length`, and received body size before writing. Transient network failures and HTTP 408/429/5xx use capped exponential backoff and numeric `Retry-After` handling.\n- Optional checkpoint-aware transfer mode hashes each validated response, commits it through the segment checkpoint manager, and on restart verifies existing checkpoints before skipping exact matching ranges. Resume requires reopening the same partial file with `open_existing()` and reusing the same download ID, URL, total size, and chunk size. This remains sequential; changing chunk geometry is not supported for existing checkpoints.
 - Native Messaging v1 frame codec with little-endian length prefix, 1 MiB payload cap, exact-frame validation, and UTF-8 validation.
 - Unit tests for hashing, database persistence, offset writes, range
   partitioning, retry decisions, and `Content-Range` validation.
 
-The parallel segment scheduler, end-to-end restart orchestration around the checkpoint manager, Android JNI linkage to the shared storage/download modules, JSON schema validation, native host process, and end-to-end browser-to-desktop queue adapter are not implemented yet.
+The parallel segment scheduler, higher-level task lifecycle orchestration, Android JNI linkage to the shared storage/download modules, JSON schema validation, native host process, and end-to-end browser-to-desktop queue adapter are not implemented yet.
 
 ## 7. Phase 1 implementation order
 
