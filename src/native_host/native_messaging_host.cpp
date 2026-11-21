@@ -1,4 +1,4 @@
-#include "vortex/native_messaging_host.hpp"
+#include "native_messaging_host.hpp"
 
 #include <array>
 #include <limits>

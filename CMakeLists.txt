@@ -56,6 +56,7 @@ target_link_libraries(vortex-cli PRIVATE vortex_core)
 # Native Messaging hosts are desktop executables. Android Firefox uses the opt-in loopback bridge instead.
 if(NOT ANDROID)
   add_executable(vortex-native-host src/native_host/main.cpp src/native_host/native_messaging_host.cpp)
+  target_include_directories(vortex-native-host PRIVATE src/native_host)
   target_link_libraries(vortex-native-host PRIVATE vortex_core)
 endif()
 

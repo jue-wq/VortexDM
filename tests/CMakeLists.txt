@@ -2,5 +2,6 @@ add_executable(vortex_core_tests
   test_core.cpp
   ../src/native_host/native_messaging_host.cpp
 )
+target_include_directories(vortex_core_tests PRIVATE ../src/native_host)
 target_link_libraries(vortex_core_tests PRIVATE vortex_core)
 add_test(NAME vortex_core_tests COMMAND vortex_core_tests)

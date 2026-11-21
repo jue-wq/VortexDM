@@ -1,6 +1,6 @@
 #include "vortex/crash_safe_file_writer.hpp"
 #include "vortex/chunk_assembler.hpp"
-#include "vortex/native_messaging_host.hpp"
+#include "native_messaging_host.hpp"
 #include "vortex/sqlite_repository.hpp"
 #include "vortex/segment_scheduler.hpp"
 #include "vortex/task.hpp"
@@ -9,6 +9,7 @@
 #include <openssl/sha.h>
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <cstddef>
@@ -17,6 +18,7 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <span>
 #include <thread>
 #include <vector>
