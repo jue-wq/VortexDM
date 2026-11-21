@@ -117,7 +117,8 @@
         "native_host_persistence": true,
         "media_extraction_worker": true,
         "crash_resume_worker": true,
-        "android_media_store_export": true
+        "android_media_store_export": true,
+        "native_host_installers": true
       },
       "evidence": [
         "Desktop Native Messaging frame reader baseline exists; Android loopback API and foreground service remain future requirements.",
@@ -127,7 +128,8 @@
         "Commits 650334f/06ed117 add a background task worker with cancellation; f75eb79/b18ba69 expose progress callbacks; 4de4d17/070e44d persist throttled byte progress; 1ba47d9/7a02f8f implement pause/resume/cancel dispatch; 6b28592/981eed0 add queue CRUD/default queue migration; 34e1a01/5158035/6c60a8e add queue/task UI.",
         "Queued yt-dlp media extraction is executed by the background worker; Bridge popup no longer asks for cookies it cannot use and disables extraction until a profile is active. Commit 12b40ac.",
         "Worker now calls recover_download_segments for preallocated partial files on resume/restart; otherwise clears stale journal and starts a safe full transfer. Integration tests are authored; execution deferred to final validation.",
-        "Android MediaStore export on API 29+ added in commit 10273fb; API 28 SAF/legacy export and device acceptance remain pending."
+        "Android MediaStore export on API 29+ added in commit 10273fb; API 28 SAF/legacy export and device acceptance remain pending.",
+        "Commit 6ca522b adds user-scoped Windows/Linux Native Messaging host registration/uninstall scripts; e236a92 aligns the registered host name with Bridge's com.vortexdm.native_host; d57fdaf adds installation instructions."
       ]
     },
     {
