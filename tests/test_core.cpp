@@ -6,6 +6,7 @@
 #include "vortex/task.hpp"
 #include "vortex/process_runner.hpp"
 #include "vortex/ytdlp_extractor.hpp"
+#include "vortex/segment_checkpoint.hpp"
 #include "vortex/url.hpp"
 
 #include <openssl/sha.h>
@@ -314,7 +315,16 @@ bool test_sqlite_migrations_and_segment_journal() {
     segment.end_offset = 1023U;
     segment.downloaded_bytes = 512U;
     segment.status = "Downloading";
-    if (!repository.save_segment_checkpoint(segment)) return false;
+    const auto partial_path = std::filesystem::temp_directory_path() / "vortexdm-checkpoint-order.bin";
+    std::error_code partial_ignored;
+    std::filesystem::remove(partial_path, partial_ignored);
+    vortex::CrashSafeFileWriter journal_writer(partial_path);
+    if (!journal_writer.open(2048U)) return false;
+    std::vector<std::byte> segment_bytes(512U, std::byte{0x2a});
+    if (!journal_writer.write(0U, segment_bytes)) return false;
+    if (!vortex::commit_segment_checkpoint(journal_writer, repository, segment)) return false;
+    journal_writer.close();
+    std::filesystem::remove(partial_path, partial_ignored);
     const auto journal = repository.list_segments(stream.id);
     if (!journal || journal->size() != 1U || journal->front().downloaded_bytes != 512U ||
         journal->front().status != "Downloading") return false;
