@@ -222,7 +222,8 @@ struct SequentialOutput {
 
 size_t write_sequential(char* data, size_t size, size_t count, void* context) {
     auto* output = static_cast<SequentialOutput*>(context);
-    const auto written = std::fwrite(data, size, count, output->file);
+    const auto elements = std::fwrite(data, size, count, output->file);
+    const auto written = elements * size;
     output->written += static_cast<std::uint64_t>(written);
     if (output->progress && *output->progress) (*output->progress)(output->written, output->total);
     return written;
