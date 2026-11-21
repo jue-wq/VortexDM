@@ -6,6 +6,7 @@
 #include <array>
 #include <climits>
 #include <memory>
+#include <cstdio>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -87,7 +88,12 @@ Result<HttpTransferResponse> HttpTransport::get(
 ) const {
     if (url.empty() || !sink || options.connect_timeout_seconds <= 0 ||
         options.total_timeout_seconds < 0 || options.maximum_redirects < 0 ||
-        options.user_agent.empty()) {
+        options.user_agent.empty() ||
+        (options.range && (options.range->first > options.range->last ||
+                           options.range->last == UINT64_MAX)) ||
+        (options.if_range && (options.if_range->empty() ||
+            options.if_range->find_first_of("\\r\\n") != std::string::npos)) ||
+        (options.if_range && !options.range)) {
         return std::unexpected(VortexError::make(
             ErrorCode::invalid_argument, "Invalid HTTP transfer arguments"));
     }
@@ -112,7 +118,7 @@ Result<HttpTransferResponse> HttpTransport::get(
 
     bool configured =
         set(CURLOPT_URL, url_copy.c_str()) &&
-        set(CURLOPT_HTTPGET, 1L) &&
+        set(CURLOPT_HTTPGET, 1L) &&\n        (!options.range || set(CURLOPT_RANGE, range_buffer)) &&\n        (!options.if_range || set(CURLOPT_HTTPHEADER, request_headers.get())) &&
         set(CURLOPT_FOLLOWLOCATION, 1L) &&
         set(CURLOPT_MAXREDIRS, options.maximum_redirects) &&
         set(CURLOPT_CONNECTTIMEOUT, options.connect_timeout_seconds) &&
