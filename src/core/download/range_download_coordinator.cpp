@@ -68,6 +68,15 @@ Status RangeDownloadCoordinator::transfer(
     }
 
     const auto& waiter = options.wait_before_retry;
+    std::vector<SegmentCheckpoint> existing_checkpoints;
+    if (checkpoint_manager != nullptr) {
+        const auto pruned = checkpoint_manager->verify_and_prune(download_id);
+        if (!pruned) return std::unexpected(pruned.error());
+        const auto listed = checkpoint_manager->list_checkpoints(download_id);
+        if (!listed) return std::unexpected(listed.error());
+        existing_checkpoints = *listed;
+    }
+
     std::uint64_t offset = 0;
     std::int32_t segment_index = 0;
     while (offset < total_size) {
@@ -77,6 +86,26 @@ Status RangeDownloadCoordinator::transfer(
         }
 
         const auto length = std::min(chunk_size, total_size - offset);
+        if (checkpoint_manager != nullptr) {
+            const auto saved = std::find_if(
+                existing_checkpoints.begin(), existing_checkpoints.end(),
+                [segment_index, offset, length](const SegmentCheckpoint& checkpoint) {
+                    return checkpoint.segment_index == segment_index &&
+                        checkpoint.offset == static_cast<std::int64_t>(offset) &&
+                        checkpoint.length == static_cast<std::int64_t>(length);
+                });
+            if (saved != existing_checkpoints.end()) {
+                offset += length;
+                if (offset < total_size) {
+                    if (segment_index == std::numeric_limits<std::int32_t>::max()) {
+                        return std::unexpected(VortexError::make(
+                            ErrorCode::invalid_argument, "Too many checkpointed range segments"));
+                    }
+                    ++segment_index;
+                }
+                continue;
+            }
+        }
         const ByteRange range{offset, offset + length - 1U};
         HttpRequest request;
         request.url = std::string(url);
@@ -163,12 +192,18 @@ Status RangeDownloadCoordinator::transfer(
             const auto committed = checkpoint_manager->commit_segment(
                 download_id, segment_index, offset, staged, *digest, updated_at_unix);
             if (!committed) return committed;
-            ++segment_index;
         } else {
             const auto written = writer.write_at(offset, staged);
             if (!written) return written;
         }
         offset += length;
+        if (offset < total_size) {
+            if (segment_index == std::numeric_limits<std::int32_t>::max()) {
+                return std::unexpected(VortexError::make(
+                    ErrorCode::invalid_argument, "Too many checkpointed range segments"));
+            }
+            ++segment_index;
+        }
     }
 
     return writer.flush();
