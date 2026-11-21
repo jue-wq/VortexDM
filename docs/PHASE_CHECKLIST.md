@@ -29,8 +29,8 @@ A checked item describes an implemented/reviewed artifact; a phase is complete o
 - [x] URL refresh hook for expired media URLs
 
 ## Phase 4 — HLS/DASH and muxing
-- [ ] HLS master/media playlists and AES-128 support
-- [ ] DASH SegmentTemplate/SegmentList/SegmentBase
+- [x] HLS master/media playlist parser, relative URI resolution and AES-128 key metadata (ffmpeg performs supported decryption)
+- [x] DASH MPD parser for SegmentTemplate/SegmentTimeline, SegmentList and SegmentBase
 - [x] ffmpeg shell-free stream-copy muxing with optional subtitle and metadata/chapter mapping
 - [ ] Composite task integration tests
 
@@ -42,7 +42,8 @@ A checked item describes an implemented/reviewed artifact; a phase is complete o
 - [ ] Android opt-in loopback IPC server (127.0.0.1 + random API key)
 - [ ] Android foreground service, scoped storage and process-death recovery
 - [ ] Queue/category scheduler and typed application services
-- [ ] Full bidirectional IPC v1 and batch chunk assembler
+- [x] Native host persists acknowledged add_download/add_batch/add_batch_chunk tasks into SQLite with queue IDs
+- [ ] Full bidirectional IPC v1, task-control dispatch and batch chunk assembler status push
 
 ## Phase 6 — Responsive Qt UI and release
 - [x] User-approved VortexDM icon asset added to Qt resource bundle and application window icon

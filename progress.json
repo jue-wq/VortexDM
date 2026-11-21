@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "project": "VortexDM",
-  "current_phase": 4,
+  "current_phase": 5,
   "platforms": [
     "windows-x64",
     "linux-x64",
@@ -64,10 +64,13 @@
         "json_extractor": true,
         "profiles": true,
         "checksum_rollback": true,
-        "url_refresh": true
+        "url_refresh": true,
+        "hls": true,
+        "dash": true
       },
       "evidence": [
-        "Commits dc4b5fe/7227084 add a shell-free process runner with bounded output and hard timeout; 5f31e16 adds yt-dlp JSON/playlist parsing; 3fe5ee7 adds persisted profiles; 9c499ac adds SHA-256 verification and rollback-safe activation; 3af7137 adds expired media URL refresh. Acceptance tests are authored but not yet executed."
+        "Commits dc4b5fe/7227084 add a shell-free process runner with bounded output and hard timeout; 5f31e16 adds yt-dlp JSON/playlist parsing; 3fe5ee7 adds persisted profiles; 9c499ac adds SHA-256 verification and rollback-safe activation; 3af7137 adds expired media URL refresh. Acceptance tests are authored but not yet executed.",
+        "Commits 733214c, c8b94cf, 9a9d6ed and 59b18e3 add HLS playlist/AES-128 metadata and DASH SegmentTemplate/Timeline/List/Base parsing. Parser acceptance fixtures added in e8dbfeb/bc69b0c; CI pending."
       ]
     },
     {
@@ -98,11 +101,13 @@
         "chunk_assembler": false,
         "queues": false,
         "android_ublock_architecture": true,
-        "geckoview_ublock_poc": false
+        "geckoview_ublock_poc": false,
+        "download_persistence": true
       },
       "evidence": [
         "Desktop Native Messaging frame reader baseline exists; Android loopback API and foreground service remain future requirements.",
-        "Android ad-blocking requirement clarified: original Raymond Hill uBlock Origin via official Firefox for Android add-on; embedded GeckoView remains an unverified optional path."
+        "Android ad-blocking requirement clarified: original Raymond Hill uBlock Origin via official Firefox for Android add-on; embedded GeckoView remains an unverified optional path.",
+        "Commits 648e46a, 338dc2f and 3409aaf make Native Messaging add_download/add_batch/chunk completion persist queued SQLite records and selected queue IDs before positive ACK. Acceptance fixture in 745dcbf."
       ]
     },
     {
