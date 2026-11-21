@@ -319,6 +319,74 @@ TEST_CASE("Range coordinator rejects checkpoint geometry changes before requesti
 }
 
 
+
+TEST_CASE("Range coordinator redownloads a checkpoint whose on-disk bytes changed") {
+    const auto path = temporary_path();
+    const auto database_path = path.string() + ".sqlite";
+    vortex::SqliteDatabase database;
+    REQUIRE(database.open(database_path).has_value());
+    REQUIRE(database.migrate().has_value());
+    vortex::DownloadRecord record;
+    record.url = "https://example.test/tampered.bin";
+    record.destination = path.string();
+    record.total_bytes = 3;
+    const auto id = database.insert_download(record);
+    REQUIRE(id);
+    vortex::OffsetFileWriter writer;
+    REQUIRE(writer.open(path, 3).has_value());
+    vortex::SegmentCheckpointManager manager(writer, database, path);
+    const std::array original{std::byte{'b'}, std::byte{'a'}, std::byte{'d'}};
+    const std::string original_sha =
+        "2f05d4b689d270cafb02285f35f44866f7dc8a2d368a3f9d1124373eeab31fb1";
+    REQUIRE(manager.commit_segment(*id, 0, 0, original, original_sha, 10).has_value());
+
+    // Simulate external corruption after a previously durable checkpoint.
+    {
+        std::fstream file(path, std::ios::binary | std::ios::in | std::ios::out);
+        REQUIRE(file.good());
+        file.seekp(1);
+        file.put('X');
+        file.flush();
+        REQUIRE(file.good());
+    }
+
+    std::size_t requests = 0;
+    const std::array replacement{std::byte{'o'}, std::byte{'k'}, std::byte{'!'}};
+    const std::string replacement_sha =
+        "5c1a7f3b5e5c9a8c0d8f4f3f7e9b5d7c";
+    const vortex::RangeRequestExecutor executor =
+        [&requests, &replacement](const vortex::HttpRequest& request,
+                                  const vortex::HttpBodySink& sink, std::stop_token) {
+            ++requests;
+            REQUIRE(request.range.has_value());
+            CHECK(request.range->first == 0);
+            CHECK(request.range->last == 2);
+            REQUIRE(sink(replacement));
+            vortex::HttpResponse response;
+            response.status_code = 206;
+            response.headers["content-range"] = "bytes 0-2/3";
+            response.headers["content-length"] = "3";
+            response.bytes_received = 3;
+            return vortex::Result<vortex::HttpResponse>{std::move(response)};
+        };
+    const auto result = vortex::RangeDownloadCoordinator::transfer(
+        "https://example.test/tampered.bin", 3, 3, writer, executor, {}, {},
+        &manager, *id, 11);
+    CHECK(result.has_value());
+    CHECK(requests == 1);
+    const auto checkpoints = manager.list_checkpoints(*id);
+    REQUIRE(checkpoints);
+    REQUIRE(checkpoints->size() == 1);
+    CHECK(checkpoints->front().checksum_sha256 != original_sha);
+    REQUIRE(writer.close());
+    REQUIRE(database.close().has_value());
+    std::error_code ignored;
+    std::filesystem::remove(path, ignored);
+    std::filesystem::remove(database_path, ignored);
+    std::filesystem::remove(database_path + "-wal", ignored);
+    std::filesystem::remove(database_path + "-shm", ignored);
+}
+
 TEST_CASE("Range coordinator completes without network requests when all checkpoints verify") {
     const auto path = temporary_path();
     const auto database_path = path.string() + ".sqlite";
