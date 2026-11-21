@@ -429,6 +429,12 @@ Result<void> SqliteRepository::save_ytdlp_profile(const YtDlpProfileRecord& reco
     if (record.id.empty() || record.name.empty() || record.source_type.empty()) {
         return std::unexpected(make_error("invalid_ytdlp_profile", "Profile id, name and source type are required"));
     }
+    auto begin = execute("BEGIN IMMEDIATE;");
+    if (!begin) return std::unexpected(begin.error());
+    if (record.is_active) {
+        auto clear_active = execute("UPDATE ytdlp_profiles SET is_active=0;");
+        if (!clear_active) { (void)execute("ROLLBACK;"); return clear_active; }
+    }
     Statement statement(db_, R"SQL(
       INSERT INTO ytdlp_profiles(id,name,source_type,repo_slug,custom_api_url,asset_regex,pinned_tag,
         include_prereleases,local_binary_path,python_path,installed_version,last_etag,is_active)
@@ -439,7 +445,7 @@ Result<void> SqliteRepository::save_ytdlp_profile(const YtDlpProfileRecord& reco
         local_binary_path=excluded.local_binary_path,python_path=excluded.python_path,
         installed_version=excluded.installed_version,last_etag=excluded.last_etag,is_active=excluded.is_active;
     )SQL");
-    if (!statement.valid()) return std::unexpected(database_error(db_, "sqlite_prepare", "Could not prepare yt-dlp profile upsert"));
+    if (!statement.valid()) { (void)execute("ROLLBACK;"); return std::unexpected(database_error(db_, "sqlite_prepare", "Could not prepare yt-dlp profile upsert")); }
     const std::string* values[] = {&record.id,&record.name,&record.source_type,&record.repo_slug,
         &record.custom_api_url,&record.asset_regex,&record.pinned_tag};
     for (int index=0; index<7; ++index) {
@@ -455,8 +461,12 @@ Result<void> SqliteRepository::save_ytdlp_profile(const YtDlpProfileRecord& reco
     }
     if(sqlite3_bind_int(statement.get(),13,record.is_active?1:0)!=SQLITE_OK)
         return std::unexpected(database_error(db_,"sqlite_bind","Could not bind profile active flag"));
-    if(sqlite3_step(statement.get())!=SQLITE_DONE)
+    if(sqlite3_step(statement.get())!=SQLITE_DONE) {
+        (void)execute("ROLLBACK;");
         return std::unexpected(database_error(db_,"sqlite_write","Could not save yt-dlp profile"));
+    }
+    auto committed = execute("COMMIT;");
+    if (!committed) { (void)execute("ROLLBACK;"); return committed; }
     return {};
 }
 
