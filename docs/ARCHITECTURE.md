@@ -66,7 +66,9 @@ These rules are mandatory for all modules and contributors.
   fault-injection coverage.
 - Balanced inclusive HTTP byte-range planner with a configurable segment cap.
 - Bounded exponential retry policy for transient HTTP failures, including capped Retry-After handling.
-- Strict HTTP `Content-Range` parser and partial-response validator;\n- libcurl-based streaming HTTP client with TLS peer/host verification, bounded connect timeout, cooperative cancellation, header capture, and redirects disabled for explicit policy validation; segment writes require status 206, exact requested byte bounds, matching resource size, and matching Content-Length.
+- Strict HTTP `Content-Range` parser and partial-response validator.
+- libcurl-based streaming HTTP client with TLS peer/host verification, bounded connect timeout, cooperative cancellation, header capture, and redirects disabled for explicit policy validation.
+- Bounded range coordinator that stages at most 4 MiB per request, validates status 206, exact requested byte bounds, resource size, `Content-Length`, and received body size before writing. Transient network failures and HTTP 408/429/5xx use capped exponential backoff and numeric `Retry-After` handling.
 - Native Messaging v1 frame codec with little-endian length prefix, 1 MiB payload cap, exact-frame validation, and UTF-8 validation.
 - Unit tests for hashing, database persistence, offset writes, range
   partitioning, retry decisions, and `Content-Range` validation.
