@@ -238,6 +238,11 @@ void DownloadQueueWorker::run(std::stop_token token) {
         task_monitor.request_stop();
         task_monitor.join();
         if (result) {
+            const auto final_status = repository_.get_download_status(task.id);
+            if (token.stop_requested() || !final_status || *final_status != "Downloading")
+                result = std::unexpected(make_error("download_cancelled", "Task was paused or cancelled before completion"));
+        }
+        if (result) {
             std::error_code size_error;
             const auto final_size = std::filesystem::file_size(completed_path, size_error);
             if (!size_error) (void)repository_.update_download_progress(task.id, final_size, final_size);
