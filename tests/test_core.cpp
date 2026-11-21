@@ -395,6 +395,53 @@ bool test_native_host_batch_chunk_integration() {
     return accepted;
 }
 
+bool test_native_host_task_control() {
+    const auto database_path = std::filesystem::temp_directory_path() / "vortexdm-task-control-test.sqlite3";
+    std::error_code ignored;
+    std::filesystem::remove(database_path, ignored);
+    std::filesystem::remove(database_path.string()+"-wal", ignored);
+    std::filesystem::remove(database_path.string()+"-shm", ignored);
+    vortex::SqliteRepository repository(database_path);
+    if (!repository.initialize()) return false;
+    vortex::DownloadRecord download;
+    download.id = "task-control-test";
+    download.url = "https://example.com/control.bin";
+    download.filename = "control.bin";
+    download.queue_id = "default";
+    download.status = "Queued";
+    if (!repository.save_download(download)) return false;
+
+    const auto send_action = [&](const std::string& action, const std::string& request_id) {
+        const nlohmann::json request = {
+            {"protocol_version",1},{"type","task_control"},{"request_id",request_id},{"timestamp",1},
+            {"payload",{{"task_id",download.id},{"action",action}}}
+        };
+        std::string bytes;
+        append_frame(bytes, request);
+        std::istringstream input(bytes);
+        std::ostringstream output;
+        vortex::NativeMessagingHost host(database_path);
+        if (host.run(input, output) != 0) return false;
+        const auto frames = read_frames(output.str());
+        return frames.size() == 1U && frames.front().value("type",std::string{}) == "ack" &&
+            frames.front()["payload"].value("accepted",false);
+    };
+    bool ok = send_action("pause","pause-1");
+    auto status = repository.get_download_status(download.id);
+    ok = ok && status && *status == "Paused";
+    ok = ok && send_action("resume","resume-1");
+    status = repository.get_download_status(download.id);
+    ok = ok && status && *status == "Queued";
+    ok = ok && send_action("cancel","cancel-1");
+    status = repository.get_download_status(download.id);
+    ok = ok && status && *status == "Cancelled";
+    ok = ok && !send_action("resume","resume-cancelled");
+    std::filesystem::remove(database_path, ignored);
+    std::filesystem::remove(database_path.string()+"-wal", ignored);
+    std::filesystem::remove(database_path.string()+"-shm", ignored);
+    return ok;
+}
+
 bool test_segment_recovery_coordinator() {
     const auto db_path = std::filesystem::temp_directory_path() / "vortexdm-recovery-test.db";
     const auto partial_path = std::filesystem::temp_directory_path() / "vortexdm-recovery-test.part";
@@ -576,6 +623,10 @@ int main() {
     if (!test_ytdlp_toolchain_verification_and_rollback()) {
         std::cerr << "yt-dlp toolchain verification/rollback test failed\\n";
         return 10;
+    }
+    if (!test_native_host_task_control()) {
+        std::cerr << "Native Messaging task-control test failed\\n";
+        return 12;
     }
     if (!test_segment_recovery_coordinator()) {
         std::cerr << "Segment recovery coordinator test failed\\n";
