@@ -14,6 +14,15 @@ enum class DownloadState : std::int32_t {
     cancelled = 5
 };
 
+struct SegmentCheckpoint {
+    std::int64_t download_id{};
+    std::int32_t segment_index{};
+    std::int64_t offset{};
+    std::int64_t length{};
+    std::string checksum_sha256;
+    std::int64_t updated_at_unix{};
+};
+
 struct DownloadRecord {
     std::int64_t id{};
     std::string url;

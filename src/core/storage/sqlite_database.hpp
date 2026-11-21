@@ -32,6 +32,9 @@ public:
     );
     [[nodiscard]] Result<std::vector<DownloadRecord>> list_downloads();
     [[nodiscard]] Status delete_download(std::int64_t id);
+    [[nodiscard]] Status record_segment_checkpoint(const SegmentCheckpoint& checkpoint);
+    [[nodiscard]] Result<std::vector<SegmentCheckpoint>> list_segment_checkpoints(std::int64_t download_id);
+    [[nodiscard]] Status clear_segment_checkpoints(std::int64_t download_id);
 
 private:
     [[nodiscard]] Status execute(const char* sql);

@@ -130,3 +130,73 @@ TEST_CASE("SQLite recovery leaves non-running tasks unchanged") {
     CHECK(rows->front().state == vortex::DownloadState::queued);
     CHECK(rows->front().updated_at_unix == record.updated_at_unix);
 }
+
+
+TEST_CASE("SQLite persists bounded segment checkpoints across reopen") {
+    TemporaryDatabase temporary;
+    std::int64_t download_id{};
+    {
+        vortex::SqliteDatabase database;
+        REQUIRE(database.open(temporary.path()).has_value());
+        REQUIRE(database.migrate().has_value());
+        vortex::DownloadRecord record;
+        record.url = "https://example.test/segments.bin";
+        record.destination = "segments.bin";
+        record.total_bytes = 8192;
+        const auto inserted = database.insert_download(record);
+        REQUIRE(inserted);
+        download_id = *inserted;
+
+        REQUIRE(database.record_segment_checkpoint(vortex::SegmentCheckpoint{
+            download_id, 1, 4096, 4096, "sha256-second", 150
+        }).has_value());
+        REQUIRE(database.record_segment_checkpoint(vortex::SegmentCheckpoint{
+            download_id, 0, 0, 4096, "sha256-first", 140
+        }).has_value());
+        CHECK_FALSE(database.record_segment_checkpoint(vortex::SegmentCheckpoint{
+            download_id, 0, 0, 4096, "duplicate", 160
+        }).has_value());
+        CHECK_FALSE(database.record_segment_checkpoint(vortex::SegmentCheckpoint{
+            download_id, 2, 8192, 1, "", 160
+        }).has_value());
+        CHECK_FALSE(database.record_segment_checkpoint(vortex::SegmentCheckpoint{
+            download_id, 3, 0, 0, "", 160
+        }).has_value());
+        REQUIRE(database.close().has_value());
+    }
+    {
+        vortex::SqliteDatabase database;
+        REQUIRE(database.open(temporary.path()).has_value());
+        REQUIRE(database.migrate().has_value());
+        const auto checkpoints = database.list_segment_checkpoints(download_id);
+        REQUIRE(checkpoints);
+        REQUIRE(checkpoints->size() == 2);
+        CHECK(checkpoints->at(0).segment_index == 0);
+        CHECK(checkpoints->at(0).checksum_sha256 == "sha256-first");
+        CHECK(checkpoints->at(1).offset == 4096);
+        REQUIRE(database.clear_segment_checkpoints(download_id).has_value());
+        const auto empty = database.list_segment_checkpoints(download_id);
+        REQUIRE(empty);
+        CHECK(empty->empty());
+    }
+}
+
+TEST_CASE("SQLite removes segment checkpoints when a download is deleted") {
+    TemporaryDatabase temporary;
+    vortex::SqliteDatabase database;
+    REQUIRE(database.open(temporary.path()).has_value());
+    REQUIRE(database.migrate().has_value());
+    vortex::DownloadRecord record;
+    record.url = "https://example.test/cascade.bin";
+    record.destination = "cascade.bin";
+    record.total_bytes = 16;
+    const auto id = database.insert_download(record);
+    REQUIRE(id);
+    REQUIRE(database.record_segment_checkpoint(vortex::SegmentCheckpoint{
+        *id, 0, 0, 16, "", 1
+    }).has_value());
+    REQUIRE(database.delete_download(*id).has_value());
+    const auto checkpoints = database.list_segment_checkpoints(*id);
+    REQUIRE(checkpoints);
+    CHECK(checkpoints->empty());
+}

@@ -120,6 +120,28 @@ Status SqliteDatabase::migrate() {
         (void)execute("ROLLBACK;");
         return status;
     }
+    if (!status) {
+        (void)execute("ROLLBACK;");
+        return status;
+    }
+    status = execute(
+        "CREATE TABLE IF NOT EXISTS download_segments ("
+        "download_id INTEGER NOT NULL REFERENCES downloads(id) ON DELETE CASCADE,"
+        "segment_index INTEGER NOT NULL CHECK(segment_index >= 0),"
+        "byte_offset INTEGER NOT NULL CHECK(byte_offset >= 0),"
+        "byte_length INTEGER NOT NULL CHECK(byte_length > 0),"
+        "checksum_sha256 TEXT NOT NULL DEFAULT '',"
+        "updated_at INTEGER NOT NULL,"
+        "PRIMARY KEY(download_id, segment_index));"
+        "CREATE INDEX IF NOT EXISTS idx_download_segments_download "
+        "ON download_segments(download_id, segment_index);"
+        "INSERT OR IGNORE INTO schema_migrations(version, applied_at) "
+        "VALUES(2, unixepoch());"
+    );
+    if (!status) {
+        (void)execute("ROLLBACK;");
+        return status;
+    }
     status = execute("COMMIT;");
     if (!status) (void)execute("ROLLBACK;");
     return status;
@@ -254,6 +276,106 @@ Status SqliteDatabase::delete_download(const std::int64_t id) {
     if (sqlite3_changes(db_) == 0) return std::unexpected(VortexError::make(
         ErrorCode::invalid_argument, "Download does not exist"
     ));
+    return {};
+}
+
+
+Status SqliteDatabase::record_segment_checkpoint(const SegmentCheckpoint& checkpoint) {
+    std::scoped_lock lock(mutex_);
+    if (!db_) return std::unexpected(VortexError::make(
+        ErrorCode::database_error, "Database is not open"
+    ));
+    if (checkpoint.download_id <= 0 || checkpoint.segment_index < 0 ||
+        checkpoint.offset < 0 || checkpoint.length <= 0 ||
+        checkpoint.offset > std::numeric_limits<std::int64_t>::max() - checkpoint.length) {
+        return std::unexpected(VortexError::make(
+            ErrorCode::invalid_argument, "Invalid segment checkpoint"
+        ));
+    }
+    Statement statement(db_,
+        "INSERT INTO download_segments(download_id,segment_index,byte_offset,byte_length,"
+        "checksum_sha256,updated_at) "
+        "SELECT ?,?,?,?,?,? WHERE EXISTS ("
+        "SELECT 1 FROM downloads WHERE id=? AND "
+        "(total_bytes=-1 OR (? + ?) <= total_bytes));");
+    if (statement.result() != SQLITE_OK) {
+        return std::unexpected(database_error("Prepare segment checkpoint"));
+    }
+    auto* query = statement.get();
+    sqlite3_bind_int64(query, 1, checkpoint.download_id);
+    sqlite3_bind_int(query, 2, checkpoint.segment_index);
+    sqlite3_bind_int64(query, 3, checkpoint.offset);
+    sqlite3_bind_int64(query, 4, checkpoint.length);
+    sqlite3_bind_text(query, 5, checkpoint.checksum_sha256.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int64(query, 6, checkpoint.updated_at_unix);
+    sqlite3_bind_int64(query, 7, checkpoint.download_id);
+    sqlite3_bind_int64(query, 8, checkpoint.offset);
+    sqlite3_bind_int64(query, 9, checkpoint.length);
+    if (sqlite3_step(query) != SQLITE_DONE) {
+        return std::unexpected(database_error("Insert segment checkpoint"));
+    }
+    if (sqlite3_changes(db_) == 0) {
+        return std::unexpected(VortexError::make(
+            ErrorCode::invalid_argument,
+            "Download does not exist or checkpoint exceeds the known file size"
+        ));
+    }
+    return {};
+}
+
+Result<std::vector<SegmentCheckpoint>> SqliteDatabase::list_segment_checkpoints(
+    const std::int64_t download_id
+) {
+    std::scoped_lock lock(mutex_);
+    if (!db_) return std::unexpected(VortexError::make(
+        ErrorCode::database_error, "Database is not open"
+    ));
+    if (download_id <= 0) return std::unexpected(VortexError::make(
+        ErrorCode::invalid_argument, "Invalid download id"
+    ));
+    Statement statement(db_,
+        "SELECT download_id,segment_index,byte_offset,byte_length,checksum_sha256,updated_at "
+        "FROM download_segments WHERE download_id=? ORDER BY segment_index;");
+    if (statement.result() != SQLITE_OK) {
+        return std::unexpected(database_error("Prepare segment checkpoint list"));
+    }
+    sqlite3_bind_int64(statement.get(), 1, download_id);
+    std::vector<SegmentCheckpoint> checkpoints;
+    for (;;) {
+        const int rc = sqlite3_step(statement.get());
+        if (rc == SQLITE_DONE) break;
+        if (rc != SQLITE_ROW) {
+            return std::unexpected(database_error("Read segment checkpoints"));
+        }
+        const auto* checksum = sqlite3_column_text(statement.get(), 4);
+        checkpoints.push_back(SegmentCheckpoint{
+            sqlite3_column_int64(statement.get(), 0),
+            sqlite3_column_int(statement.get(), 1),
+            sqlite3_column_int64(statement.get(), 2),
+            sqlite3_column_int64(statement.get(), 3),
+            checksum ? reinterpret_cast<const char*>(checksum) : "",
+            sqlite3_column_int64(statement.get(), 5)
+        });
+    }
+    return checkpoints;
+}
+
+Status SqliteDatabase::clear_segment_checkpoints(const std::int64_t download_id) {
+    std::scoped_lock lock(mutex_);
+    if (!db_) return std::unexpected(VortexError::make(
+        ErrorCode::database_error, "Database is not open"
+    ));
+    if (download_id <= 0) return std::unexpected(VortexError::make(
+        ErrorCode::invalid_argument, "Invalid download id"
+    ));
+    Statement statement(db_, "DELETE FROM download_segments WHERE download_id=?;");
+    if (statement.result() != SQLITE_OK) {
+        return std::unexpected(database_error("Prepare segment checkpoint clear"));
+    }
+    sqlite3_bind_int64(statement.get(), 1, download_id);
+    if (sqlite3_step(statement.get()) != SQLITE_DONE) {
+        return std::unexpected(database_error("Clear segment checkpoints"));
+    }
     return {};
 }
 
