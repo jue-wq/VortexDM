@@ -527,8 +527,18 @@ bool test_sqlite_migrations_and_segment_journal() {
     if (!profiles || profiles->size() != 1U || profiles->front().repo_slug != "yt-dlp/yt-dlp" ||
         !profiles->front().is_active) return false;
 
+    download.status = "Queued";
+    if (!repository.save_download(download)) return false;
+    const auto claimed = repository.claim_next_queued_download();
+    if (!claimed || !*claimed || (**claimed).status != "Downloading") return false;
+    if (!repository.update_download_progress(download.id, 256U, 1024U)) return false;
+    if (!repository.update_download_status(download.id, "Paused")) return false;
+    const auto paused = repository.get_download_status(download.id);
+    if (!paused || *paused != "Paused") return false;
+    if (!repository.update_download_status(download.id, "Queued")) return false;
     const auto records = repository.list_downloads();
-    if (!records || records->size() != 1U) return false;
+    if (!records || records->size() != 1U || records->front().downloaded_bytes != 256U ||
+        records->front().total_bytes != 1024U) return false;
     const bool matched = records->front().id == download.id &&
         records->front().downloaded_bytes == 512U &&
         records->front().status == "Downloading";
