@@ -98,42 +98,39 @@ int main(const int argc, char** argv) {
         }
         if (!incoming->has_value()) break;
 
-        auto response = dispatcher.dispatch(**incoming);
-        if (!response) {
-            (void)database.close();
-            return fail("invalid protocol message", 7);
-        }
-
-        // A handshake is mandatory and must be the first frame. The dispatcher
-        // validates its shape; this loop additionally enforces ordering and
-        // rejects duplicate handshakes before accepting subsequent requests.
+        // Enforce handshake ordering before dispatch: no request may mutate
+        // persistent state until the peer has completed protocol negotiation.
         bool is_handshake = false;
         try {
             const auto message = nlohmann::json::parse(**incoming);
-            is_handshake = message.is_object() && message.value("type", std::string{}) == "handshake";
+            if (!message.is_object() || !message.contains("type") ||
+                !message["type"].is_string()) {
+                (void)database.close();
+                return fail("invalid protocol message", 7);
+            }
+            is_handshake = message["type"].get<std::string>() == "handshake";
             if (is_handshake) {
                 if (handshake_accepted) {
                     (void)database.close();
-                    return fail("duplicate or invalid handshake", 8);
+                    return fail("duplicate handshake", 8);
                 }
-                const auto version = message.value("protocol_version", 0);
-                if (version != 1 || !message.contains("extension_version") ||
-                    !message["extension_version"].is_string() ||
-                    !message.contains("capabilities") || !message["capabilities"].is_array()) {
-                    (void)database.close();
-                    return fail("unsupported handshake", 8);
-                }
-                handshake_accepted = true;
-                continue;
+            } else if (!handshake_accepted) {
+                (void)database.close();
+                return fail("handshake required before requests", 8);
             }
         } catch (const nlohmann::json::exception&) {
             (void)database.close();
             return fail("invalid JSON message", 7);
         }
 
-        if (!handshake_accepted) {
+        auto response = dispatcher.dispatch(**incoming);
+        if (!response) {
             (void)database.close();
-            return fail("handshake required before requests", 8);
+            return fail("invalid protocol message", 7);
+        }
+        if (is_handshake) {
+            handshake_accepted = true;
+            continue;
         }
         if (response->has_value()) {
             if (const auto written = vortex::write_native_message(std::cout, **response); !written) {
