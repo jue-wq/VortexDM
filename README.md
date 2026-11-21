@@ -20,6 +20,7 @@ blocking. macOS is not a supported target.
 - [x] Phase 2 transactional FIFO claim primitive for queued downloads (multi-worker safe)
 - [x] Phase 2 libcurl HTTP(S) streaming transport foundation (TLS verification, protocol allowlist, bounded redirects, timeout controls)
 - [x] Phase 2 non-truncating reopen primitive for exactly-sized partial files (caller must validate representation identity)
+- [x] Phase 2 SQLite-persisted strong ETag validators and backward-compatible schema migration for safe resume identity
 - [ ] Phase 2 HTTP-to-file worker integration, durable range/resume orchestration, retries, segment scheduler, and CLI
 - [x] Phase 2 strict HTTP response metadata parser and unit tests (Content-Length, Content-Range, Accept-Ranges, Retry-After, validators)
 - [ ] Phase 3 toolchain manager
