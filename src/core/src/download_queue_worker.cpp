@@ -70,7 +70,7 @@ Result<std::filesystem::path> run_media_extract_task(
     std::filesystem::path final_path;
     std::size_t output_offset = 0U;
     while (output_offset <= process->output.size()) {
-        const auto line_end = process->output.find_first_of("\\r\\n", output_offset);
+        const auto line_end = process->output.find_first_of("\r\n", output_offset);
         const auto line = process->output.substr(output_offset,
             line_end == std::string::npos ? std::string::npos : line_end - output_offset);
         constexpr std::string_view marker = "VTX_FILE:";
