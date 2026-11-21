@@ -18,7 +18,7 @@ TEST_CASE("HTTP transport rejects invalid arguments before opening a connection"
     CHECK_FALSE(transport.get("https://example.com", sink, invalid_timeout).has_value());
 
     invalid_timeout = {};
-    invalid_timeout.if_range = "etag\\r\\nInjected: yes";
+    invalid_timeout.if_range = "etag\r\nInjected: yes";
     invalid_timeout.range = vortex::ByteRange{0, 9};
     CHECK_FALSE(transport.get("https://example.com", sink, invalid_timeout).has_value());
 
