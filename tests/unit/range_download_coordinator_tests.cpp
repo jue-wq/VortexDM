@@ -92,6 +92,7 @@ TEST_CASE("Range coordinator never writes a response with an invalid Content-Ran
     std::array<char, 4> actual{};
     input.read(actual.data(), static_cast<std::streamsize>(actual.size()));
     CHECK(std::string(actual.data(), actual.size()) == std::string(4, '\0'));
+    input.close();
     std::filesystem::remove(path);
 }
 
