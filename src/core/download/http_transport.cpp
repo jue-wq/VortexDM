@@ -134,9 +134,9 @@ Result<HttpTransferResponse> HttpTransport::get(
 
     const auto result = curl_easy_perform(handle.get());
     if (result != CURLE_OK) {
-        const auto message = context.callback_error.empty()
+        const auto message = context.callback_error == nullptr
             ? std::string(curl_easy_strerror(result))
-            : context.callback_error;
+            : std::string(context.callback_error);
         return std::unexpected(VortexError::make(
             context.sink_failed ? ErrorCode::io_error : ErrorCode::network_error,
             "HTTP transfer failed: " + message));
