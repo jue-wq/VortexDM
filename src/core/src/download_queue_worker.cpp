@@ -236,7 +236,7 @@ void DownloadQueueWorker::run() {
                 }
             }
         }
-        monitor_stop.store(true, std::memory_order_relaxed);
+        task_monitor.request_stop();
         if (task_monitor.joinable()) task_monitor.join();
         if (result) {
             const auto final_status = repository_.get_download_status(task.id);
