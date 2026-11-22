@@ -94,9 +94,12 @@ jobs:
             echo "QT_ANDROID_ROOT=$qt_root/android_arm64_v8a"
             echo "QT_HOST_PATH=$qt_root/gcc_64"
             clean_ld_path="$qt_root/gcc_64/lib"
-            while IFS= read -r path; do
-              [[ -n "$path" && "$path" != "$qt_root/android_arm64_v8a/lib" && "$path" != "$qt_root/gcc_64/lib" ]] && clean_ld_path="$clean_ld_path:$path"
-            done < <(printf '%s' "${LD_LIBRARY_PATH:-}" | tr ':' '\\n')
+            IFS=':' read -r -a qt_ld_parts <<< "${LD_LIBRARY_PATH:-}"
+            for path in "${qt_ld_parts[@]}"; do
+              if [[ -n "$path" && "$path" != "$qt_root/android_arm64_v8a/lib" && "$path" != "$qt_root/gcc_64/lib" ]]; then
+                clean_ld_path="$clean_ld_path:$path"
+              fi
+            done
             echo "LD_LIBRARY_PATH=$clean_ld_path"
           } >> "$GITHUB_ENV"
       - name: Create temporary CI signing key
