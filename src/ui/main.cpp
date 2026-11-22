@@ -1,3 +1,4 @@
+#include <QCoreApplication>
 #include <QGuiApplication>
 #include <QIcon>
 #include <QDir>
@@ -6,7 +7,6 @@
 #include <QStandardPaths>
 #ifdef Q_OS_ANDROID
 #include <QJniObject>
-#include <QNativeInterface>
 #endif
 
 #include "vortex/sqlite_repository.hpp"
