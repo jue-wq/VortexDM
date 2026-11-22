@@ -137,14 +137,22 @@ bool DownloadListModel::exportDownload(const QString& taskId) {
     const std::filesystem::path source = std::filesystem::path((**record).save_dir) / (**record).filename;
     std::error_code error;
     if (!std::filesystem::is_regular_file(source, error) || error) return false;
-    const auto context = QNativeInterface::QAndroidApplication::context();
     const auto source_path = QJniObject::fromString(QString::fromStdString(source.string()));
     const auto display_name = QJniObject::fromString(QString::fromStdString(source.filename().string()));
-    const jboolean exported = QJniObject::callStaticMethod<jboolean>(
-        "org/vortexdm/VortexForegroundService", "exportToDownloads",
-        "(Landroid/content/Context;Ljava/lang/String;Ljava/lang/String;)Z",
-        context.object<jobject>(), source_path.object<jstring>(), display_name.object<jstring>());
-    return exported == JNI_TRUE;
+    const auto context = QNativeInterface::QAndroidApplication::context();
+    if (android_get_device_api_level() >= 29) {
+        const jboolean exported = QJniObject::callStaticMethod<jboolean>(
+            "org/vortexdm/VortexForegroundService", "exportToDownloads",
+            "(Landroid/content/Context;Ljava/lang/String;Ljava/lang/String;)Z",
+            context.object<jobject>(), source_path.object<jstring>(), display_name.object<jstring>());
+        return exported == JNI_TRUE;
+    }
+    const auto mime_type = QJniObject::fromString(QStringLiteral("application/octet-stream"));
+    const jboolean launched = QJniObject::callStaticMethod<jboolean>(
+        "org/vortexdm/VortexActivity", "requestLegacySafExport",
+        "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z",
+        source_path.object<jstring>(), display_name.object<jstring>(), mime_type.object<jstring>());
+    return launched == JNI_TRUE;
 #else
     Q_UNUSED(taskId);
     return false;
