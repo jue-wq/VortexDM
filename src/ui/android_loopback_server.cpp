@@ -288,7 +288,17 @@ vortex::Result<std::string> AndroidLoopbackServer::enqueueDownload(const json& p
     record.save_dir = (QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + QStringLiteral("/Downloads")).toStdString();
     record.queue_id = payload.value("queue_id", std::string("default"));
     record.status = "Queued";
-    record.headers_json = "{}";
+    if (payload.contains("headers")) {
+        if (!payload["headers"].is_object())
+            return std::unexpected(vortex::make_error("invalid_headers", "headers must be a JSON object"));
+        for (const auto& [name, value] : payload["headers"].items()) {
+            if (name.empty() || !value.is_string())
+                return std::unexpected(vortex::make_error("invalid_headers", "Header names must be non-empty and values must be strings"));
+        }
+        record.headers_json = payload["headers"].dump();
+    } else {
+        record.headers_json = "{}";
+    }
     auto saved = repository_->save_download(record);
     if (!saved) return std::unexpected(saved.error());
     return record.id;
@@ -326,11 +336,27 @@ vortex::Result<std::string> AndroidLoopbackServer::enqueueMediaExtract(const jso
 }
 
 vortex::Result<std::size_t> AndroidLoopbackServer::enqueueBatch(const json& payload) {
-    if (!payload.contains("items") || !payload["items"].is_array())
-        return std::unexpected(vortex::make_error("invalid_batch", "items array is required"));
+    if (!payload.contains("items") || !payload["items"].is_array() ||
+        payload["items"].empty() || payload["items"].size() > 10000U)
+        return std::unexpected(vortex::make_error("invalid_batch", "items must contain between 1 and 10000 entries"));
+    // Validate every entry before inserting any task so malformed later entries
+    // cannot leave a silently half-imported batch in the download queue.
+    for (const auto& item : payload["items"]) {
+        if (!item.is_object() || !item.contains("url") || !item["url"].is_string())
+            return std::unexpected(vortex::make_error("invalid_batch_item", "Every batch item must contain a URL"));
+        auto parsed = vortex::parse_http_url(item["url"].get<std::string>());
+        if (!parsed) return std::unexpected(parsed.error());
+        if (item.contains("headers")) {
+            if (!item["headers"].is_object())
+                return std::unexpected(vortex::make_error("invalid_headers", "headers must be a JSON object"));
+            for (const auto& [name, value] : item["headers"].items()) {
+                if (name.empty() || !value.is_string())
+                    return std::unexpected(vortex::make_error("invalid_headers", "Header names must be non-empty and values must be strings"));
+            }
+        }
+    }
     std::size_t count = 0;
     for (const auto& item : payload["items"]) {
-        if (!item.is_object()) continue;
         auto copy = item;
         if (payload.contains("queue_id") && payload["queue_id"].is_string() && !copy.contains("queue_id"))
             copy["queue_id"] = payload["queue_id"];
