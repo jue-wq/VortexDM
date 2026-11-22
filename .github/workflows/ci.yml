@@ -293,7 +293,7 @@ jobs:
       - name: Install CMake and Ninja
         uses: lukka/get-cmake@latest
       - name: Configure Qt Android application
-        run: cmake --preset android-arm64 -DVORTEX_BUILD_UI=ON -DVORTEX_BUILD_TESTS=OFF -DQt6_DIR="$QT_ANDROID_ROOT/lib/cmake/Qt6" -DQT_HOST_PATH="$QT_ROOT_DIR" -DQT_ANDROID_SIGN_APK:BOOL=ON -DQT_ANDROID_SIGN_AAB:BOOL=ON -DQT_DEBUG_FIND_PACKAGE=ON
+        run: cmake --preset android-arm64 -DVORTEX_BUILD_UI=ON -DVORTEX_BUILD_TESTS=OFF -DQt6_DIR="$QT_ANDROID_ROOT/lib/cmake/Qt6" -DQt6Quick_DIR="$QT_ANDROID_ROOT/lib/cmake/Qt6Quick" -DQt6Qml_DIR="$QT_ANDROID_ROOT/lib/cmake/Qt6Qml" -DQt6Network_DIR="$QT_ANDROID_ROOT/lib/cmake/Qt6Network" -DQT_HOST_PATH="$QT_ROOT_DIR" -DQT_ANDROID_SIGN_APK:BOOL=ON -DQT_ANDROID_SIGN_AAB:BOOL=ON --debug-find-pkg=Qt6Quick
       - name: Build installable Android APK
         run: cmake --build --preset android-arm64 --target apk --parallel 2
       - name: Build Android App Bundle
