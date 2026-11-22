@@ -32,14 +32,14 @@ https://addons.mozilla.org/android/addon/ublock-origin/
 
 Vortex Browser Bridge disables its own network and cosmetic filtering on Firefox for Android to avoid a duplicate blocker. uBO filters browser web content only; it is not a device-wide blocker.
 
-## CI build artifacts and direct downloads
-The Android CI pipeline publishes two installable outputs:
-- `vortexdm-android-arm64.apk`: standalone installable Android package, built with the Qt 6.8.3 Android kit
-- `vortexdm-android-arm64.aab`: standalone Android App Bundle for Play Console upload
+## CI build artifact and direct download
 
-The APK and AAB are published as separate files, not combined into a ZIP. Tag releases also attach each file separately to the GitHub Release. CI generates a fresh ephemeral test keystore for each run and signs both APK and AAB with it. These files are installable for device testing, but they are not production/Play Store releases and cannot be used for seamless upgrades between nightly runs because the signing key changes. Production signing still requires the owner's persistent protected keystore and GitHub secrets.
+The Android CI pipeline produces exactly one directly installable package:
+- `VortexDM-android-arm64.apk`: standalone APK for Android arm64-v8a devices
 
-The workflow uses Android arm64-v8a, API 28 minimum, Qt 6.8.3, JDK 17 and the Qt-compatible Android NDK. The APK build explicitly invokes the Qt `vortexdm_make_apk` target; AAB invokes `vortexdm_make_aab`.
+The APK is uploaded as its own GitHub Actions artifact; no Android App Bundle (AAB) is built or published. CI creates an ephemeral test keystore and signs the APK for validation. This package is suitable for device testing, but it is not a production/Play Store release and cannot be used for seamless upgrades between nightly runs because the signing key changes. Production signing requires the owner's persistent protected keystore and GitHub secrets.
+
+The workflow uses Android arm64-v8a, API 28 minimum, Qt 6.8.3, JDK 17 and the Qt-compatible Android NDK. The build invokes only the Qt `apk` target and verifies the resulting APK signature and native arm64 libraries.
 
 ## Release gates still required
 - Build and install the arm64 APK on API 28, API 34 and current Android API devices
