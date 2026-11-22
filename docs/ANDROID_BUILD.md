@@ -32,6 +32,9 @@ https://addons.mozilla.org/android/addon/ublock-origin/
 
 Vortex Browser Bridge disables its own network and cosmetic filtering on Firefox for Android to avoid a duplicate blocker. uBO filters browser web content only; it is not a device-wide blocker.
 
+## CI build artifacts
+The current automated Android job cross-compiles the ARM64 core library and publishes `libvortex_core.a` as a GitHub Actions artifact. It does not build the Qt Android application and therefore does not produce an installable APK/AAB yet. A Qt for Android kit plus package/signing configuration is still required before APK/AAB artifacts can be published.
+
 ## Release gates still required
 - Build and install the arm64 APK on API 28, API 34 and current Android API devices
 - Verify foreground-service notification and process survival with screen off
