@@ -452,6 +452,27 @@ bool test_native_host_task_control() {
     download.status = "Queued";
     if (!repository.save_download(download)) return false;
 
+    const auto send_status = [&]() {
+        const nlohmann::json request = {
+            {"protocol_version",1},{"type","task_status"},{"request_id","status-1"},{"timestamp",1},
+            {"payload",{{"limit",10U}}}
+        };
+        std::string bytes;
+        append_frame(bytes, request);
+        std::istringstream input(bytes);
+        std::ostringstream output;
+        vortex::NativeMessagingHost host(database_path);
+        if (host.run(input, output) != 0) return false;
+        const auto frames = read_frames(output.str());
+        if (frames.size() != 1U || frames.front().value("type",std::string{}) != "ack" ||
+            !frames.front()["payload"].value("accepted",false)) return false;
+        const auto& tasks = frames.front()["payload"]["tasks"];
+        return tasks.is_array() && tasks.size() == 1U &&
+            tasks.front().value("id",std::string{}) == download.id &&
+            tasks.front().value("filename",std::string{}) == download.filename &&
+            tasks.front().value("status",std::string{}) == "Queued";
+    };
+    if (!send_status()) return false;
     const auto send_action = [&](const std::string& action, const std::string& request_id) {
         const nlohmann::json request = {
             {"protocol_version",1},{"type","task_control"},{"request_id",request_id},{"timestamp",1},
