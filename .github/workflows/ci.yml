@@ -430,7 +430,7 @@ jobs:
           manifest_path = pathlib.Path("release-assets/extension/firefox/manifest.json")
           manifest = json.loads(manifest_path.read_text())
           manifest["background"] = {"scripts": ["background.js"]}
-          manifest_path.write_text(json.dumps(manifest, indent=2) + "\\n")
+          manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
           PY
           (cd release-assets/extension/chromium && zip -X -r ../vortexdm-browser-bridge-chromium.zip .)
           (cd release-assets/extension/firefox && zip -X -r ../vortexdm-browser-bridge-firefox.xpi .)
