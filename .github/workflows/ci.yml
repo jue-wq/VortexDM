@@ -219,7 +219,7 @@ jobs:
           target: desktop
           arch: gcc_64
           dir: ${{ github.workspace }}/Qt
-          archives: qtbase qtdeclarative qtshadertools
+          modules: qtdeclarative qtshadertools
           cache: true
       - name: Configure Android SDK and Qt-compatible NDK
         shell: bash
