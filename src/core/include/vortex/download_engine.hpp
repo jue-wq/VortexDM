@@ -39,6 +39,10 @@ struct DownloadOptions {
 };
 
 [[nodiscard]] Result<RemoteFileInfo> probe_url(const std::string& url);
+[[nodiscard]] Result<std::string> fetch_resource(
+    const std::string& url,
+    std::size_t maximum_bytes = 8U * 1024U * 1024U,
+    const DownloadOptions& options = {});
 [[nodiscard]] Result<std::uint64_t> download_range_to_writer(
     const std::string& url, const ByteRange& range, std::uint64_t totalBytes, CrashSafeFileWriter& writer,
     const DownloadOptions& options = {});
