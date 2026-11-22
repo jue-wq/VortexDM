@@ -1,3 +1,4 @@
+const browser = globalThis.browser || globalThis.chrome;
 const HOST = "com.vortexdm.native_host";
 const API = "http://127.0.0.1";
 let nativePort = null;
