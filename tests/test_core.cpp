@@ -1,4 +1,5 @@
 #include "vortex/crash_safe_file_writer.hpp"
+#include "vortex/download_engine.hpp"
 #include "vortex/chunk_assembler.hpp"
 #include "native_messaging_host.hpp"
 #include "vortex/sqlite_repository.hpp"
