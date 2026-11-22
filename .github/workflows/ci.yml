@@ -118,9 +118,9 @@ jobs:
       - name: Configure Qt Android application
         run: cmake --preset android-arm64 -DVORTEX_BUILD_UI=ON -DVORTEX_BUILD_TESTS=OFF -DQt6_DIR="$QT_ROOT_DIR/lib/cmake/Qt6" -DQT_ANDROID_SIGN_APK:BOOL=ON -DQT_ANDROID_SIGN_AAB:BOOL=ON
       - name: Build installable Android APK
-        run: cmake --build --preset android-arm64 --target vortexdm_make_apk --parallel 2
+        run: cmake --build --preset android-arm64 --target apk --parallel 2
       - name: Build Android App Bundle
-        run: cmake --build --preset android-arm64 --target vortexdm_make_aab --parallel 2
+        run: cmake --build --preset android-arm64 --target aab --parallel 2
       - name: Collect standalone APK and AAB
         shell: bash
         run: |
