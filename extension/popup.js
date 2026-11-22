@@ -1,3 +1,4 @@
+const browser = globalThis.browser || globalThis.chrome;
 const $=id=>document.getElementById(id);
 async function refresh(){
   const state=await browser.runtime.sendMessage({type:"status"});
