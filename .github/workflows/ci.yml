@@ -72,7 +72,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: .vcpkg-cache
-          key: ${{ runner.os }}-vcpkg-desktop-${{ hashFiles('vcpkg.json') }}
+          key: ${{ runner.os }}-vcpkg-desktop-mingw-triplet-${{ hashFiles('vcpkg.json') }}
           restore-keys: |
             ${{ runner.os }}-vcpkg-desktop-
       - name: Ensure vcpkg binary cache exists on Windows
@@ -85,6 +85,10 @@ jobs:
         run: mkdir -p "$VCPKG_DEFAULT_BINARY_CACHE"
       - name: Install CMake and Ninja
         uses: lukka/get-cmake@latest
+      - name: Select MinGW-compatible vcpkg triplet
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: "VCPKG_DEFAULT_TRIPLET=x64-mingw-static" >> $env:GITHUB_ENV
       - name: Configure desktop build
         run: cmake --preset default
       - name: Build desktop application
@@ -220,7 +224,8 @@ jobs:
       - name: Configure Qt host tool runtime
         shell: bash
         run: |
-          echo "LD_LIBRARY_PATH=$QT_HOST_PATH/lib:$LD_LIBRARY_PATH" >> "$GITHUB_ENV"
+          echo "QT_HOST_PATH=$QT_ROOT_DIR" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$QT_ROOT_DIR/lib:$LD_LIBRARY_PATH" >> "$GITHUB_ENV"
           echo "Android Qt root: $QT_ANDROID_ROOT"
           echo "Qt host root: $QT_ROOT_DIR"
           find "$QT_ANDROID_ROOT/lib/cmake" -maxdepth 2 -type f \( -name 'Qt6QuickConfig.cmake' -o -name 'Qt6QmlConfig.cmake' \) -print
