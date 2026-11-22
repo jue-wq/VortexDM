@@ -142,6 +142,23 @@ bool test_hls_and_dash_manifests() {
         !period_template->representations.front().segment_template ||
         period_template->representations.front().segment_template->duration!=6U ||
         period_template->representations.front().segment_template->start_number!=3U) return false;
+    const std::string inherited_template_mpd = R"XML(
+<MPD type="static"><Period>
+ <SegmentTemplate timescale="1000" duration="2000" startNumber="7" media="period-$Number$.m4s" initialization="period-init.mp4"/>
+ <AdaptationSet mimeType="video/mp4">
+  <SegmentTemplate duration="3000" media="adaptation-$Number$.m4s"/>
+  <Representation id="merged" bandwidth="900000">
+   <SegmentTemplate media="representation-$Number$.m4s"><SegmentTimeline><S t="0" d="3000" r="1"/></SegmentTimeline></SegmentTemplate>
+  </Representation>
+ </AdaptationSet>
+</Period></MPD>)XML";
+    const auto inherited_template = vortex::parse_dash_mpd(inherited_template_mpd, "https://cdn.example/inherited.mpd");
+    if (!inherited_template || inherited_template->representations.size()!=1U ||
+        !inherited_template->representations.front().segment_template) return false;
+    const auto& merged = *inherited_template->representations.front().segment_template;
+    if (merged.media!="representation-$Number$.m4s" || merged.initialization!="period-init.mp4" ||
+        merged.timescale!=1000U || merged.duration!=3000U || merged.start_number!=7U ||
+        merged.timeline.size()!=1U || merged.timeline.front().repeat!=1) return false;
     return !vortex::parse_dash_mpd("<not-mpd>", "https://cdn.example/manifest.mpd");
 }
 
