@@ -90,7 +90,7 @@ jobs:
         run: |
           cmake -S . -B build/core -G Ninja -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_BUILD_TYPE=Release "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=x64-windows-release "-DVCPKG_OVERLAY_TRIPLETS=$env:GITHUB_WORKSPACE\triplets" -DVORTEX_BUILD_TESTS=ON -DVORTEX_BUILD_UI=OFF
       - name: Build required core targets
-        run: cmake --build build/core --target vortex_core vortex-cli vortex-native-host --parallel 2
+        run: cmake --build build/core --target vortex_core vortex-cli vortex-native-host vortex_core_tests --parallel 2
       - name: Run CTest
         run: ctest --test-dir build/core --output-on-failure
 
