@@ -89,9 +89,9 @@ bool test_hls_and_dash_manifests() {
         !parsed_media->initialization_uri || parsed_media->segments.size()!=1U ||
         parsed_media->segments.front().duration_seconds != 4.5) return false;
     if (vortex::parse_hls_playlist("#EXTM3U\n#EXT-X-KEY:METHOD=SAMPLE-AES,URI=\"key\"\n", "https://cdn.example/a.m3u8")) return false;
-    if (vortex::parse_hls_playlist("# comment\\n#EXTM3U\\n", "https://cdn.example/a.m3u8")) return false;
+    if (vortex::parse_hls_playlist("# comment\n#EXTM3U\n", "https://cdn.example/a.m3u8")) return false;
     const auto key_reset = vortex::parse_hls_playlist(
-        "#EXTM3U\\n#EXT-X-KEY:METHOD=AES-128,URI=\\"key.bin\\"\\n#EXT-X-KEY:METHOD=NONE\\n#EXTINF:2,clear\\nseg.ts\\n#EXT-X-ENDLIST\\n",
+        "#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI=\"key.bin\"\n#EXT-X-KEY:METHOD=NONE\n#EXTINF:2,clear\nseg.ts\n#EXT-X-ENDLIST\n",
         "https://cdn.example/a.m3u8");
     if (!key_reset || key_reset->aes128_key_uri) return false;
 
