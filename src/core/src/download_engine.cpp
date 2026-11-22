@@ -464,12 +464,12 @@ struct MemoryOutput {
 };
 size_t write_memory(char* data, size_t size, size_t count, void* context) {
     auto* output = static_cast<MemoryOutput*>(context);
-    if (size != 0U && count > std::numeric_limits<std::size_t>::max() / size) {
+    if (size != 0U && count > (std::numeric_limits<std::size_t>::max)() / size) {
         output->exceeded = true;
         return 0U;
     }
     const auto bytes = size * count;
-    if (bytes > output->maximum_bytes - std::min(output->data.size(), output->maximum_bytes)) {
+    if (bytes > output->maximum_bytes - (std::min)(output->data.size(), output->maximum_bytes)) {
         output->exceeded = true;
         return 0U;
     }
