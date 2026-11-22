@@ -88,7 +88,7 @@ jobs:
       - name: Select MinGW-compatible vcpkg triplet
         if: runner.os == 'Windows'
         shell: pwsh
-        run: "VCPKG_DEFAULT_TRIPLET=x64-mingw-static" >> $env:GITHUB_ENV
+        run: echo "VCPKG_DEFAULT_TRIPLET=x64-mingw-static" >> $env:GITHUB_ENV
       - name: Configure desktop build
         run: cmake --preset default
       - name: Build desktop application
