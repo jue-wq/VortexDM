@@ -221,6 +221,14 @@ struct SequentialOutput {
     const std::function<void(std::uint64_t, std::uint64_t)>* progress{nullptr};
 };
 
+struct FileCloser {
+    void operator()(std::FILE* file) const noexcept {
+        if (file != nullptr) {
+            (void)std::fclose(file);
+        }
+    }
+};
+
 size_t write_sequential(char* data, size_t size, size_t count, void* context) {
     auto* output = static_cast<SequentialOutput*>(context);
     const auto elements = std::fwrite(data, size, count, output->file);
@@ -243,7 +251,7 @@ Result<void> download_sequential(const std::string& url, const std::filesystem::
     if (output.file == nullptr) {
         return std::unexpected(make_error("file_open", "Could not open destination file"));
     }
-    std::unique_ptr<std::FILE, decltype(&std::fclose)> file(output.file, &std::fclose);
+    std::unique_ptr<std::FILE, FileCloser> file(output.file);
     std::unique_ptr<CURL, decltype(&curl_easy_cleanup)> handle(curl_easy_init(), &curl_easy_cleanup);
     if (!handle) return std::unexpected(make_error("curl_init", "Could not initialize libcurl"));
     configure_common(handle.get(), url, options.connect_timeout_ms, options.transfer_timeout_ms, options.cancel_requested);
