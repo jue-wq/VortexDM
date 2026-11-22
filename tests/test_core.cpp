@@ -90,6 +90,7 @@ bool test_hls_and_dash_manifests() {
         parsed_media->segments.front().duration_seconds != 4.5) return false;
     if (vortex::parse_hls_playlist("#EXTM3U\n#EXT-X-KEY:METHOD=SAMPLE-AES,URI=\"key\"\n", "https://cdn.example/a.m3u8")) return false;
     if (vortex::parse_hls_playlist("# comment\n#EXTM3U\n", "https://cdn.example/a.m3u8")) return false;
+    if (vortex::parse_hls_playlist("", "https://cdn.example/a.m3u8")) return false;
     const auto key_reset = vortex::parse_hls_playlist(
         "#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI=\"key.bin\"\n#EXT-X-KEY:METHOD=NONE\n#EXTINF:2,clear\nseg.ts\n#EXT-X-ENDLIST\n",
         "https://cdn.example/a.m3u8");
@@ -537,6 +538,8 @@ bool test_sqlite_migrations_and_segment_journal() {
     download.total_bytes = 2048U;
     download.downloaded_bytes = 512U;
     if (!repository.save_download(download)) return false;
+    const auto defaulted_download = repository.get_download(download.id);
+    if (!defaulted_download || !*defaulted_download || (**defaulted_download).queue_id != "default") return false;
 
     vortex::StreamRecord stream;
     stream.id = "stream-test-1";
