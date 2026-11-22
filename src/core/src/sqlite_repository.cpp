@@ -583,8 +583,8 @@ Result<std::optional<DownloadRecord>> SqliteRepository::claim_next_queued_downlo
     auto begin = execute("BEGIN IMMEDIATE;");
     if (!begin) return std::unexpected(begin.error());
     Statement statement(db_, R"SQL(
-      SELECT id, task_type, url, filename, save_dir, queue_id, status, total_bytes, downloaded_bytes,
-             etag, last_modified, headers_json, extractor_origin_url, video_format_id, audio_format_id
+      SELECT d.id, d.task_type, d.url, d.filename, d.save_dir, d.queue_id, d.status, d.total_bytes, d.downloaded_bytes,
+             d.etag, d.last_modified, d.headers_json, d.extractor_origin_url, d.video_format_id, d.audio_format_id
       FROM downloads d
       INNER JOIN queues q ON q.id=d.queue_id
       WHERE d.status='Queued' AND q.is_active=1
