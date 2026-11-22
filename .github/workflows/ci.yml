@@ -205,7 +205,7 @@ jobs:
           host: all_os
           target: android
           arch: android_arm64_v8a
-          archives: qtbase qtdeclarative
+          archives: qtbase qtdeclarative qtshadertools
           cache: true
       - name: Configure Android SDK and Qt-compatible NDK
         shell: bash
