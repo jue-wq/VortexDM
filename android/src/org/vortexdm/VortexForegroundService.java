@@ -6,6 +6,7 @@ import android.app.NotificationManager;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.app.Activity;
 import android.content.ContentValues;
 import android.content.ContentResolver;
 import android.net.Uri;
@@ -26,6 +27,34 @@ public final class VortexForegroundService extends Service {
         Intent intent = new Intent(context, VortexForegroundService.class);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent);
         else context.startService(intent);
+    }
+
+    // Android 9 (API 28): launch this intent from the Qt activity and pass the
+    // returned URI to copyToSafUri() from onActivityResult/onActivityResult equivalent.
+    public static Intent createLegacySafExportIntent(String displayName, String mimeType) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) return null;
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType(mimeType == null || mimeType.isEmpty() ? "application/octet-stream" : mimeType);
+        intent.putExtra(Intent.EXTRA_TITLE, displayName);
+        return intent;
+    }
+
+    public static boolean copyToSafUri(Context context, String sourcePath, Uri destination) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q || destination == null) return false;
+        File source = new File(sourcePath);
+        if (!source.isFile() || !source.canRead()) return false;
+        try (InputStream input = new FileInputStream(source);
+             OutputStream output = context.getContentResolver().openOutputStream(destination, "w")) {
+            if (output == null) return false;
+            byte[] buffer = new byte[65536];
+            int read;
+            while ((read = input.read(buffer)) != -1) output.write(buffer, 0, read);
+            output.flush();
+            return true;
+        } catch (Exception error) {
+            return false;
+        }
     }
 
     public static boolean exportToDownloads(Context context, String sourcePath, String displayName) {
