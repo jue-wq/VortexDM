@@ -44,6 +44,7 @@ jobs:
           & (Join-Path $VcpkgPath 'bootstrap-vcpkg.bat') -disableMetrics
           "VCPKG_ROOT=$VcpkgPath" >> $env:GITHUB_ENV
           "VCPKG_DEFAULT_BINARY_CACHE=$(Join-Path $env:GITHUB_WORKSPACE '.vcpkg-cache')" >> $env:GITHUB_ENV
+          New-Item -ItemType Directory -Force -Path (Join-Path $env:GITHUB_WORKSPACE '.vcpkg-cache') | Out-Null
       - name: Bootstrap vcpkg on Linux
         if: runner.os != 'Windows'
         shell: bash
@@ -51,6 +52,7 @@ jobs:
           ./vcpkg/bootstrap-vcpkg.sh -disableMetrics
           echo "VCPKG_ROOT=$GITHUB_WORKSPACE/vcpkg" >> "$GITHUB_ENV"
           echo "VCPKG_DEFAULT_BINARY_CACHE=$GITHUB_WORKSPACE/.vcpkg-cache" >> "$GITHUB_ENV"
+          mkdir -p "$GITHUB_WORKSPACE/.vcpkg-cache"
       - name: Restore vcpkg binary cache
         uses: actions/cache@v5
         with:
