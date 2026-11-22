@@ -85,11 +85,12 @@ jobs:
         run: mkdir -p "$VCPKG_DEFAULT_BINARY_CACHE"
       - name: Install CMake and Ninja
         uses: lukka/get-cmake@latest
-      - uses: lukka/run-cmake@v10
-        with:
-          configurePreset: default
-          buildPreset: default
-          testPreset: default
+      - name: Configure desktop build
+        run: cmake --preset default
+      - name: Build desktop application
+        run: cmake --build --preset default --parallel 2
+      - name: Run desktop tests
+        run: ctest --preset default --output-on-failure
       - name: Upload desktop build outputs
         uses: actions/upload-artifact@v6
         with:
