@@ -100,11 +100,22 @@ jobs:
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" "ndk;26.1.10909125" "platforms;android-35" "build-tools;35.0.0"
           echo "ANDROID_NDK_HOME=$SDK/ndk/26.1.10909125" >> "$GITHUB_ENV"
+      - name: Create ephemeral CI signing key
+        shell: bash
+        run: |
+          KEYSTORE="$RUNNER_TEMP/vortexdm-ci.keystore"
+          keytool -genkeypair -v -keystore "$KEYSTORE" -storepass "vortexdm-ci-only" -alias vortexdm-ci -keypass "vortexdm-ci-only" -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=VortexDM CI,O=VortexDM,C=US"
+          {
+            echo "QT_ANDROID_KEYSTORE_PATH=$KEYSTORE"
+            echo "QT_ANDROID_KEYSTORE_ALIAS=vortexdm-ci"
+            echo "QT_ANDROID_KEYSTORE_STORE_PASS=vortexdm-ci-only"
+            echo "QT_ANDROID_KEYSTORE_KEY_PASS=vortexdm-ci-only"
+          } >> "$GITHUB_ENV"
       - uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitCommitId: "93ad765c7b66ab9ce97469ec23a90b15c3a14ee5"
       - name: Configure Qt Android application
-        run: cmake --preset android-arm64 -DVORTEX_BUILD_UI=ON -DVORTEX_BUILD_TESTS=OFF -DQt6_DIR="$QT_ROOT_DIR/lib/cmake/Qt6"
+        run: cmake --preset android-arm64 -DVORTEX_BUILD_UI=ON -DVORTEX_BUILD_TESTS=OFF -DQt6_DIR="$QT_ROOT_DIR/lib/cmake/Qt6" -DQT_ANDROID_SIGN_APK:BOOL=ON -DQT_ANDROID_SIGN_AAB:BOOL=ON
       - name: Build installable Android APK
         run: cmake --build --preset android-arm64 --target vortexdm_make_apk --parallel 2
       - name: Build Android App Bundle
@@ -126,6 +137,7 @@ jobs:
           test -s release-assets/android/vortexdm-android-arm64.aab
           "$ANDROID_SDK_ROOT/build-tools/35.0.0/apksigner" verify --verbose release-assets/android/vortexdm-android-arm64.apk
           unzip -t release-assets/android/vortexdm-android-arm64.aab
+          jarsigner -verify release-assets/android/vortexdm-android-arm64.aab
       - name: Upload standalone APK
         uses: actions/upload-artifact@v5
         with:
