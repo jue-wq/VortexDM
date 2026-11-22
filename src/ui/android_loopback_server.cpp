@@ -227,6 +227,24 @@ QByteArray AndroidLoopbackServer::dispatchIpc(const QByteArray& body) {
         const auto task = enqueueMediaExtract(payload);
         if (!task) answer = {{"accepted",false},{"code",task.error().code},{"message",task.error().message}};
         else answer = {{"accepted",true},{"task_id",*task}};
+    } else if (request.value("type", std::string{}) == "task_status") {
+        if (!repository_) {
+            answer = {{"accepted",false},{"code","database_unavailable"}};
+        } else {
+            const auto records = repository_->list_downloads();
+            if (!records) answer = {{"accepted",false},{"code",records.error().code},{"message",records.error().message}};
+            else {
+                std::size_t limit = 20U;
+                if (payload.contains("limit") && payload["limit"].is_number_unsigned())
+                    limit = std::clamp<std::size_t>(payload["limit"].get<std::size_t>(), 1U, 50U);
+                json tasks = json::array();
+                for (auto it = records->rbegin(); it != records->rend() && tasks.size() < limit; ++it) {
+                    tasks.push_back({{"id",it->id},{"filename",it->filename},{"status",it->status},
+                        {"downloaded_bytes",it->downloaded_bytes},{"total_bytes",it->total_bytes}});
+                }
+                answer = {{"accepted",true},{"tasks",std::move(tasks)}};
+            }
+        }
     } else if (request.value("type", std::string{}) == "task_control") {
         if (!payload.contains("task_id") || !payload["task_id"].is_string() ||
             !payload.contains("action") || !payload["action"].is_string()) {
