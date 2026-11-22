@@ -219,7 +219,7 @@ jobs:
           target: desktop
           arch: linux_gcc_64
           dir: ${{ github.workspace }}
-          modules: qtshadertools
+          modules: qtdeclarative qtshadertools
           cache: true
       - name: Configure Qt host tool runtime
         shell: bash
