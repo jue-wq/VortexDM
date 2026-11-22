@@ -97,8 +97,12 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: cmake -S . -B build/desktop -G Ninja -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_BUILD_TYPE=Release "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=x64-windows-release "-DVCPKG_OVERLAY_TRIPLETS=$env:GITHUB_WORKSPACE/triplets" "-DCMAKE_PREFIX_PATH=$env:QT_ROOT_DIR" -DVORTEX_BUILD_UI=ON -DVORTEX_BUILD_TESTS=OFF
-      - name: Build desktop install targets
+      - name: Build Linux install targets
+        if: runner.os == 'Linux'
         run: cmake --build build/desktop --parallel 2
+      - name: Build Windows desktop UI
+        if: runner.os == 'Windows'
+        run: cmake --build build/desktop --target vortexdm --parallel 2
       - name: Bundle Linux runtime
         if: runner.os == 'Linux'
         shell: bash
