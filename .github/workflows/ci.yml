@@ -3,6 +3,11 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+
+# New commits supersede stale builds on the same branch/PR.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   checkpoint:
     runs-on: ubuntu-latest
@@ -28,6 +33,15 @@ jobs:
           configurePreset: default
           buildPreset: default
           testPreset: default
+      - name: Upload desktop build outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: vortexdm-desktop-${{ matrix.os }}
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            build/desktop/vortex-cli*
+            build/desktop/vortex-native-host*
   android-arm64:
     runs-on: ubuntu-latest
     steps:
@@ -49,6 +63,13 @@ jobs:
         run: cmake --preset android-arm64
       - name: Build Android core
         run: cmake --build --preset android-arm64 --parallel 2
+      - name: Upload Android ARM64 core libraries
+        uses: actions/upload-artifact@v4
+        with:
+          name: vortexdm-android-arm64-core
+          if-no-files-found: error
+          retention-days: 14
+          path: build/android-arm64/libvortex_core.a
   sanitizers:
     runs-on: ubuntu-latest
     strategy:
