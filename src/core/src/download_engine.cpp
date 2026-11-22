@@ -478,7 +478,7 @@ Result<std::uint64_t> download_range_to_writer(
     const DownloadOptions& options) {
     if (range.end < range.start)
         return std::unexpected(make_error("invalid_range", "Range end must not be before range start"));
-    auto handle = make_curl_handle();
+    std::unique_ptr<CURL, decltype(&curl_easy_cleanup)> handle(curl_easy_init(), &curl_easy_cleanup);
     if (!handle) return std::unexpected(make_error("curl_init", "Could not initialize libcurl range handle"));
     SegmentTransfer transfer;
     transfer.writer = &writer;

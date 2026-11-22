@@ -18,9 +18,10 @@ public:
     void stop();
 
 private:
-    void run(std::stop_token token);
+    void run();
     SqliteRepository& repository_;
-    std::jthread thread_;
+    std::thread thread_;
+    std::atomic_bool stop_requested_{false};
     std::atomic_bool cancel_requested_{false};
 };
 

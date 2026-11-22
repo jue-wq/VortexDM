@@ -85,18 +85,19 @@ void DownloadQueueWorker::start() {
     if (thread_.joinable()) return;
     (void)repository_.reset_interrupted_downloads();
     cancel_requested_.store(false, std::memory_order_relaxed);
-    thread_ = std::jthread([this](std::stop_token token) { run(token); });
+    stop_requested_.store(false, std::memory_order_relaxed);
+    thread_ = std::thread([this] { run(); });
 }
 
 void DownloadQueueWorker::stop() {
     if (!thread_.joinable()) return;
+    stop_requested_.store(true, std::memory_order_relaxed);
     cancel_requested_.store(true, std::memory_order_relaxed);
-    thread_.request_stop();
     thread_.join();
 }
 
-void DownloadQueueWorker::run(std::stop_token token) {
-    while (!token.stop_requested()) {
+void DownloadQueueWorker::run() {
+    while (!stop_requested_.load(std::memory_order_relaxed)) {
         auto claimed = repository_.claim_next_queued_download();
         if (!claimed) {
             std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -107,7 +108,7 @@ void DownloadQueueWorker::run(std::stop_token token) {
             continue;
         }
         const auto& task = **claimed;
-        if (token.stop_requested()) {
+        if (stop_requested_.load(std::memory_order_relaxed)) {
             (void)repository_.update_download_status(task.id, "Queued", "Interrupted before worker start");
             break;
         }
@@ -235,8 +236,8 @@ void DownloadQueueWorker::run(std::stop_token token) {
                 }
             }
         }
-        task_monitor.request_stop();
-        task_monitor.join();
+        monitor_stop.store(true, std::memory_order_relaxed);
+        if (task_monitor.joinable()) task_monitor.join();
         if (result) {
             const auto final_status = repository_.get_download_status(task.id);
             if (token.stop_requested() || !final_status || *final_status != "Downloading")
