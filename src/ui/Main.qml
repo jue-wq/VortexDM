@@ -128,7 +128,7 @@ ApplicationWindow {
                                         Button {
                                             visible: Qt.platform.os === "android" && status === "Completed"
                                             text: "Export"
-                                            onClicked: exportStatus.text = downloadsModel.exportDownload(taskId) ? "Saved to Downloads/VortexDM" : "Select a save location"
+                                            onClicked: exportStatus.text = downloadsModel.exportDownload(taskId) ? "Export started or saved" : "Export could not be started"
                                         }
                                     }
                                 }
