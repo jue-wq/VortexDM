@@ -109,14 +109,23 @@ jobs:
       - name: Configure Qt Android application
         shell: bash
         run: |
-          cmake --preset android-arm64 \
+          if cmake --preset android-arm64 \
             -DVORTEX_BUILD_UI=ON -DVORTEX_BUILD_TESTS=OFF \
             -DVCPKG_TARGET_TRIPLET=arm64-android-release \
             -DVCPKG_OVERLAY_TRIPLETS="$GITHUB_WORKSPACE/triplets" \
             -DQT_ANDROID_ROOT="$QT_ANDROID_ROOT" \
             -DQT_HOST_PATH="$QT_HOST_PATH" \
             -DCMAKE_PREFIX_PATH="$QT_ANDROID_ROOT" \
-            -DQT_ANDROID_SIGN_APK:BOOL=ON -DQT_ANDROID_SIGN_AAB:BOOL=ON
+            -DQT_DEBUG_FIND_PACKAGE=ON \
+            -DQT_ANDROID_SIGN_APK:BOOL=ON -DQT_ANDROID_SIGN_AAB:BOOL=ON; then
+            echo "Android Qt configure succeeded"
+          else
+            echo "=== EGL/GLES package cache ==="
+            grep -E '^(EGL_LIBRARY|EGL_INCLUDE_DIR|GLESv2_LIBRARY|GLESv2_INCLUDE_DIR|HAVE_EGL|HAVE_GLESv2|CMAKE_SYSROOT|CMAKE_FIND_ROOT_PATH|CMAKE_SYSTEM_LIBRARY_PATH|ANDROID_NDK|ANDROID_PLATFORM):' build/android-arm64/CMakeCache.txt || true
+            echo "=== EGL/GLES configure checks ==="
+            grep -n -A45 -B4 -E 'HAVE_EGL|HAVE_GLESv2' build/android-arm64/CMakeFiles/CMakeConfigureLog.yaml | tail -n 360 || true
+            exit 1
+          fi
       - name: Build standalone APK and AAB
         run: |
           cmake --build --preset android-arm64 --target apk --parallel 2

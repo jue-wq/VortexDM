@@ -83,6 +83,7 @@ jobs:
         if: runner.os == 'Linux'
         shell: bash
         run: |
+          export LD_LIBRARY_PATH="$QT_ROOT_DIR/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
           cmake -S . -B build/desktop -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" \
@@ -115,7 +116,7 @@ jobs:
           $vcpkgBin = "$env:GITHUB_WORKSPACE\build\desktop\vcpkg_installed\x64-windows-release\bin"
           if (-not (Test-Path $vcpkgBin)) { throw "vcpkg runtime DLL directory missing" }
           Get-ChildItem $vcpkgBin -Filter *.dll | Copy-Item -Destination $stage -Force
-          $required = @("libcurl.dll","sqlite3.dll","libcrypto*.dll","libssl*.dll","tinyxml2.dll","zlib*.dll")
+          $required = @("libcurl.dll","sqlite3.dll","libcrypto*.dll","libssl*.dll","tinyxml2.dll")
           foreach ($pattern in $required) {
             if (-not (Get-ChildItem $stage -Filter $pattern -Recurse)) { throw "Required runtime DLL missing: $pattern" }
           }
