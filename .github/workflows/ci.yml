@@ -221,6 +221,9 @@ jobs:
           dir: ${{ github.workspace }}/Qt
           modules: qtdeclarative qtshadertools
           cache: true
+      - name: Configure Qt host tool runtime
+        shell: bash
+        run: echo "LD_LIBRARY_PATH=$QT_HOST_PATH/lib:$LD_LIBRARY_PATH" >> "$GITHUB_ENV"
       - name: Configure Android SDK and Qt-compatible NDK
         shell: bash
         run: |
