@@ -64,8 +64,9 @@ browser.downloads.onCreated.addListener(async item => {
 });
 browser.runtime.onMessage.addListener(async message => {
   if (message?.type === "status") {
+    if (!appInfo) await handshake();
     const result = await request("task_status",{limit:20});
-    return result?.payload || {accepted:false,error:"VortexDM is not connected"};
+    return result?.payload ? {...result.payload, queues:appInfo?.queues || []} : {accepted:false,error:"VortexDM is not connected"};
   }
   if (message?.type === "addTab") {
     const result = await request("add_download",{url:message.url,filename:message.filename || "",auto_start:true,queue_id:message.queue_id || "default"});
