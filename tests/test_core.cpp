@@ -589,6 +589,16 @@ bool test_sqlite_migrations_and_segment_journal() {
 
     download.status = "Queued";
     if (!repository.save_download(download)) return false;
+    vortex::QueueRecord disabled_queue;
+    disabled_queue.id = "default";
+    disabled_queue.name = "Default";
+    disabled_queue.max_concurrent = 3U;
+    disabled_queue.is_active = false;
+    if (!repository.save_queue(disabled_queue)) return false;
+    const auto blocked_claim = repository.claim_next_queued_download();
+    if (!blocked_claim || *blocked_claim) return false;
+    disabled_queue.is_active = true;
+    if (!repository.save_queue(disabled_queue)) return false;
     const auto claimed = repository.claim_next_queued_download();
     if (!claimed || !*claimed || (**claimed).status != "Downloading") return false;
     if (!repository.reset_interrupted_downloads()) return false;
