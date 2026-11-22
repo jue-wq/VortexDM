@@ -97,15 +97,58 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: cmake -S . -B build/desktop -G Ninja -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_BUILD_TYPE=Release "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=x64-windows-release "-DVCPKG_OVERLAY_TRIPLETS=$env:GITHUB_WORKSPACE/triplets" "-DCMAKE_PREFIX_PATH=$env:QT_ROOT_DIR" -DVORTEX_BUILD_UI=ON -DVORTEX_BUILD_TESTS=OFF
-      - name: Build desktop UI
-        run: cmake --build build/desktop --target vortexdm --parallel 2
+      - name: Build desktop install targets
+        run: cmake --build build/desktop --parallel 2
       - name: Bundle Linux runtime
         if: runner.os == 'Linux'
         shell: bash
         run: |
+          set -euo pipefail
           stage="$RUNNER_TEMP/vortexdm-linux"
+          rm -rf "$stage"
           cmake --install build/desktop --prefix "$stage"
-          test -x "$stage/bin/vortexdm"
+
+          app="$stage/bin/vortexdm"
+          test -x "$app" || { echo "Installed VortexDM executable missing: $app" >&2; exit 1; }
+          test -d "$stage/lib" || { echo "Installed runtime library directory missing: $stage/lib" >&2; exit 1; }
+
+          # Qt deployment installs shared Qt libraries and runtime resources here.
+          shopt -s nullglob
+          qt_libs=("$stage"/lib/libQt6*.so*)
+          if (( ${#qt_libs[@]} == 0 )); then
+            echo "Qt runtime libraries were not deployed into $stage/lib" >&2
+            find "$stage" -maxdepth 4 -type f | sort | head -n 200
+            exit 1
+          fi
+
+          # Static vcpkg triplets need not contain any .so files. Copy only when present.
+          vcpkg_lib="$GITHUB_WORKSPACE/build/desktop/vcpkg_installed/x64-linux-release/lib"
+          if [[ -d "$vcpkg_lib" ]]; then
+            optional_shared=("$vcpkg_lib"/*.so "$vcpkg_lib"/*.so.*)
+            if (( ${#optional_shared[@]} > 0 )); then
+              cp -av "${optional_shared[@]}" "$stage/lib/"
+            fi
+          fi
+
+          # Keep the executable relocatable when the archive is extracted elsewhere.
+          patchelf --set-rpath '$ORIGIN/../lib' "$app"
+          cat > "$stage/vortexdm" <<'WRAPPER'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+          export LD_LIBRARY_PATH="$ROOT/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+          [[ ! -d "$ROOT/plugins" ]] || export QT_PLUGIN_PATH="$ROOT/plugins"
+          [[ ! -d "$ROOT/plugins/platforms" ]] || export QT_QPA_PLATFORM_PLUGIN_PATH="$ROOT/plugins/platforms"
+          [[ ! -d "$ROOT/qml" ]] || export QML2_IMPORT_PATH="$ROOT/qml"
+          exec "$ROOT/bin/vortexdm" "$@"
+          WRAPPER
+          chmod +x "$stage/vortexdm"
+
+          ldd "$app" | tee "$RUNNER_TEMP/vortexdm-ldd.txt"
+          if grep -q 'not found' "$RUNNER_TEMP/vortexdm-ldd.txt"; then
+            echo "Unresolved shared libraries in Linux runtime bundle" >&2
+            exit 1
+          fi
           tar -C "$stage" -czf "$GITHUB_WORKSPACE/vortexdm-linux-x64.tar.gz" .
       - name: Bundle Windows runtime
         if: runner.os == 'Windows'
