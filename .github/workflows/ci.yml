@@ -123,7 +123,7 @@ jobs:
           cp "$AAB" release-assets/android/vortexdm-android-arm64.aab
           test -s release-assets/android/vortexdm-android-arm64.apk
           test -s release-assets/android/vortexdm-android-arm64.aab
-          "$SDK/build-tools/35.0.0/apksigner" verify --verbose release-assets/android/vortexdm-android-arm64.apk
+          "$ANDROID_SDK_ROOT/build-tools/35.0.0/apksigner" verify --verbose release-assets/android/vortexdm-android-arm64.apk
           unzip -t release-assets/android/vortexdm-android-arm64.aab
       - name: Upload standalone APK
         uses: actions/upload-artifact@v4
