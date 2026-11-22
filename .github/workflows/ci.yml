@@ -100,6 +100,7 @@ jobs:
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" "ndk;26.1.10909125" "platforms;android-35" "build-tools;35.0.0"
           echo "ANDROID_NDK_HOME=$SDK/ndk/26.1.10909125" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=$SDK/ndk/26.1.10909125" >> "$GITHUB_ENV"
       - name: Create ephemeral CI signing key
         shell: bash
         run: |
@@ -182,38 +183,43 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: read
     steps:
-      - name: Download Linux desktop executables
-        uses: actions/download-artifact@v7
-        with:
-          name: vortexdm-desktop-ubuntu-latest
-          path: release-assets/linux
-      - name: Download Windows desktop executables
-        uses: actions/download-artifact@v7
-        with:
-          name: vortexdm-desktop-windows-latest
-          path: release-assets/windows
-      - name: Download Android APK
-        uses: actions/download-artifact@v7
-        with:
-          name: vortexdm-android-arm64-apk
-          path: release-assets/android
-      - name: Download Android App Bundle
-        uses: actions/download-artifact@v7
-        with:
-          name: vortexdm-android-arm64-aab
-          path: release-assets/android
+      - name: Download individual build files
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets/linux release-assets/windows release-assets/android
+          gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --name vortexdm-desktop-ubuntu-latest --dir release-assets/linux
+          gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --name vortexdm-desktop-windows-latest --dir release-assets/windows
+          gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --name vortexdm-android-arm64-apk --dir release-assets/android
+          gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --name vortexdm-android-arm64-aab --dir release-assets/android
+          test -n "$(find release-assets/linux -type f -print -quit)"
+          test -n "$(find release-assets/windows -type f -print -quit)"
+          test -s release-assets/android/vortexdm-android-arm64.apk
+          test -s release-assets/android/vortexdm-android-arm64.aab
       - name: Publish individual build files
-        uses: softprops/action-gh-release@v3
-        with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'nightly' }}
-          name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'VortexDM Nightly' }}
-          prerelease: ${{ !startsWith(github.ref, 'refs/tags/v') }}
-          make_latest: false
-          target_commitish: main
-          files: |
-            release-assets/linux/*
-            release-assets/windows/*
-            release-assets/android/*.apk
-            release-assets/android/*.aab
-          generate_release_notes: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            TAG="$GITHUB_REF_NAME"
+            TITLE="$GITHUB_REF_NAME"
+            PRERELEASE=()
+          else
+            TAG="nightly"
+            TITLE="VortexDM Nightly"
+            PRERELEASE=(--prerelease)
+          fi
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TITLE" --target main --generate-notes "${PRERELEASE[@]}"
+          fi
+          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" \
+            release-assets/linux/* release-assets/windows/* \
+            release-assets/android/vortexdm-android-arm64.apk \
+            release-assets/android/vortexdm-android-arm64.aab \
+            --clobber
