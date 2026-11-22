@@ -38,7 +38,7 @@ jobs:
         with:
           name: vortexdm-desktop-${{ matrix.os }}
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 30
           path: |
             build/desktop/vortex-cli*
             build/desktop/vortex-native-host*
@@ -68,7 +68,7 @@ jobs:
         with:
           name: vortexdm-android-arm64-core
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 30
           path: build/android-arm64/libvortex_core.a
   sanitizers:
     runs-on: ubuntu-latest
