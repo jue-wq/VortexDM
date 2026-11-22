@@ -76,7 +76,7 @@ jobs:
           host: ${{ matrix.qt-host }}
           target: desktop
           arch: ${{ matrix.qt-arch }}
-          dir: ${{ runner.temp }}/Qt
+          dir: ${{ runner.temp }}
           archives: qtbase qtdeclarative qtshadertools
           cache: true
       - name: Configure desktop UI (Linux)

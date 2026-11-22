@@ -71,7 +71,7 @@ jobs:
           host: all_os
           target: android
           arch: android_arm64_v8a
-          dir: ${{ runner.temp }}/Qt
+          dir: ${{ runner.temp }}
           archives: qtbase qtdeclarative qtshadertools
           cache: true
       - name: Install matching Qt host tools
@@ -81,7 +81,7 @@ jobs:
           host: linux
           target: desktop
           arch: linux_gcc_64
-          dir: ${{ runner.temp }}/Qt
+          dir: ${{ runner.temp }}
           archives: qtbase qtdeclarative qtshadertools
           cache: true
       - name: Set consistent Qt roots
