@@ -191,7 +191,7 @@ void DownloadQueueWorker::run() {
                 }
             }
             if (!recovered && !stop_for_control) {
-                if (token.stop_requested() || cancel_requested_.load(std::memory_order_relaxed)) {
+                if (stop_requested_.load(std::memory_order_relaxed) || cancel_requested_.load(std::memory_order_relaxed)) {
                     result = std::unexpected(make_error("download_cancelled", "Task was interrupted"));
                     stop_for_control = true;
                 }
