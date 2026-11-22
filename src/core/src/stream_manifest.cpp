@@ -163,10 +163,12 @@ Result<std::string> resolve_base(const std::string& current, const tinyxml2::XML
 }
 
 std::optional<DashSegmentTemplate> parse_template(
+    const tinyxml2::XMLElement* period,
     const tinyxml2::XMLElement* adaptation,
     const tinyxml2::XMLElement* representation) {
     const auto* source = representation ? representation->FirstChildElement("SegmentTemplate") : nullptr;
     if (!source && adaptation) source = adaptation->FirstChildElement("SegmentTemplate");
+    if (!source && period) source = period->FirstChildElement("SegmentTemplate");
     if (!source) return std::nullopt;
     DashSegmentTemplate result;
     result.media = xml_attr(source, "media");
@@ -227,7 +229,7 @@ Result<DashManifest> parse_dash_mpd(const std::string& xml_text, const std::stri
             if (!representation_base) return std::unexpected(representation_base.error());
             item.base_url = *representation_base;
             item.has_content_protection = adaptation_protected || representation->FirstChildElement("ContentProtection") != nullptr;
-            item.segment_template = parse_template(adaptation, representation);
+            item.segment_template = parse_template(period, adaptation, representation);
             const auto* segment_list = representation->FirstChildElement("SegmentList");
             if (!segment_list) segment_list = adaptation->FirstChildElement("SegmentList");
             if (segment_list) {
