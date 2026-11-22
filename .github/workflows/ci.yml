@@ -106,18 +106,23 @@ jobs:
         run: cmake --preset android-arm64 -DVORTEX_BUILD_UI=ON -DVORTEX_BUILD_TESTS=OFF
       - name: Build installable Android APK
         run: cmake --build --preset android-arm64 --target vortexdm_make_apk --parallel 2
-      - name: Collect standalone APK
+      - name: Build Android App Bundle
+        run: cmake --build --preset android-arm64 --target vortexdm_make_aab --parallel 2
+      - name: Collect standalone APK and AAB
         shell: bash
         run: |
           mkdir -p release-assets/android
           APK="$(find build/android-arm64 -type f -name '*.apk' -print -quit)"
-          if [ -z "$APK" ]; then
-            echo "Qt completed without producing an APK."
-            find build/android-arm64 -maxdepth 5 -type f | sort | tail -n 80
+          AAB="$(find build/android-arm64 -type f -name '*.aab' -print -quit)"
+          if [ -z "$APK" ] || [ -z "$AAB" ]; then
+            echo "Qt did not produce both APK and AAB packages."
+            find build/android-arm64 -maxdepth 7 -type f | sort | tail -n 100
             exit 1
           fi
           cp "$APK" release-assets/android/vortexdm-android-arm64.apk
+          cp "$AAB" release-assets/android/vortexdm-android-arm64.aab
           test -s release-assets/android/vortexdm-android-arm64.apk
+          test -s release-assets/android/vortexdm-android-arm64.aab
       - name: Upload standalone APK
         uses: actions/upload-artifact@v4
         with:
@@ -125,6 +130,13 @@ jobs:
           if-no-files-found: error
           retention-days: 30
           path: release-assets/android/vortexdm-android-arm64.apk
+      - name: Upload standalone AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: vortexdm-android-arm64-aab
+          if-no-files-found: error
+          retention-days: 30
+          path: release-assets/android/vortexdm-android-arm64.aab
   sanitizers:
     runs-on: ubuntu-latest
     timeout-minutes: 60
