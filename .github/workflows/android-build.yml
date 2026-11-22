@@ -90,6 +90,7 @@ jobs:
           qt_root="$RUNNER_TEMP/Qt/6.8.3"
           test -d "$qt_root/android_arm64_v8a"
           test -d "$qt_root/gcc_64"
+          find "$qt_root/gcc_64/lib/cmake" -name Qt6ShaderToolsToolsConfig.cmake -print -quit | grep -q . || { echo "Qt host ShaderTools tools config missing" >&2; exit 1; }
           {
             echo "QT_ANDROID_ROOT=$qt_root/android_arm64_v8a"
             echo "QT_HOST_PATH=$qt_root/gcc_64"
