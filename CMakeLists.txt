@@ -56,7 +56,11 @@ add_library(vortex_core
   src/core/src/stream_manifest.cpp
 )
 target_include_directories(vortex_core PUBLIC src/core/include)
-target_link_libraries(vortex_core PUBLIC CURL::libcurl SQLite::SQLite3 nlohmann_json::nlohmann_json OpenSSL::Crypto Threads::Threads tinyxml2::tinyxml2)
+# CMake 4.3 renamed the FindSQLite3 imported target; keep compatibility with older CMake.
+if(NOT TARGET SQLite3::SQLite3)
+  add_library(SQLite3::SQLite3 ALIAS SQLite::SQLite3)
+endif()
+target_link_libraries(vortex_core PUBLIC CURL::libcurl SQLite3::SQLite3 nlohmann_json::nlohmann_json OpenSSL::Crypto Threads::Threads tinyxml2::tinyxml2)
 target_compile_features(vortex_core PUBLIC cxx_std_23)
 if(MSVC)
   target_compile_options(vortex_core PRIVATE /W4 /permissive-)
@@ -90,8 +94,8 @@ if(VORTEX_BUILD_UI)
   if(ANDROID)
     set_property(TARGET vortexdm PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/android")
     set_property(TARGET vortexdm PROPERTY QT_ANDROID_MIN_SDK_VERSION 28)
+    set_property(TARGET vortexdm PROPERTY QT_ANDROID_TARGET_SDK_VERSION 35)
     set_property(TARGET vortexdm PROPERTY QT_ANDROID_PACKAGE_NAME "com.vortexdm.app")
-    qt_android_add_apk_target(vortexdm)
   endif()
 endif()
 
