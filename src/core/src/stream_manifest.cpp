@@ -166,28 +166,37 @@ std::optional<DashSegmentTemplate> parse_template(
     const tinyxml2::XMLElement* period,
     const tinyxml2::XMLElement* adaptation,
     const tinyxml2::XMLElement* representation) {
-    const auto* source = representation ? representation->FirstChildElement("SegmentTemplate") : nullptr;
-    if (!source && adaptation) source = adaptation->FirstChildElement("SegmentTemplate");
-    if (!source && period) source = period->FirstChildElement("SegmentTemplate");
-    if (!source) return std::nullopt;
+    const tinyxml2::XMLElement* levels[] = {
+        period ? period->FirstChildElement("SegmentTemplate") : nullptr,
+        adaptation ? adaptation->FirstChildElement("SegmentTemplate") : nullptr,
+        representation ? representation->FirstChildElement("SegmentTemplate") : nullptr
+    };
+    bool found = false;
     DashSegmentTemplate result;
-    result.media = xml_attr(source, "media");
-    result.initialization = xml_attr(source, "initialization");
-    result.timescale = xml_uint(source, "timescale", 1U);
-    result.duration = xml_uint(source, "duration", 0U);
-    result.start_number = xml_uint(source, "startNumber", 1U);
-    if (const auto* timeline = source->FirstChildElement("SegmentTimeline")) {
-        for (auto* entry = timeline->FirstChildElement("S"); entry; entry = entry->NextSiblingElement("S")) {
-            DashTimelineEntry point;
-            if (entry->Attribute("t")) point.time = xml_uint(entry, "t");
-            point.duration = xml_uint(entry, "d");
-            int repeat = 0;
-            if (entry->QueryIntAttribute("r", &repeat) == tinyxml2::XML_SUCCESS) point.repeat = repeat;
-            if (point.duration == 0U || point.repeat < -1) continue;
-            result.timeline.push_back(point);
+    for (const auto* source : levels) {
+        if (!source) continue;
+        found = true;
+        const auto media = xml_attr(source, "media");
+        const auto initialization = xml_attr(source, "initialization");
+        if (!media.empty()) result.media = media;
+        if (!initialization.empty()) result.initialization = initialization;
+        result.timescale = xml_uint(source, "timescale", result.timescale);
+        result.duration = xml_uint(source, "duration", result.duration);
+        result.start_number = xml_uint(source, "startNumber", result.start_number);
+        if (const auto* timeline = source->FirstChildElement("SegmentTimeline")) {
+            result.timeline.clear();
+            for (auto* entry = timeline->FirstChildElement("S"); entry; entry = entry->NextSiblingElement("S")) {
+                DashTimelineEntry point;
+                if (entry->Attribute("t")) point.time = xml_uint(entry, "t");
+                point.duration = xml_uint(entry, "d");
+                int repeat = 0;
+                if (entry->QueryIntAttribute("r", &repeat) == tinyxml2::XML_SUCCESS) point.repeat = repeat;
+                if (point.duration == 0U || point.repeat < -1) continue;
+                result.timeline.push_back(point);
+            }
         }
     }
-    return result;
+    return found ? std::optional<DashSegmentTemplate>(std::move(result)) : std::nullopt;
 }
 }
 
