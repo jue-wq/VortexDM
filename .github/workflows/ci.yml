@@ -172,13 +172,7 @@ jobs:
         run: cmake --preset android-arm64
       - name: Build Android core
         run: cmake --build --preset android-arm64 --parallel 2
-      - name: Upload Android ARM64 core libraries
-        uses: actions/upload-artifact@v6
-        with:
-          name: vortexdm-android-arm64-core
-          if-no-files-found: error
-          retention-days: 30
-          path: build/android-arm64/libvortex_core.a
+      # Core libraries are internal build products, not user-facing downloads.
   android-app:
     runs-on: ubuntu-latest
     timeout-minutes: 90
