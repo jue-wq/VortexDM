@@ -132,6 +132,16 @@ bool test_hls_and_dash_manifests() {
     if (base_rep.segment_base_index_range!="100-200" || !base_rep.segment_base_initialization_url ||
         *base_rep.segment_base_initialization_url!="https://cdn.example/base/init.bin" ||
         base_rep.segment_base_initialization_range!="0-99") return false;
+    const std::string period_template_mpd = R"XML(
+<MPD type="static"><Period>
+ <SegmentTemplate timescale="1" duration="6" media="segment-$Number$.m4s" startNumber="3"/>
+ <AdaptationSet mimeType="video/mp4"><Representation id="period-inherited" bandwidth="900000"/></AdaptationSet>
+</Period></MPD>)XML";
+    const auto period_template = vortex::parse_dash_mpd(period_template_mpd, "https://cdn.example/period.mpd");
+    if (!period_template || period_template->representations.size()!=1U ||
+        !period_template->representations.front().segment_template ||
+        period_template->representations.front().segment_template->duration!=6U ||
+        period_template->representations.front().segment_template->start_number!=3U) return false;
     return !vortex::parse_dash_mpd("<not-mpd>", "https://cdn.example/manifest.mpd");
 }
 
