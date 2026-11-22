@@ -308,6 +308,8 @@ jobs:
           cp "$AAB" release-assets/android/vortexdm-android-arm64.aab
           test -s release-assets/android/vortexdm-android-arm64.apk
           test -s release-assets/android/vortexdm-android-arm64.aab
+          test -s release-assets/extension/vortexdm-browser-bridge-chromium.zip
+          test -s release-assets/extension/vortexdm-browser-bridge-firefox.xpi
           "$ANDROID_SDK_ROOT/build-tools/35.0.0/apksigner" verify --verbose release-assets/android/vortexdm-android-arm64.apk
           unzip -t release-assets/android/vortexdm-android-arm64.aab
           jarsigner -verify release-assets/android/vortexdm-android-arm64.aab
@@ -398,9 +400,47 @@ jobs:
       - name: Run sanitizer tests
         run: |
           if [ "${{ matrix.sanitizer }}" = "asan-ubsan" ]; then ctest --test-dir build/asan --output-on-failure; else TSAN_OPTIONS="halt_on_error=1" ctest --test-dir build/tsan --output-on-failure; fi
+  extension-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate browser extension manifest and scripts
+        run: |
+          python - <<'PY'
+          import json, pathlib
+          root = pathlib.Path("extension")
+          manifest = json.loads((root / "manifest.json").read_text())
+          assert manifest["manifest_version"] == 3
+          assert manifest["background"]["service_worker"] == "background.js"
+          for name in ("background.js", "popup.js", "options.js"):
+              text = (root / name).read_text()
+              assert text.strip()
+          PY
+      - name: Package standalone browser extension files
+        run: |
+          mkdir -p release-assets/extension
+          cd extension
+          zip -X -r ../release-assets/extension/vortexdm-browser-bridge-chromium.zip .
+          zip -X -r ../release-assets/extension/vortexdm-browser-bridge-firefox.xpi .
+          cd ..
+          unzip -t release-assets/extension/vortexdm-browser-bridge-chromium.zip
+          unzip -t release-assets/extension/vortexdm-browser-bridge-firefox.xpi
+      - uses: actions/upload-artifact@v6
+        with:
+          name: vortexdm-browser-bridge-chromium
+          path: release-assets/extension/vortexdm-browser-bridge-chromium.zip
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@v6
+        with:
+          name: vortexdm-browser-bridge-firefox
+          path: release-assets/extension/vortexdm-browser-bridge-firefox.xpi
+          if-no-files-found: error
+          retention-days: 30
   publish-release:
     if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main'
-    needs: [checkpoint, desktop-build, android-arm64, android-app, sanitizers]
+    needs: [checkpoint, desktop-build, android-arm64, android-app, sanitizers, extension-build]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -412,11 +452,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p release-assets/linux release-assets/windows release-assets/android
+          mkdir -p release-assets/linux release-assets/windows release-assets/android release-assets/extension
           gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --name vortexdm-desktop-ubuntu-latest --dir release-assets/linux
           gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --name vortexdm-desktop-windows-latest --dir release-assets/windows
           gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --name vortexdm-android-arm64-apk --dir release-assets/android
           gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --name vortexdm-android-arm64-aab --dir release-assets/android
+          gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --name vortexdm-browser-bridge-chromium --dir release-assets/extension
+          gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --name vortexdm-browser-bridge-firefox --dir release-assets/extension
           test -n "$(find release-assets/linux -type f -print -quit)"
           test -n "$(find release-assets/windows -type f -print -quit)"
           test -s release-assets/android/vortexdm-android-arm64.apk
