@@ -161,3 +161,39 @@ jobs:
       - name: Run sanitizer tests
         run: |
           if [ "${{ matrix.sanitizer }}" = "asan-ubsan" ]; then ctest --test-dir build/asan --output-on-failure; else TSAN_OPTIONS="halt_on_error=1" ctest --test-dir build/tsan --output-on-failure; fi
+  publish-release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [checkpoint, desktop-build, android-app, sanitizers]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download Linux desktop executables
+        uses: actions/download-artifact@v4
+        with:
+          name: vortexdm-desktop-ubuntu-latest
+          path: release-assets/linux
+      - name: Download Windows desktop executables
+        uses: actions/download-artifact@v4
+        with:
+          name: vortexdm-desktop-windows-latest
+          path: release-assets/windows
+      - name: Download Android APK
+        uses: actions/download-artifact@v4
+        with:
+          name: vortexdm-android-arm64-apk
+          path: release-assets/android
+      - name: Download Android App Bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: vortexdm-android-arm64-aab
+          path: release-assets/android
+      - name: Publish individual build files
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release-assets/linux/*
+            release-assets/windows/*
+            release-assets/android/*.apk
+            release-assets/android/*.aab
+          generate_release_notes: true
