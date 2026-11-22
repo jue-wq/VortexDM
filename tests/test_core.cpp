@@ -76,6 +76,13 @@ std::vector<nlohmann::json> read_frames(const std::string& stream) {
     return messages;
 }
 
+bool test_resource_fetch_validation() {
+    const auto empty_limit = vortex::fetch_resource("https://example.com/resource", 0U);
+    if (empty_limit || empty_limit.error().code != "resource_limit") return false;
+    const auto invalid_url = vortex::fetch_resource("file:///etc/passwd", 1024U);
+    return !invalid_url && invalid_url.error().code == "invalid_url";
+}
+
 bool test_hls_and_dash_manifests() {
     const std::string master = "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1280000,CODECS=\"avc1.4d401f,mp4a.40.2\",RESOLUTION=1280x720\n720/index.m3u8\n";
     const auto parsed_master = vortex::parse_hls_playlist(master, "https://cdn.example/master.m3u8");
@@ -661,6 +668,10 @@ bool test_sqlite_migrations_and_segment_journal() {
 }
 
 int main() {
+    if (!test_resource_fetch_validation()) {
+        std::cerr << "test_resource_fetch_validation failed\\n";
+        return 1;
+    }
     if (!test_hls_and_dash_manifests()) {
         std::cerr << "HLS/DASH manifest parser test failed\\n";
         return 11;
