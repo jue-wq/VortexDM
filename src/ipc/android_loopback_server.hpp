@@ -3,6 +3,8 @@
 #include "vortex/chunk_assembler.hpp"
 #include "vortex/sqlite_repository.hpp"
 
+#include <nlohmann/json.hpp>
+
 #include <QObject>
 #include <QTcpServer>
 #include <QString>
