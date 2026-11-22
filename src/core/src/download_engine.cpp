@@ -455,6 +455,61 @@ Result<void> download_ranges(
 
 } // namespace
 
+
+namespace {
+struct MemoryOutput {
+    std::string data;
+    std::size_t maximum_bytes{0};
+    bool exceeded{false};
+};
+size_t write_memory(char* data, size_t size, size_t count, void* context) {
+    auto* output = static_cast<MemoryOutput*>(context);
+    if (size != 0U && count > std::numeric_limits<std::size_t>::max() / size) {
+        output->exceeded = true;
+        return 0U;
+    }
+    const auto bytes = size * count;
+    if (bytes > output->maximum_bytes - std::min(output->data.size(), output->maximum_bytes)) {
+        output->exceeded = true;
+        return 0U;
+    }
+    output->data.append(data, bytes);
+    return bytes;
+}
+}
+
+Result<std::string> fetch_resource(
+    const std::string& url, std::size_t maximum_bytes, const DownloadOptions& options) {
+    if (maximum_bytes == 0U)
+        return std::unexpected(make_error("resource_limit", "Maximum resource size must be greater than zero"));
+    if (options.cancel_requested && options.cancel_requested->load(std::memory_order_relaxed))
+        return std::unexpected(make_error("download_cancelled", "Resource request was cancelled before it started"));
+    auto parsed = parse_http_url(url);
+    if (!parsed) return std::unexpected(parsed.error());
+    static CurlGlobal curl_global;
+    (void)curl_global;
+    std::unique_ptr<CURL, decltype(&curl_easy_cleanup)> handle(curl_easy_init(), &curl_easy_cleanup);
+    if (!handle) return std::unexpected(make_error("curl_init", "Could not initialize libcurl resource handle"));
+    MemoryOutput output;
+    output.maximum_bytes = maximum_bytes;
+    configure_common(handle.get(), url, options.connect_timeout_ms, options.transfer_timeout_ms, options.cancel_requested);
+    curl_easy_setopt(handle.get(), CURLOPT_WRITEFUNCTION, &write_memory);
+    curl_easy_setopt(handle.get(), CURLOPT_WRITEDATA, &output);
+    const auto result = curl_easy_perform(handle.get());
+    if (output.exceeded)
+        return std::unexpected(make_error("resource_limit", "Remote resource exceeded the configured size limit"));
+    if (result != CURLE_OK) {
+        const bool cancelled = options.cancel_requested && options.cancel_requested->load(std::memory_order_relaxed);
+        return std::unexpected(make_error(cancelled ? "download_cancelled" : "resource_fetch",
+            cancelled ? "Resource request was cancelled" : curl_easy_strerror(result)));
+    }
+    long status = 0;
+    curl_easy_getinfo(handle.get(), CURLINFO_RESPONSE_CODE, &status);
+    if (status >= 400)
+        return std::unexpected(make_error("http_error", "Server returned HTTP " + std::to_string(status)));
+    return output.data;
+}
+
 Result<RemoteFileInfo> probe_url(const std::string& url) {
     return probe_url_impl(url);
 }
