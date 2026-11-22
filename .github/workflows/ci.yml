@@ -207,6 +207,19 @@ jobs:
           arch: android_arm64_v8a
           archives: qtbase qtdeclarative qtshadertools
           cache: true
+      - name: Preserve Android Qt package root
+        shell: bash
+        run: echo "QT_ANDROID_ROOT=$QT_ROOT_DIR" >> "$GITHUB_ENV"
+      - name: Install matching Qt host tools
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.8.3"
+          host: linux
+          target: desktop
+          arch: gcc_64
+          dir: ${{ github.workspace }}/Qt
+          archives: qtbase qtdeclarative qtshadertools
+          cache: true
       - name: Configure Android SDK and Qt-compatible NDK
         shell: bash
         run: |
@@ -270,7 +283,7 @@ jobs:
       - name: Install CMake and Ninja
         uses: lukka/get-cmake@latest
       - name: Configure Qt Android application
-        run: cmake --preset android-arm64 -DVORTEX_BUILD_UI=ON -DVORTEX_BUILD_TESTS=OFF -DQt6_DIR="$QT_ROOT_DIR/lib/cmake/Qt6" -DQT_ANDROID_SIGN_APK:BOOL=ON -DQT_ANDROID_SIGN_AAB:BOOL=ON
+        run: cmake --preset android-arm64 -DVORTEX_BUILD_UI=ON -DVORTEX_BUILD_TESTS=OFF -DQt6_DIR="$QT_ANDROID_ROOT/lib/cmake/Qt6" -DQT_HOST_PATH="$QT_ROOT_DIR" -DQT_ANDROID_SIGN_APK:BOOL=ON -DQT_ANDROID_SIGN_AAB:BOOL=ON
       - name: Build installable Android APK
         run: cmake --build --preset android-arm64 --target apk --parallel 2
       - name: Build Android App Bundle
