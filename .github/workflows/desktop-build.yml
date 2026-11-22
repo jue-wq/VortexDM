@@ -22,10 +22,12 @@ jobs:
             qt-host: linux
             qt-arch: linux_gcc_64
             artifact: vortexdm-linux-x64
+            qt-archives: qtbase qtdeclarative qtshadertools icu
           - os: windows-latest
             qt-host: windows
             qt-arch: win64_msvc2022_64
             artifact: vortexdm-windows-x64
+            qt-archives: qtbase qtdeclarative qtshadertools
     runs-on: ${{ matrix.os }}
     timeout-minutes: 55
     steps:
@@ -77,7 +79,7 @@ jobs:
           target: desktop
           arch: ${{ matrix.qt-arch }}
           dir: ${{ runner.temp }}
-          archives: qtbase qtdeclarative qtshadertools
+          archives: ${{ matrix.qt-archives }}
           cache: true
       - name: Configure desktop UI (Linux)
         if: runner.os == 'Linux'

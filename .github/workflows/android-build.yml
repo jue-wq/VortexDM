@@ -93,7 +93,11 @@ jobs:
           {
             echo "QT_ANDROID_ROOT=$qt_root/android_arm64_v8a"
             echo "QT_HOST_PATH=$qt_root/gcc_64"
-            echo "LD_LIBRARY_PATH=$qt_root/gcc_64/lib:${LD_LIBRARY_PATH:-}"
+            clean_ld_path="$qt_root/gcc_64/lib"
+            while IFS= read -r path; do
+              [[ -n "$path" && "$path" != "$qt_root/android_arm64_v8a/lib" && "$path" != "$qt_root/gcc_64/lib" ]] && clean_ld_path="$clean_ld_path:$path"
+            done < <(printf '%s' "${LD_LIBRARY_PATH:-}" | tr ':' '\\n')
+            echo "LD_LIBRARY_PATH=$clean_ld_path"
           } >> "$GITHUB_ENV"
       - name: Create temporary CI signing key
         shell: bash
@@ -116,6 +120,7 @@ jobs:
             -DQT_ANDROID_ROOT="$QT_ANDROID_ROOT" \
             -DQT_HOST_PATH="$QT_HOST_PATH" \
             -DCMAKE_PREFIX_PATH="$QT_ANDROID_ROOT" \
+            -DCMAKE_CXX_SCAN_FOR_MODULES=OFF \
             -DQT_DEBUG_FIND_PACKAGE=ON \
             -DQT_ANDROID_SIGN_APK:BOOL=ON -DQT_ANDROID_SIGN_AAB:BOOL=ON; then
             echo "Android Qt configure succeeded"
