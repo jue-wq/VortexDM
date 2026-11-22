@@ -38,7 +38,7 @@ The Android CI pipeline has two distinct outputs:
 - `vortexdm-android-arm64.apk`: standalone installable Android package, built with the Qt 6.8.3 Android kit
 - `vortexdm-android-arm64.aab`: standalone Android App Bundle for Play Console upload
 
-The APK and AAB are published as separate files, not combined into a ZIP. Tag releases also attach each file separately to the GitHub Release. CI packages use Qt/Gradle's debug signing unless release signing credentials are configured; they are suitable for device testing, not a production Play Store release. A production-signed APK/AAB still requires a protected Android keystore and signing secrets.
+The APK and AAB are published as separate files, not combined into a ZIP. Tag releases also attach each file separately to the GitHub Release. CI packages use Qt/Gradle debug signing and are suitable for device testing, not a production Play Store release. Production keystore integration is not configured yet; a protected Android keystore and signing workflow remain required for store distribution.
 
 The workflow uses Android arm64-v8a, API 28 minimum, Qt 6.8.3, JDK 17 and the Qt-compatible Android NDK. The APK build explicitly invokes the Qt `vortexdm_make_apk` target; AAB invokes `vortexdm_make_aab`.
 
