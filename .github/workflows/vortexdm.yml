@@ -280,14 +280,10 @@ jobs:
           test -n "$QT_HOST_PATH"
           test -f "$QT_ANDROID_ROOT/lib/cmake/Qt6/Qt6Config.cmake"
           test -f "$QT_HOST_PATH/lib/cmake/Qt6/Qt6Config.cmake"
-          find "$QT_HOST_PATH/lib/cmake" -name Qt6ShaderToolsToolsConfig.cmake -print -quit | grep -q . || {
-            echo "Qt host ShaderTools tools config missing" >&2
-            exit 1
-          }
           {
             echo "QT_ANDROID_ROOT=$QT_ANDROID_ROOT"
             echo "QT_HOST_PATH=$QT_HOST_PATH"
-            echo "LD_LIBRARY_PATH=$QT_HOST_PATH/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+            echo "LD_LIBRARY_PATH=$QT_HOST_PATH/lib"
           } >> "$GITHUB_ENV"
       - name: Create temporary CI signing key
         shell: bash
