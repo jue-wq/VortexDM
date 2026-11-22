@@ -140,7 +140,7 @@ bool DownloadListModel::exportDownload(const QString& taskId) {
     const auto source_path = QJniObject::fromString(QString::fromStdString(source.string()));
     const auto display_name = QJniObject::fromString(QString::fromStdString(source.filename().string()));
     const auto context = QNativeInterface::QAndroidApplication::context();
-    if (android_get_device_api_level() >= 29) {
+    if (QJniObject::getStaticField<jint>("android/os/Build$VERSION", "SDK_INT") >= 29) {
         const jboolean exported = QJniObject::callStaticMethod<jboolean>(
             "org/vortexdm/VortexForegroundService", "exportToDownloads",
             "(Landroid/content/Context;Ljava/lang/String;Ljava/lang/String;)Z",
