@@ -123,6 +123,8 @@ jobs:
             -DVCPKG_OVERLAY_TRIPLETS="$GITHUB_WORKSPACE/triplets" \
             -DQT_ANDROID_ROOT="$QT_ANDROID_ROOT" \
             -DQT_HOST_PATH="$QT_HOST_PATH" \
+            -DQT_HOST_PATH_CMAKE_DIR="$QT_HOST_PATH/lib/cmake" \
+            -DANDROID_SDK_ROOT="$ANDROID_SDK_ROOT" \
             -DCMAKE_PREFIX_PATH="$QT_ANDROID_ROOT" \
             -DCMAKE_CXX_SCAN_FOR_MODULES=OFF \
             -DQT_DEBUG_FIND_PACKAGE=ON \
