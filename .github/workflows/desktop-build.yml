@@ -131,7 +131,6 @@ jobs:
           fi
 
           # Keep the executable relocatable when the archive is extracted elsewhere.
-          patchelf --set-rpath '$ORIGIN/../lib' "$app"
           cat > "$stage/vortexdm" <<'WRAPPER'
           #!/usr/bin/env bash
           set -euo pipefail
@@ -144,7 +143,7 @@ jobs:
           WRAPPER
           chmod +x "$stage/vortexdm"
 
-          ldd "$app" | tee "$RUNNER_TEMP/vortexdm-ldd.txt"
+          LD_LIBRARY_PATH="$stage/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" ldd "$app" | tee "$RUNNER_TEMP/vortexdm-ldd.txt"
           if grep -q 'not found' "$RUNNER_TEMP/vortexdm-ldd.txt"; then
             echo "Unresolved shared libraries in Linux runtime bundle" >&2
             exit 1
