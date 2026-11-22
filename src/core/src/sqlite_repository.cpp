@@ -585,7 +585,10 @@ Result<std::optional<DownloadRecord>> SqliteRepository::claim_next_queued_downlo
     Statement statement(db_, R"SQL(
       SELECT id, task_type, url, filename, save_dir, queue_id, status, total_bytes, downloaded_bytes,
              etag, last_modified, headers_json, extractor_origin_url, video_format_id, audio_format_id
-      FROM downloads WHERE status='Queued' ORDER BY created_at, id LIMIT 1;
+      FROM downloads d
+      INNER JOIN queues q ON q.id=d.queue_id
+      WHERE d.status='Queued' AND q.is_active=1
+      ORDER BY d.created_at, d.id LIMIT 1;
     )SQL");
     if (!statement.valid()) {
         (void)execute("ROLLBACK;");
