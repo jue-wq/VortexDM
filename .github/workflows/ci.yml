@@ -204,7 +204,7 @@ jobs:
           name: vortexdm-android-arm64-aab
           path: release-assets/android
       - name: Publish individual build files
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'nightly' }}
           name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'VortexDM Nightly' }}
