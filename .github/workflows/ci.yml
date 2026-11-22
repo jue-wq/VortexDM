@@ -11,6 +11,7 @@ concurrency:
 jobs:
   checkpoint:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -18,6 +19,7 @@ jobs:
           python-version: "3.12"
       - run: python tools/check_progress.py
   desktop-build:
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -44,6 +46,7 @@ jobs:
             build/desktop/vortex-native-host*
   android-arm64:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - name: Configure Android SDK and NDK
@@ -72,6 +75,7 @@ jobs:
           path: build/android-arm64/libvortex_core.a
   sanitizers:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
