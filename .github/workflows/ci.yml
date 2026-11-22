@@ -210,7 +210,9 @@ jobs:
           cache: true
       - name: Preserve Android Qt package root
         shell: bash
-        run: echo "QT_ANDROID_ROOT=$QT_ROOT_DIR" >> "$GITHUB_ENV"
+        run: |
+          echo "QT_ANDROID_ROOT=$QT_ROOT_DIR" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$QT_HOST_PATH/lib:$LD_LIBRARY_PATH" >> "$GITHUB_ENV"
       - name: Install matching Qt host tools
         uses: jurplel/install-qt-action@v4
         with:
