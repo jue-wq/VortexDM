@@ -291,11 +291,19 @@ vortex::Result<std::string> AndroidLoopbackServer::enqueueDownload(const json& p
     if (payload.contains("headers")) {
         if (!payload["headers"].is_object())
             return std::unexpected(vortex::make_error("invalid_headers", "headers must be a JSON object"));
+        json safe_headers = json::object();
         for (const auto& [name, value] : payload["headers"].items()) {
             if (name.empty() || !value.is_string())
                 return std::unexpected(vortex::make_error("invalid_headers", "Header names must be non-empty and values must be strings"));
+            auto normalized = name;
+            std::transform(normalized.begin(), normalized.end(), normalized.begin(),
+                [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+            // Never persist browser credentials in the download database.
+            if (normalized == "cookie" || normalized == "authorization" ||
+                normalized == "proxy-authorization" || normalized == "set-cookie") continue;
+            safe_headers[name] = value;
         }
-        record.headers_json = payload["headers"].dump();
+        record.headers_json = safe_headers.dump();
     } else {
         record.headers_json = "{}";
     }
