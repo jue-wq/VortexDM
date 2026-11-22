@@ -137,8 +137,10 @@ void DownloadQueueWorker::run() {
                 (void)repository_.update_download_progress(id, downloaded, total);
             }
         };
-        std::jthread task_monitor([this, id=task.id](std::stop_token monitor_stop) {
-            while (!monitor_stop.stop_requested() && !stop_requested_.load(std::memory_order_relaxed) &&
+        std::atomic_bool monitor_stop{false};
+        std::thread task_monitor([this, id=task.id, &monitor_stop] {
+            while (!monitor_stop.load(std::memory_order_relaxed) &&
+                   !stop_requested_.load(std::memory_order_relaxed) &&
                    !cancel_requested_.load(std::memory_order_relaxed)) {
                 const auto status = repository_.get_download_status(id);
                 if (!status || *status != "Downloading") {
@@ -236,7 +238,7 @@ void DownloadQueueWorker::run() {
                 }
             }
         }
-        task_monitor.request_stop();
+        monitor_stop.store(true, std::memory_order_relaxed);
         if (task_monitor.joinable()) task_monitor.join();
         if (result) {
             const auto final_status = repository_.get_download_status(task.id);
