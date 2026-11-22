@@ -220,12 +220,17 @@ jobs:
           host: linux
           target: desktop
           arch: linux_gcc_64
-          dir: ${{ github.workspace }}/Qt
+          dir: ${{ github.workspace }}
           modules: qtshadertools
           cache: true
       - name: Configure Qt host tool runtime
         shell: bash
-        run: echo "LD_LIBRARY_PATH=$QT_HOST_PATH/lib:$LD_LIBRARY_PATH" >> "$GITHUB_ENV"
+        run: |
+          echo "LD_LIBRARY_PATH=$QT_HOST_PATH/lib:$LD_LIBRARY_PATH" >> "$GITHUB_ENV"
+          echo "Android Qt root: $QT_ANDROID_ROOT"
+          echo "Qt host root: $QT_ROOT_DIR"
+          find "$QT_ANDROID_ROOT/lib/cmake" -maxdepth 2 -type f \( -name 'Qt6QuickConfig.cmake' -o -name 'Qt6QmlConfig.cmake' \) -print
+          find "$QT_ROOT_DIR/lib/cmake" -maxdepth 2 -type f \( -name 'Qt6QmlToolsConfig.cmake' -o -name 'Qt6QuickToolsConfig.cmake' \) -print
       - name: Configure Android SDK and Qt-compatible NDK
         shell: bash
         run: |
@@ -289,7 +294,7 @@ jobs:
       - name: Install CMake and Ninja
         uses: lukka/get-cmake@latest
       - name: Configure Qt Android application
-        run: cmake --preset android-arm64 -DVORTEX_BUILD_UI=ON -DVORTEX_BUILD_TESTS=OFF -DQt6_DIR="$QT_ANDROID_ROOT/lib/cmake/Qt6" -DQT_HOST_PATH="$QT_ROOT_DIR" -DQT_ANDROID_SIGN_APK:BOOL=ON -DQT_ANDROID_SIGN_AAB:BOOL=ON
+        run: cmake --preset android-arm64 -DVORTEX_BUILD_UI=ON -DVORTEX_BUILD_TESTS=OFF -DQt6_DIR="$QT_ANDROID_ROOT/lib/cmake/Qt6" -DQT_HOST_PATH="$QT_ROOT_DIR" -DQT_ANDROID_SIGN_APK:BOOL=ON -DQT_ANDROID_SIGN_AAB:BOOL=ON -DQT_DEBUG_FIND_PACKAGE=ON
       - name: Build installable Android APK
         run: cmake --build --preset android-arm64 --target apk --parallel 2
       - name: Build Android App Bundle
