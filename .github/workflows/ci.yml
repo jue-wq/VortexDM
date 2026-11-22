@@ -98,9 +98,10 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          & "$env:GITHUB_WORKSPACE\\vcpkg\\bootstrap-vcpkg.bat" -disableMetrics
-          "VCPKG_ROOT=$env:GITHUB_WORKSPACE\\vcpkg" >> $env:GITHUB_ENV
-          "VCPKG_DEFAULT_BINARY_CACHE=$env:GITHUB_WORKSPACE\\.vcpkg-cache" >> $env:GITHUB_ENV
+          $VcpkgPath = Join-Path $env:GITHUB_WORKSPACE 'vcpkg'
+          & (Join-Path $VcpkgPath 'bootstrap-vcpkg.bat') -disableMetrics
+          "VCPKG_ROOT=$VcpkgPath" >> $env:GITHUB_ENV
+          "VCPKG_DEFAULT_BINARY_CACHE=$(Join-Path $env:GITHUB_WORKSPACE '.vcpkg-cache')" >> $env:GITHUB_ENV
       - name: Bootstrap vcpkg on Linux
         if: runner.os != 'Windows'
         shell: bash
