@@ -1,0 +1,338 @@
+name: VortexDM
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  VCPKG_BINARY_SOURCES: default,readwrite
+  VCPKG_COMMIT: 93ad765c7b66ab9ce97469ec23a90b15c3a14ee5
+
+jobs:
+  core-tests:
+    name: Core tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            triplet: x64-linux-release
+          - os: windows-latest
+            triplet: x64-windows-release
+    steps:
+      - uses: actions/checkout@v5
+      - name: Enable MSVC
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Install build tools
+        if: runner.os == 'Linux'
+        run: sudo apt-get update -qq && sudo apt-get install -y ninja-build
+      - name: Install Ninja
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (-not (Get-Command ninja -ErrorAction SilentlyContinue)) { choco install ninja --yes --no-progress }
+          ninja --version
+      - uses: actions/checkout@v5
+        with:
+          repository: microsoft/vcpkg
+          ref: ${{ env.VCPKG_COMMIT }}
+          path: vcpkg
+          persist-credentials: false
+      - name: Bootstrap vcpkg (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          ./vcpkg/bootstrap-vcpkg.sh -disableMetrics
+          mkdir -p "$GITHUB_WORKSPACE/.vcpkg-cache"
+          echo "VCPKG_ROOT=$GITHUB_WORKSPACE/vcpkg" >> "$GITHUB_ENV"
+          echo "VCPKG_DEFAULT_BINARY_CACHE=$GITHUB_WORKSPACE/.vcpkg-cache" >> "$GITHUB_ENV"
+      - name: Bootstrap vcpkg (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          & "$env:GITHUB_WORKSPACE\vcpkg\bootstrap-vcpkg.bat" -disableMetrics
+          New-Item -ItemType Directory -Force -Path "$env:GITHUB_WORKSPACE\.vcpkg-cache" | Out-Null
+          "VCPKG_ROOT=$env:GITHUB_WORKSPACE\vcpkg" >> $env:GITHUB_ENV
+          "VCPKG_DEFAULT_BINARY_CACHE=$env:GITHUB_WORKSPACE\.vcpkg-cache" >> $env:GITHUB_ENV
+      - uses: actions/cache@v5
+        with:
+          path: .vcpkg-cache
+          key: ${{ runner.os }}-${{ matrix.triplet }}-${{ hashFiles('vcpkg.json') }}
+          restore-keys: ${{ runner.os }}-${{ matrix.triplet }}-
+      - name: Configure core (GCC)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          cmake -S . -B build/core -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" \
+            -DVCPKG_TARGET_TRIPLET=x64-linux-release \
+            -DVCPKG_OVERLAY_TRIPLETS="$GITHUB_WORKSPACE/triplets" \
+            -DVORTEX_BUILD_TESTS=ON -DVORTEX_BUILD_UI=OFF
+      - name: Configure core (MSVC)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          cmake -S . -B build/core -G Ninja -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_BUILD_TYPE=Release "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=x64-windows-release "-DVCPKG_OVERLAY_TRIPLETS=$env:GITHUB_WORKSPACE\triplets" -DVORTEX_BUILD_TESTS=ON -DVORTEX_BUILD_UI=OFF
+      - name: Build required core targets
+        run: cmake --build build/core --target vortex_core vortex-cli vortex-native-host --parallel 2
+      - name: Run CTest
+        run: ctest --test-dir build/core --output-on-failure
+
+  build-windows:
+    needs: core-tests
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Install Ninja
+        shell: pwsh
+        run: |
+          if (-not (Get-Command ninja -ErrorAction SilentlyContinue)) { choco install ninja --yes --no-progress }
+      - uses: actions/checkout@v5
+        with:
+          repository: microsoft/vcpkg
+          ref: ${{ env.VCPKG_COMMIT }}
+          path: vcpkg
+          persist-credentials: false
+      - name: Bootstrap vcpkg
+        shell: pwsh
+        run: |
+          & "$env:GITHUB_WORKSPACE\vcpkg\bootstrap-vcpkg.bat" -disableMetrics
+          New-Item -ItemType Directory -Force -Path "$env:GITHUB_WORKSPACE\.vcpkg-cache" | Out-Null
+          "VCPKG_ROOT=$env:GITHUB_WORKSPACE\vcpkg" >> $env:GITHUB_ENV
+          "VCPKG_DEFAULT_BINARY_CACHE=$env:GITHUB_WORKSPACE\.vcpkg-cache" >> $env:GITHUB_ENV
+      - uses: actions/cache@v5
+        with:
+          path: .vcpkg-cache
+          key: Windows-x64-windows-release-${{ hashFiles('vcpkg.json') }}
+          restore-keys: Windows-x64-windows-release-
+      - uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.8.3"
+          host: windows
+          target: desktop
+          arch: win64_msvc2022_64
+          dir: ${{ runner.temp }}/qt
+          archives: qtbase qtdeclarative qtshadertools
+          cache: true
+      - name: Configure Windows Qt application
+        shell: pwsh
+        run: cmake -S . -B build/desktop -G Ninja -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_BUILD_TYPE=Release "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=x64-windows-release "-DVCPKG_OVERLAY_TRIPLETS=$env:GITHUB_WORKSPACE\triplets" "-DCMAKE_PREFIX_PATH=$env:QT_ROOT_DIR" -DVORTEX_BUILD_UI=ON -DVORTEX_BUILD_TESTS=OFF
+      - name: Build Windows UI
+        run: cmake --build build/desktop --target vortexdm --parallel 2
+      - name: Bundle Windows runtime
+        shell: pwsh
+        run: ./scripts/ci/bundle_windows.ps1
+      - uses: actions/upload-artifact@v6
+        with:
+          name: VortexDM-windows-x64
+          path: VortexDM-windows-x64.zip
+          if-no-files-found: error
+          retention-days: 30
+
+  build-linux:
+    needs: core-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install Ninja
+        run: sudo apt-get update -qq && sudo apt-get install -y ninja-build
+      - uses: actions/checkout@v5
+        with:
+          repository: microsoft/vcpkg
+          ref: ${{ env.VCPKG_COMMIT }}
+          path: vcpkg
+          persist-credentials: false
+      - name: Bootstrap vcpkg
+        shell: bash
+        run: |
+          ./vcpkg/bootstrap-vcpkg.sh -disableMetrics
+          mkdir -p "$GITHUB_WORKSPACE/.vcpkg-cache"
+          echo "VCPKG_ROOT=$GITHUB_WORKSPACE/vcpkg" >> "$GITHUB_ENV"
+          echo "VCPKG_DEFAULT_BINARY_CACHE=$GITHUB_WORKSPACE/.vcpkg-cache" >> "$GITHUB_ENV"
+      - uses: actions/cache@v5
+        with:
+          path: .vcpkg-cache
+          key: Linux-x64-linux-release-${{ hashFiles('vcpkg.json') }}
+          restore-keys: Linux-x64-linux-release-
+      - uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.8.3"
+          host: linux
+          target: desktop
+          arch: linux_gcc_64
+          dir: ${{ runner.temp }}/qt
+          archives: qtbase qtdeclarative qtshadertools icu
+          cache: true
+      - name: Configure Linux Qt application
+        shell: bash
+        run: |
+          export LD_LIBRARY_PATH="$QT_ROOT_DIR/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+          cmake -S . -B build/desktop -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" \
+            -DVCPKG_TARGET_TRIPLET=x64-linux-release \
+            -DVCPKG_OVERLAY_TRIPLETS="$GITHUB_WORKSPACE/triplets" \
+            -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR" \
+            -DVORTEX_BUILD_UI=ON -DVORTEX_BUILD_TESTS=OFF
+      - name: Build all Linux install targets
+        run: cmake --build build/desktop --parallel 2
+      - name: Bundle Linux runtime
+        shell: bash
+        run: bash scripts/ci/bundle_linux.sh
+      - uses: actions/upload-artifact@v6
+        with:
+          name: VortexDM-linux-x64
+          path: VortexDM-linux-x64.tar.gz
+          if-no-files-found: error
+          retention-days: 30
+
+  build-android:
+    needs: core-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Install Android SDK, NDK and build tools
+        shell: bash
+        run: |
+          sdk="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          echo "ANDROID_SDK_ROOT=$sdk" >> "$GITHUB_ENV"
+          sdkmanager="$(find "$sdk/cmdline-tools" -name sdkmanager -type f | sort | tail -n 1)"
+          test -n "$sdkmanager" || { echo "sdkmanager not found" >&2; exit 1; }
+          yes | "$sdkmanager" --licenses >/dev/null || true
+          "$sdkmanager" "ndk;26.1.10909125" "platforms;android-35" "build-tools;35.0.0"
+          echo "ANDROID_NDK_HOME=$sdk/ndk/26.1.10909125" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=$sdk/ndk/26.1.10909125" >> "$GITHUB_ENV"
+      - uses: lukka/get-cmake@latest
+      - uses: actions/checkout@v5
+        with:
+          repository: microsoft/vcpkg
+          ref: ${{ env.VCPKG_COMMIT }}
+          path: vcpkg
+          persist-credentials: false
+      - name: Bootstrap vcpkg
+        shell: bash
+        run: |
+          ./vcpkg/bootstrap-vcpkg.sh -disableMetrics
+          mkdir -p "$GITHUB_WORKSPACE/.vcpkg-cache"
+          echo "VCPKG_ROOT=$GITHUB_WORKSPACE/vcpkg" >> "$GITHUB_ENV"
+          echo "VCPKG_DEFAULT_BINARY_CACHE=$GITHUB_WORKSPACE/.vcpkg-cache" >> "$GITHUB_ENV"
+      - uses: actions/cache@v5
+        with:
+          path: .vcpkg-cache
+          key: Linux-arm64-android-release-${{ hashFiles('vcpkg.json') }}
+          restore-keys: Linux-arm64-android-release-
+      - name: Install Qt Android target
+        id: qt_android
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.8.3"
+          host: all_os
+          target: android
+          arch: android_arm64_v8a
+          dir: ${{ runner.temp }}/qt
+          archives: qtbase qtdeclarative qtshadertools
+          cache: true
+      - name: Install matching Qt host tools
+        id: qt_host
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.8.3"
+          host: linux
+          target: desktop
+          arch: linux_gcc_64
+          dir: ${{ runner.temp }}/qt
+          archives: qtbase qtdeclarative qtshadertools
+          cache: true
+      - name: Set consistent Qt roots
+        shell: bash
+        env:
+          QT_ANDROID_ROOT: ${{ steps.qt_android.outputs.qt-root-dir }}
+          QT_HOST_PATH: ${{ steps.qt_host.outputs.qt-root-dir }}
+        run: |
+          set -euo pipefail
+          test -n "$QT_ANDROID_ROOT"
+          test -n "$QT_HOST_PATH"
+          test -f "$QT_ANDROID_ROOT/lib/cmake/Qt6/Qt6Config.cmake"
+          test -f "$QT_HOST_PATH/lib/cmake/Qt6/Qt6Config.cmake"
+          find "$QT_HOST_PATH/lib/cmake" -name Qt6ShaderToolsToolsConfig.cmake -print -quit | grep -q . || {
+            echo "Qt host ShaderTools tools config missing" >&2
+            exit 1
+          }
+          {
+            echo "QT_ANDROID_ROOT=$QT_ANDROID_ROOT"
+            echo "QT_HOST_PATH=$QT_HOST_PATH"
+            echo "LD_LIBRARY_PATH=$QT_HOST_PATH/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+          } >> "$GITHUB_ENV"
+      - name: Create temporary CI signing key
+        shell: bash
+        run: |
+          key="$RUNNER_TEMP/vortexdm-ci.keystore"
+          keytool -genkeypair -v -keystore "$key" -storepass "vortexdm-ci-only" -alias vortexdm-ci -keypass "vortexdm-ci-only" -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=VortexDM CI,O=VortexDM,C=US"
+          {
+            echo "QT_ANDROID_KEYSTORE_PATH=$key"
+            echo "QT_ANDROID_KEYSTORE_ALIAS=vortexdm-ci"
+            echo "QT_ANDROID_KEYSTORE_STORE_PASS=vortexdm-ci-only"
+            echo "QT_ANDROID_KEYSTORE_KEY_PASS=vortexdm-ci-only"
+          } >> "$GITHUB_ENV"
+      - name: Configure Android Qt application
+        shell: bash
+        run: |
+          cmake --preset android-arm64 \
+            -DVORTEX_BUILD_UI=ON -DVORTEX_BUILD_TESTS=OFF \
+            -DVCPKG_TARGET_TRIPLET=arm64-android-release \
+            -DVCPKG_OVERLAY_TRIPLETS="$GITHUB_WORKSPACE/triplets" \
+            -DQT_ANDROID_ROOT="$QT_ANDROID_ROOT" \
+            -DQT_HOST_PATH="$QT_HOST_PATH" \
+            -DQT_HOST_PATH_CMAKE_DIR="$QT_HOST_PATH/lib/cmake" \
+            -DANDROID_SDK_ROOT="$ANDROID_SDK_ROOT" \
+            -DCMAKE_PREFIX_PATH="$QT_ANDROID_ROOT" \
+            -DCMAKE_CXX_SCAN_FOR_MODULES=OFF
+      - name: Build standalone APK
+        run: cmake --build --preset android-arm64 --target apk --parallel 2
+      - name: Validate standalone APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t apks < <(find build/android-arm64 -type f -name '*.apk' -print)
+          if (( ${#apks[@]} != 1 )); then
+            printf 'Expected exactly one APK, found %s\n' "${#apks[@]}" >&2
+            printf '%s\n' "${apks[@]}" >&2
+            exit 1
+          fi
+          mkdir -p release-assets
+          cp "${apks[0]}" release-assets/VortexDM-android-arm64.apk
+          unzip -t release-assets/VortexDM-android-arm64.apk
+          unzip -l release-assets/VortexDM-android-arm64.apk | grep -E 'lib/arm64-v8a/.*\.so'
+          "$ANDROID_SDK_ROOT/build-tools/35.0.0/apksigner" verify --verbose release-assets/VortexDM-android-arm64.apk
+      - uses: actions/upload-artifact@v6
+        with:
+          name: VortexDM-android-arm64
+          path: release-assets/VortexDM-android-arm64.apk
+          if-no-files-found: error
+          retention-days: 30
