@@ -235,6 +235,23 @@ Result<nlohmann::json> NativeMessagingHost::dispatch(const nlohmann::json& reque
             {"payload",{{"accepted",true},{"task_id",*task_id}}}
         };
     }
+    if (type == "task_status") {
+        if (!repository_) return std::unexpected(make_error("database_unavailable", initialization_error_));
+        const auto records = repository_->list_downloads();
+        if (!records) return std::unexpected(records.error());
+        std::size_t limit = 20U;
+        if (payload.contains("limit") && payload["limit"].is_number_unsigned())
+            limit = std::clamp<std::size_t>(payload["limit"].get<std::size_t>(), 1U, 50U);
+        nlohmann::json tasks = nlohmann::json::array();
+        for (auto it = records->rbegin(); it != records->rend() && tasks.size() < limit; ++it) {
+            tasks.push_back({{"id",it->id},{"filename",it->filename},{"status",it->status},
+                {"downloaded_bytes",it->downloaded_bytes},{"total_bytes",it->total_bytes}});
+        }
+        return nlohmann::json{
+            {"protocol_version",1},{"request_id",request_id},{"timestamp",timestamp},{"type","ack"},
+            {"payload",{{"accepted",true},{"tasks",std::move(tasks)}}}
+        };
+    }
     if (type == "task_control") {
         if (!repository_ || !payload.contains("task_id") || !payload["task_id"].is_string() ||
             !payload.contains("action") || !payload["action"].is_string()) {
