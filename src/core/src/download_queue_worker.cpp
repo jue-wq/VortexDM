@@ -120,7 +120,7 @@ void DownloadQueueWorker::run() {
             (void)repository_.update_download_status(task.id, "Error", filesystem_error.message());
             continue;
         }
-        if (!token.stop_requested()) cancel_requested_.store(false, std::memory_order_relaxed);
+        if (!stop_requested_.load(std::memory_order_relaxed)) cancel_requested_.store(false, std::memory_order_relaxed);
         DownloadOptions options;
         options.max_connections = 8U;
         options.transfer_timeout_ms = 30L * 60L * 1000L;
@@ -137,8 +137,8 @@ void DownloadQueueWorker::run() {
                 (void)repository_.update_download_progress(id, downloaded, total);
             }
         };
-        std::jthread task_monitor([this, id=task.id, &token](std::stop_token monitor_stop) {
-            while (!monitor_stop.stop_requested() && !token.stop_requested() &&
+        std::jthread task_monitor([this, id=task.id](std::stop_token monitor_stop) {
+            while (!monitor_stop.stop_requested() && !stop_requested_.load(std::memory_order_relaxed) &&
                    !cancel_requested_.load(std::memory_order_relaxed)) {
                 const auto status = repository_.get_download_status(id);
                 if (!status || *status != "Downloading") {
@@ -240,7 +240,7 @@ void DownloadQueueWorker::run() {
         if (task_monitor.joinable()) task_monitor.join();
         if (result) {
             const auto final_status = repository_.get_download_status(task.id);
-            if (token.stop_requested() || !final_status || *final_status != "Downloading")
+            if (stop_requested_.load(std::memory_order_relaxed) || !final_status || *final_status != "Downloading")
                 result = std::unexpected(make_error("download_cancelled", "Task was paused or cancelled before completion"));
         }
         if (result) {
@@ -250,7 +250,7 @@ void DownloadQueueWorker::run() {
             const auto final_size = std::filesystem::file_size(completed_path, size_error);
             if (!size_error) (void)repository_.update_download_progress(task.id, final_size, final_size);
             (void)repository_.update_download_status(task.id, "Completed");
-        } else if (result.error().code == "download_cancelled" || result.error().code == "process_cancelled" || token.stop_requested()) {
+        } else if (result.error().code == "download_cancelled" || result.error().code == "process_cancelled" || stop_requested_.load(std::memory_order_relaxed)) {
             if (!task.task_type.starts_with("media_extract")) {
                 const auto stream = repository_.get_stream_for_download(task.id);
                 if (stream && *stream) {
@@ -263,7 +263,7 @@ void DownloadQueueWorker::run() {
                     }
                 }
             }
-            if (token.stop_requested()) {
+            if (stop_requested_.load(std::memory_order_relaxed)) {
                 (void)repository_.update_download_status(task.id, "Queued", "Interrupted by application shutdown");
             } else {
                 const auto current_status = repository_.get_download_status(task.id);
