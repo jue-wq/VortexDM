@@ -417,13 +417,23 @@ jobs:
               text = (root / name).read_text()
               assert text.strip()
           PY
+          node --check extension/background.js
+          node --check extension/popup.js
+          node --check extension/options.js
       - name: Package standalone browser extension files
         run: |
-          mkdir -p release-assets/extension
-          cd extension
-          zip -X -r ../release-assets/extension/vortexdm-browser-bridge-chromium.zip .
-          zip -X -r ../release-assets/extension/vortexdm-browser-bridge-firefox.xpi .
-          cd ..
+          mkdir -p release-assets/extension/chromium release-assets/extension/firefox
+          cp -R extension/. release-assets/extension/chromium/
+          cp -R extension/. release-assets/extension/firefox/
+          python - <<'PY'
+          import json, pathlib
+          manifest_path = pathlib.Path("release-assets/extension/firefox/manifest.json")
+          manifest = json.loads(manifest_path.read_text())
+          manifest["background"] = {"scripts": ["background.js"]}
+          manifest_path.write_text(json.dumps(manifest, indent=2) + "\\n")
+          PY
+          (cd release-assets/extension/chromium && zip -X -r ../vortexdm-browser-bridge-chromium.zip .)
+          (cd release-assets/extension/firefox && zip -X -r ../vortexdm-browser-bridge-firefox.xpi .)
           unzip -t release-assets/extension/vortexdm-browser-bridge-chromium.zip
           unzip -t release-assets/extension/vortexdm-browser-bridge-firefox.xpi
       - uses: actions/upload-artifact@v6
