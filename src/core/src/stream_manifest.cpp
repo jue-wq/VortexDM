@@ -61,7 +61,7 @@ Result<HlsManifest> parse_hls_playlist(const std::string& text, const std::strin
     auto base = parse_http_url(playlist_url);
     if (!base) return std::unexpected(base.error());
     if (text.size() > 8U * 1024U * 1024U) return std::unexpected(make_error("manifest_size", "HLS playlist exceeds 8 MiB"));
-    if (text.find("#EXTM3U") == std::string::npos) return std::unexpected(make_error("hls_header", "HLS playlist must start with #EXTM3U"));
+    
     HlsManifest manifest;
     bool awaiting_variant = false;
     bool awaiting_segment = false;
@@ -71,11 +71,17 @@ Result<HlsManifest> parse_hls_playlist(const std::string& text, const std::strin
     double pending_duration = 0.0;
     std::string pending_title;
     std::size_t offset = 0;
+    bool header_seen = false;
     while (offset <= text.size()) {
         const auto end = text.find('\n', offset);
         auto line = trim_line(text.substr(offset, end == std::string::npos ? std::string::npos : end - offset));
         offset = end == std::string::npos ? text.size() + 1U : end + 1U;
         if (line.empty()) continue;
+        if (!header_seen) {
+            if (line != "#EXTM3U") return std::unexpected(make_error("hls_header", "HLS playlist must start with #EXTM3U"));
+            header_seen = true;
+            continue;
+        }
         if (line == "#EXT-X-ENDLIST") { manifest.live = false; continue; }
         if (line.starts_with("#EXT-X-STREAM-INF:")) {
             manifest.master_playlist = true;
@@ -102,7 +108,9 @@ Result<HlsManifest> parse_hls_playlist(const std::string& text, const std::strin
                 const auto key_uri = resolve_uri(playlist_url, attribute(line, "URI"));
                 if (!key_uri) return std::unexpected(key_uri.error());
                 manifest.aes128_key_uri = *key_uri;
-            } else if (method != "NONE" && !method.empty()) {
+            } else if (method == "NONE") {
+                manifest.aes128_key_uri.reset();
+            } else if (!method.empty()) {
                 return std::unexpected(make_error("hls_encryption_unsupported", "Only HLS AES-128 and unencrypted playlists are supported; SAMPLE-AES/DRM is not handled"));
             }
             continue;
