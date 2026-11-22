@@ -80,7 +80,7 @@ bool test_resource_fetch_validation() {
     const auto empty_limit = vortex::fetch_resource("https://example.com/resource", 0U);
     if (empty_limit || empty_limit.error().code != "resource_limit") return false;
     const auto invalid_url = vortex::fetch_resource("file:///etc/passwd", 1024U);
-    return !invalid_url && invalid_url.error().code == "invalid_url";
+    return !invalid_url && invalid_url.error().code == "unsupported_scheme";
 }
 
 bool test_hls_and_dash_manifests() {
