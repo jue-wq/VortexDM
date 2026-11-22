@@ -134,6 +134,7 @@ Result<HlsManifest> parse_hls_playlist(const std::string& text, const std::strin
             pending_title.clear();
         }
     }
+    if (!header_seen) return std::unexpected(make_error("hls_header", "HLS playlist is empty or missing #EXTM3U"));
     if (awaiting_variant || awaiting_segment) {
         return std::unexpected(make_error("hls_truncated", "Playlist ended before a referenced variant or segment URI"));
     }
