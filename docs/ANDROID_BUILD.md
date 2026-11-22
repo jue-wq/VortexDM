@@ -32,8 +32,15 @@ https://addons.mozilla.org/android/addon/ublock-origin/
 
 Vortex Browser Bridge disables its own network and cosmetic filtering on Firefox for Android to avoid a duplicate blocker. uBO filters browser web content only; it is not a device-wide blocker.
 
-## CI build artifacts
-The current automated Android job cross-compiles the ARM64 core library and publishes `libvortex_core.a` as a GitHub Actions artifact. It does not build the Qt Android application and therefore does not produce an installable APK/AAB yet. A Qt for Android kit plus package/signing configuration is still required before APK/AAB artifacts can be published.
+## CI build artifacts and direct downloads
+The Android CI pipeline has two distinct outputs:
+- `libvortex_core.a`: the ARM64 core library, published as its own build artifact
+- `vortexdm-android-arm64.apk`: standalone installable Android package, built with the Qt 6.8.3 Android kit
+- `vortexdm-android-arm64.aab`: standalone Android App Bundle for Play Console upload
+
+The APK and AAB are published as separate files, not combined into a ZIP. Tag releases also attach each file separately to the GitHub Release. CI packages use Qt/Gradle's debug signing unless release signing credentials are configured; they are suitable for device testing, not a production Play Store release. A production-signed APK/AAB still requires a protected Android keystore and signing secrets.
+
+The workflow uses Android arm64-v8a, API 28 minimum, Qt 6.8.3, JDK 17 and the Qt-compatible Android NDK. The APK build explicitly invokes the Qt `vortexdm_make_apk` target; AAB invokes `vortexdm_make_aab`.
 
 ## Release gates still required
 - Build and install the arm64 APK on API 28, API 34 and current Android API devices
