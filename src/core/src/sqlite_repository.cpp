@@ -324,8 +324,9 @@ Result<void> SqliteRepository::save_download(const DownloadRecord& record) {
     )SQL");
     if (!statement.valid()) return std::unexpected(database_error(db_, "sqlite_prepare", "Could not prepare download upsert"));
 
+    const std::string queue_id = record.queue_id.empty() ? "default" : record.queue_id;
     const std::string* values[] = {
-        &record.id, &record.task_type, &record.url, &record.filename, &record.save_dir, &record.queue_id
+        &record.id, &record.task_type, &record.url, &record.filename, &record.save_dir, &queue_id
     };
     for (int index = 0; index < 6; ++index) {
         auto result = bind_text(statement.get(), index + 1, *values[index]);
